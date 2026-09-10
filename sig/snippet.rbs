@@ -1,0 +1,42 @@
+module Canopus
+  class Snippet
+    MAX_SOURCE: Integer
+    MAX_OUTPUT: Integer
+    MAX_DEPTH: Integer
+    MAX_NODES: Integer
+    VARIABLES: Array[String]
+
+    def initialize: (String source, ?variables: Hash[String | Symbol, String?]) -> void
+    attr_reader text: String
+    attr_reader tabstops: Hash[Integer, Array[Range[Integer]]]
+    attr_reader choices: Hash[Integer, Array[String]]
+    attr_reader transforms: Array[Occurrence]
+    attr_reader occurrences: Array[Occurrence]
+
+    class Occurrence < Data
+      attr_reader index: Integer
+      attr_reader range: Range[Integer]
+      attr_reader transform: Transform?
+      attr_reader parents: Array[Integer]
+      def self.new: (Integer index, Range[Integer] range, Transform? transform, Array[Integer] parents) -> instance
+    end
+
+    class Transform
+      TIMEOUT: Float
+      attr_reader pattern: String
+      attr_reader flags: String
+      def apply: (String value) -> String
+    end
+  end
+
+  class Editor
+    def insert_snippet: (String source, ?variables: Hash[String | Symbol, String?], ?workspace_root: String?, ?clipboard: String?) -> Snippet
+    def next_snippet: () -> bool
+    def previous_snippet: () -> bool
+    def snippet_active?: () -> bool
+    def snippet_choices: () -> Array[String]?
+    def choose_snippet: (String | Integer value) -> bool
+    def clear_snippet: () -> nil
+    def snippet_variables: (?workspace_root: String?, ?clipboard: String?, ?now: Time, ?selection: Selection, ?cursor_index: Integer) -> Hash[String, String?]
+  end
+end

@@ -1,0 +1,125 @@
+module Canopus
+  module Terminal
+    type color = Integer | [Integer, Integer, Integer] | nil
+    type attributes = Hash[Symbol, bool | Integer | [Integer, Integer, Integer]]
+    type mouse_action = :press | :move | :release
+    class Cell < Struct[untyped]
+      attr_accessor text: String
+      attr_accessor width: Integer
+      attr_accessor foreground: color
+      attr_accessor background: color
+      attr_accessor attributes: attributes
+      attr_accessor hyperlink: String?
+      def self.new: (text: String, width: Integer, ?foreground: color, ?background: color, attributes: attributes, ?hyperlink: String?) -> instance
+    end
+    class Scrollback
+      include Enumerable[Array[Cell]]
+      class Count < Struct[untyped]
+        attr_accessor lines: Integer
+        def self.new: (Integer lines) -> instance
+        def self.zero: () -> instance
+        def +: (Count other) -> Count
+      end
+      class Row < Struct[untyped]
+        attr_accessor cells: Array[Cell]
+        def self.new: (Array[Cell] cells) -> instance
+        def summary: () -> Count
+      end
+      attr_reader tree: Denebola::Tree
+      attr_reader limit: Integer
+      def initialize: (Integer limit) -> void
+      def clear: () -> Denebola::Tree
+      def length: () -> Integer
+      alias size length
+      def []: (Integer index) -> Array[Cell]?
+      def each: () -> Enumerator[Array[Cell], Denebola::Tree]
+              | () { (Array[Cell]) -> void } -> Denebola::Tree
+      def push: (Array[Cell] cells) -> Denebola::Tree?
+    end
+    class Grid
+      attr_reader columns: Integer
+      attr_reader rows: Integer
+      attr_reader cells: Array[Array[Cell]]
+      attr_reader scrollback: Scrollback
+      attr_reader cursor_x: Integer
+      attr_reader cursor_y: Integer
+      attr_reader scroll_top: Integer
+      attr_reader scroll_bottom: Integer
+      attr_accessor foreground: color
+      attr_accessor background: color
+      attr_accessor attributes: attributes
+      attr_accessor hyperlink: String?
+      attr_accessor autowrap: bool
+      attr_accessor insert_mode: bool
+      attr_accessor origin_mode: bool
+      attr_accessor cursor_visible: bool
+      def initialize: (?columns: Integer, ?rows: Integer, ?scrollback: Integer) -> void
+      def reset: () -> void
+      def []: (Integer row, ?nil column) -> Array[Cell]?
+            | (Integer row, Integer column) -> Cell?
+      def alternate?: () -> bool
+      def lines: () -> Array[String]
+      def text: () -> String
+      def put: (String char) -> void
+      def self.width: (String char) -> Integer
+      def move: (?x: Integer, ?y: Integer, ?relative: bool) -> void
+      def position: (Integer row, Integer column) -> void
+      def carriage_return: () -> void
+      def backspace: () -> void
+      def linefeed: () -> void
+      def reverse_index: () -> void
+      def tab: (?Integer count, ?backward: bool) -> void
+      def tab_set: () -> Array[Integer]
+      def tab_clear: (?all: bool) -> void
+      def margins: (?Integer top, ?Integer bottom) -> void
+      def scroll_up: (?Integer count) -> void
+      def scroll_down: (?Integer count) -> void
+      def erase_display: (?Integer mode) -> void
+      def erase_line: (?Integer mode) -> void
+      def erase_characters: (?Integer count) -> void
+      def insert_characters: (?Integer count) -> void
+      def delete_characters: (?Integer count) -> void
+      def insert_lines: (?Integer count) -> void
+      def delete_lines: (?Integer count) -> void
+      def save_cursor: () -> void
+      def restore_cursor: () -> void
+      def alternate: (bool enable, ?save: bool) -> void
+      def resize: (columns: Integer, rows: Integer) -> void
+      def selection: ([Integer, Integer] start, [Integer, Integer] finish, ?history: bool) -> String
+      def links: (Integer row) -> Array[{url: String, column: Integer, end_column: Integer}]
+      def file_paths: (Integer row, ?cwd: String) -> Array[{path: String, line: Integer, column: Integer}]
+    end
+    class VT
+      DEC_GRAPHICS: Hash[String, String]
+      attr_reader grid: Grid
+      attr_reader title: String?
+      attr_reader cwd: String?
+      attr_reader modes: Hash[Integer, bool]
+      attr_reader replies: Array[String]
+      attr_reader bell_count: Integer
+      def initialize: (?Grid grid) ?{ (String) -> void } -> void
+      def feed: (String bytes) -> self
+      def paste: (String text) -> String
+      def mouse: (button: Symbol | Integer | nil, column: Integer, row: Integer, ?action: mouse_action, ?shift: bool, ?alt: bool, ?control: bool) -> String
+      def key: (String | Symbol name, ?shift: bool, ?alt: bool, ?control: bool) -> String
+    end
+    class PTY
+      attr_reader reader: IO?
+      attr_reader writer: IO?
+      attr_reader pid: Integer
+      attr_reader grid: Grid
+      attr_reader vt: VT
+      attr_reader status: Process::Status?
+      def initialize: (?command: String | Array[String], ?cwd: String, ?columns: Integer, ?rows: Integer, ?env: Hash[String, String?], ?scrollback: Integer) -> void
+      def read: (?timeout: Numeric?, ?max_bytes: Integer) -> String?
+      def write: (String bytes) -> Integer
+      def paste: (String text) -> Integer
+      def key: (String | Symbol name, ?shift: bool, ?alt: bool, ?control: bool) -> Integer
+      def mouse: (button: Symbol | Integer | nil, column: Integer, row: Integer, ?action: mouse_action, ?shift: bool, ?alt: bool, ?control: bool) -> Integer
+      def resize: (columns: Integer, rows: Integer) -> void
+      def signal: (?String | Integer name) -> void
+      def alive?: () -> bool
+      def close: () -> void
+    end
+  end
+end

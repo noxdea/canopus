@@ -1,0 +1,27 @@
+module Canopus
+  class Vim
+    type mode = :normal | :insert | :replace | :visual | :visual_line | :visual_block
+    type register = [String, bool | :block] | [String, :block, Integer]
+
+    OPERATORS: Array[String]
+    VISUAL_MODES: Array[Symbol]
+
+    def initialize: (Editor editor) -> void
+    attr_reader mode: mode
+    attr_reader registers: Hash[String, register]
+    attr_reader marks: Hash[String, Buffer::Anchor]
+    attr_reader macros: Hash[String, Array[String]]
+    attr_reader command_line: String?
+    attr_reader status: String
+    attr_accessor on_command: (^(String) -> void)?
+
+    # Input is a single grapheme or a normalized key such as "esc" or "ctrl-v".
+    def feed: (String key) -> void
+    # Zero-based UTF-8 byte offset of the active edge, including visual mode.
+    def cursor_position: () -> Integer
+    # On blur: finish insert history and return to Normal, preserving registers.
+    def deactivate: () -> self
+    # On close: finish history and release every owned buffer anchor.
+    def dispose: () -> void
+  end
+end

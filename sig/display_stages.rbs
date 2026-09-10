@@ -1,0 +1,49 @@
+module Canopus
+  class FoldMap
+    attr_reader ranges: Array[Range[Integer]]
+    def initialize: () -> void
+    def fold: (Range[Integer] range) -> Array[Range[Integer]]
+    def unfold: (Integer offset) -> Array[Range[Integer]]?
+    def apply: (patch patch) -> Array[Range[Integer]]
+    def transform: (rope rope, Integer row, ?max_bytes: Integer?, ?from: Integer, ?checkpoint: (^() -> void)?) -> [String, Array[Integer]]?
+  end
+  class TabMap
+    attr_reader tab_size: Integer
+    def initialize: (?tab_size: Integer) -> void
+    def transform: (String text, Array[Integer] offsets, ?checkpoint: (^() -> void)?) -> [String, Array[Integer]]
+  end
+  class WrapMap
+    attr_reader width: Numeric?
+    attr_reader font: Zaniah::TextSystem::_Font?
+    attr_reader font_size: Numeric
+    attr_reader font_paths: Array[String]?
+    attr_reader typesetter: Zaniah::TextSystem::Typesetter?
+    def initialize: (?width: Numeric?, ?font: Alhena::Font?, ?font_size: Numeric, ?font_paths: Array[String]?, ?typesetter: Zaniah::TextSystem::Typesetter?) -> void
+    def transform: (String text, Array[Integer] offsets, ?checkpoint: (^() -> void)?) -> Array[[String, Array[Integer]]]
+    def close: () -> void
+  end
+  class BlockMap
+    class Block < Data
+      attr_reader id: untyped
+      attr_reader row: Integer
+      attr_reader text: String
+      attr_reader kind: Symbol
+      def self.new: (untyped id, Integer row, String text, Symbol kind) -> instance
+    end
+    attr_reader blocks: Hash[untyped, Block]
+    def initialize: () -> void
+    def insert: (untyped id, row: Integer, text: String, ?kind: Symbol) -> Block
+    def remove: (untyped id) -> Block?
+    def at: (Integer row) -> Array[Block]
+    def apply: (patch patch) -> Hash[untyped, Block]
+  end
+  class DisplayMap
+    attr_reader layout_error: StandardError?
+    def wrap_pixels: (Numeric width, ?font: Alhena::Font?, font_size: Numeric, ?font_paths: Array[String]?, ?typesetter: Zaniah::TextSystem::Typesetter?) -> void
+    attr_reader fold_map: FoldMap
+    attr_reader tab_map: TabMap
+    attr_reader wrap_map: WrapMap
+    attr_reader block_map: BlockMap
+    attr_reader tree: Denebola::Tree?
+  end
+end

@@ -1,0 +1,31 @@
+name: Release
+on:
+  push:
+    tags:
+      - 'v*'
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1
+        with:
+          ruby-version: '3.1'
+      - run: bundle install
+      - name: Verify tag and version
+        run: test "${GITHUB_REF_NAME}" = "v$(bundle exec ruby -Ilib -rcanopus/version -e 'print Canopus::VERSION')"
+      - name: Test and build
+        run: |
+          bundle exec rake
+          bundle exec ruby tools/check_dependencies.rb test/type/smoke.rb
+          gem build --strict canopus.gemspec --output canopus.gem
+      - name: Publish through RubyGems trusted publishing
+        uses: rubygems/release-gem@7f9650160c1a4e7989fdc9855807bdbd421d8b6b # v1.4.1

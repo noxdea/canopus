@@ -1,0 +1,117 @@
+module Canopus
+  class Project::Tree
+    class Entry < Data
+      attr_reader path: String
+      attr_reader name: String
+      attr_reader depth: Integer
+      attr_reader directory: bool
+      attr_reader expanded: bool
+      def self.new: (String path, String name, Integer depth, bool directory, bool expanded) -> instance
+    end
+    attr_reader expanded: Set[String]
+    def initialize: (Array[String] files, ?expanded: Set[String]) -> void
+    def toggle: (String path) -> void
+    def reveal: (String path) -> void
+    def visible: () -> Array[Entry]
+  end
+  class IconTheme
+    FILE: String
+    FOLDER: String
+    def initialize: (?String? path) -> void
+    def texture: (String path, ?directory: bool, ?expanded: bool, ?size: Numeric, ?scale: Numeric, ?color: String) -> Zaniah::GPU::Texture
+  end
+  class Workspace
+    type layout_node = {pane: Pane} | {direction: :horizontal | :vertical, children: Array[layout_node]}
+    type palette_state = Hash[Symbol, untyped]
+    type search_options = { ?case_sensitive: bool, ?whole_word: bool, ?range: Range[Integer] }
+    type semantic_style = {line: Integer, character: Integer, length: Integer, type: Integer, modifiers: Integer, name: String?}
+    attr_reader actions: Zaniah::Input::ActionRegistry
+    attr_reader project: Project?
+    attr_reader docks: Hash[Symbol, {visible: bool, size: Numeric}]
+    attr_reader panels: Hash[String, [Symbol, ^() -> (Zaniah::Element | String)]]
+    attr_accessor window: Zaniah::Platform::Headless::Window?
+    attr_reader palette: palette_state?
+    def palette=: (palette_state? value) -> void
+    attr_accessor terminal: Terminal::PTY?
+    attr_accessor selected_project_path: String?
+    attr_reader hover_card: String?
+    attr_reader hover_markup: bool?
+    attr_reader semantic_styles: Hash[Buffer, [Integer, Array[semantic_style]]]?
+    def layout: () -> layout_node
+    def project_tree: () -> Project::Tree
+    def project_path: (String relative) -> String
+    def create_project_entry: (String relative, ?directory: bool) -> String
+    def rename_project_entry: (String relative, String destination) -> String
+    def trash_project_entry: (String relative) -> String
+    def file_preview: (String path) -> Array[String]
+    def start_watching: () -> void
+    def poll_changes: () -> void
+    def icon_theme: () -> IconTheme
+    def settings_path: () -> String
+    def open_settings: () -> Editor
+    def settings_completions: () -> palette_state
+    def settings_document?: (Buffer buffer) -> bool?
+    def configure_text_system: (?cache_dir: String?) -> Zaniah::TextSystem::Renderer
+    def apply_settings: () -> void
+    def poll_settings: (?force: bool) -> void
+    def dismiss_hover: () -> nil
+    def close_language_documents: (?Buffer? buffer) -> void
+    def semantic_spans_for: (Buffer buffer, Integer row) -> Array[[Integer, Integer, String]]
+    def accept_language_result: (palette_state palette, Integer index) -> void
+    def show_diagnostics: () -> void
+    def show_outline: () -> void
+    def git: () -> Git::Repository?
+    def git_status: () -> Hash[String, String]
+    def invalidate_git: () -> nil
+    def poll_git_changes: (?now: Numeric) -> void
+    def git_relative_path: (?Buffer buffer) -> String
+    def git_hunks: (?Buffer buffer, ?async: bool) -> Array[Git::Diff::Hunk]
+    def show_git_diff: () -> Language::Document
+    def toggle_git_hunk: (?Editor current, ?row: Integer?) -> bool
+    def show_git_blame: () -> String
+    def revert_current_hunk: () -> patch?
+    def checkout_branch: (String name) -> String
+    def search_query: (String query, palette_state state) -> [String | Regexp, search_options]
+    def search_project: (String query, ?regexp: bool, ?case_sensitive: bool, ?whole_word: bool, ?async: bool) -> (Thread | MultiBuffer | nil)
+    def replace_in_buffer: (String | Regexp pattern, String replacement, ?case_sensitive: bool, ?whole_word: bool, ?range: Range[Integer]?) -> Integer
+    def fold_current: () -> untyped
+    def language_ready: (Editor editor, Language::Document document) -> void
+  end
+  class Editor
+    def replace_selections: (String | Array[String] texts, ?kind: Symbol, ?group: bool, ?cursor_back: Integer, ?before_selections: Array[Selection]) -> Array[Selection]
+  end
+  class Language::Document
+    def invalidate: (patch patch) -> void
+    # Prism is a lazy optional parser; its native types are not a runtime or RBS
+    # dependency for applications which use other languages/headless rendering.
+    def ruby_syntax: () -> untyped
+  end
+  module Plugins
+    class API
+      def initialize: (Workspace workspace, Array[String] permissions) -> void
+      def permit!: (String permission) -> void
+    end
+  end
+  class Buffer::Transaction
+    attr_writer before: rope
+    attr_writer after: rope
+    attr_writer before_selections: Array[Selection]
+    attr_writer after_selections: Array[Selection]
+    attr_writer patch: patch
+    attr_writer kind: Symbol
+    attr_writer time: Numeric
+  end
+  class Snippet::Transform
+    type format_nodes = Array[String | Format]
+    class Format < Data
+      attr_reader index: Integer
+      attr_reader operation: String | Symbol
+      attr_reader positive: format_nodes
+      attr_reader negative: format_nodes
+      def self.new: (Integer index, String | Symbol operation, format_nodes positive, format_nodes negative) -> instance
+    end
+    def self.parse: (StringScanner scanner, Integer depth) -> instance
+    def self.parse_format: (StringScanner scanner, Array[String] endings, Integer depth, ?Array[Integer] budget) -> format_nodes
+    def initialize: (String pattern, format_nodes replacement, String flags) -> void
+  end
+end

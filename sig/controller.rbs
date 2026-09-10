@@ -1,0 +1,55 @@
+module Canopus
+  class Controller
+    SHORTCUTS: Hash[String, String]
+    attr_reader workspace: Workspace
+    attr_reader view: Workspace::View
+    attr_reader window: Zaniah::Platform::Headless::Window
+    attr_reader keymap: Zaniah::Input::Keymap
+    def initialize: (Workspace workspace, Zaniah::Platform::Headless::Window window) -> void
+    def input: (Zaniah::Input::event event) -> void
+    def input_text: (String text) -> void
+    def key: (String stroke) -> void
+    def tick: () -> void
+    def cancel_scroll: () -> nil
+    def poll_scroll: (?now: Numeric) -> bool
+    def poll_display_maps: () -> void
+    def poll_language_documents: () -> void
+    def close_requested: () -> bool
+  end
+  class Workspace::View < Zaniah::Element
+    module TerminalPresentable
+      ANSI_COLORS: Array[String]
+      class Link < Data
+        attr_reader kind: :url | :file
+        attr_reader target: String
+        attr_reader line: Integer?
+        attr_reader column: Integer?
+        def self.new: (:url | :file kind, String target, Integer? line, Integer? column) -> instance
+      end
+      attr_reader terminal_bounds: Zaniah::Bounds?
+      attr_reader terminal_selection: [[Integer, Integer], [Integer, Integer]]?
+      def terminal_link_at: (Zaniah::Point point) -> Link?
+      def terminal_open_link: (Zaniah::Point point, modifiers: Array[String]) -> bool
+      def terminal_color: (Terminal::color value, Symbol fallback) -> String?
+      def terminal_point: (Zaniah::Point point) -> [Integer, Integer]
+      def terminal_scroll: (Numeric delta) -> nil
+      def terminal_select: (Zaniah::Point point, ?extend: bool) -> [[Integer, Integer], [Integer, Integer]]
+      def terminal_selected_text: () -> String
+    end
+    include TerminalPresentable
+    type action = Array[untyped]
+    attr_reader editor_bounds: Hash[Editor, Zaniah::Bounds]
+    attr_reader row_layouts: Hash[[Editor, Integer], Zaniah::TextSystem::LineLayout]
+    attr_reader regions: Array[[Zaniah::Bounds, action]]
+    attr_reader accessibility: Array[{role: Symbol, label: String, bounds: Zaniah::Bounds}]
+    attr_accessor keymap: Zaniah::Input::Keymap?
+    def initialize: (Workspace workspace) -> void
+    def reset_blink: (?Numeric now) -> void
+    def cursor_visible?: () -> bool
+    def tick: (?Numeric now) -> bool
+    def paint: (Zaniah::Bounds bounds, Object? state, Object? prepaint, Zaniah::FrameContext context) -> void
+    def hit: (Zaniah::Point point) -> action?
+    def offset_at: (Editor editor, Zaniah::Point point) -> Integer
+    def project_scroll: (Numeric delta) -> Numeric
+  end
+end

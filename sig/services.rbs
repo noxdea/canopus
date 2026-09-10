@@ -1,0 +1,81 @@
+module Canopus
+  class Project
+    interface _NativeWatcher
+      def poll: (?timeout: Numeric) -> Array[untyped]
+      def close: () -> void
+    end
+    attr_reader root: String
+    def initialize: (String root) -> void
+    def path: (String relative) -> String
+    def files: (?include_hidden: bool, ?follow_symlinks: bool, ?include_symlinks: bool, ?include_directories: bool, ?extensions: Array[String]?, ?max_size: Integer?) -> Enumerator[String, self]
+             | (?include_hidden: bool, ?follow_symlinks: bool, ?include_symlinks: bool, ?include_directories: bool, ?extensions: Array[String]?, ?max_size: Integer?) { (String) -> void } -> self
+    def ignored?: (String relative, ?directory: bool) -> bool
+    def search: (String | Regexp pattern, ?workers: Integer, ?max_size: Integer?, ?extensions: Array[String]?, ?limit: Integer?, ?case_sensitive: bool, ?cancelled: ^() -> bool, ?paths: Array[String]?) ?{ (Search::Match) -> void } -> Array[Search::Match]
+    def replace: (String | Regexp pattern, String replacement, ?workers: Integer, ?max_size: Integer?, ?extensions: Array[String]?, ?limit: Integer?, ?case_sensitive: bool, ?cancelled: ^() -> bool, ?paths: Array[String]?) -> Hash[String, Integer]
+    def watcher: (?interval: Numeric, ?native: _NativeWatcher?) -> Watcher
+
+    class Search
+      DEFAULT_MAX_SIZE: Integer
+      class Match < Struct[untyped]
+        attr_accessor path: String
+        attr_accessor line: Integer
+        attr_accessor column: Integer
+        attr_accessor byte_offset: Integer
+        attr_accessor text: String
+        attr_accessor match: String
+        def self.new: (path: String, line: Integer, column: Integer, byte_offset: Integer, text: String, match: String) -> instance
+      end
+      def initialize: (Project project) -> void
+      def call: (String | Regexp pattern, ?workers: Integer, ?max_size: Integer?, ?extensions: Array[String]?, ?limit: Integer?, ?case_sensitive: bool, ?cancelled: ^() -> bool, ?paths: Array[String]?) ?{ (Match) -> void } -> Array[Match]
+    end
+    class IgnoreMatcher
+      class Rule < Struct[untyped]
+        attr_accessor base: String
+        attr_accessor expression: Regexp
+        attr_accessor negated: bool
+        attr_accessor directory: bool
+        def self.new: (base: String, expression: Regexp, negated: bool, directory: bool) -> instance
+      end
+      def initialize: (?Array[Rule] rules) -> void
+      def add: (String source, ?base: String) -> instance
+      def ignored?: (String path, ?directory: bool) -> bool
+    end
+    class Watcher
+      class Event < Struct[untyped]
+        attr_accessor type: :created | :modified | :deleted
+        attr_accessor path: String
+        def self.new: (type: :created | :modified | :deleted, path: String) -> instance
+      end
+      attr_reader backend: :native | :polling
+      attr_reader snapshot: Hash[String, [Integer, Integer, Time, Time]]
+      def initialize: (Project project, ?interval: Numeric, ?native: _NativeWatcher?) -> void
+      def poll: (?timeout: Numeric) -> Array[Event]
+      def start: () { (Event) -> void } -> self
+      def close: () -> self
+    end
+  end
+
+  class MultiBuffer < Buffer
+    class Excerpt < Struct[untyped]
+      attr_accessor buffer: Buffer
+      attr_accessor first: Buffer::Anchor
+      attr_accessor last: Buffer::Anchor
+      attr_accessor title: String
+      attr_accessor view_start: Integer?
+      attr_accessor view_end: Integer?
+      def self.new: (Buffer buffer, Buffer::Anchor first, Buffer::Anchor last, String title, ?Integer? view_start, ?Integer? view_end) -> instance
+    end
+    attr_reader excerpts: Array[Excerpt]
+    def initialize: (?excerpts: Array[[Buffer, Range[Integer]] | [Buffer, Range[Integer], String?]]) -> void
+    def add_excerpt: (Buffer buffer, Range[Integer] range, ?title: String?) -> self
+    def attach_sources: (Hash[Buffer, Buffer] replacements) -> self
+    def dirty?: () -> bool
+    def begin_undo_group: () -> self
+    def end_undo_group: () -> Array[Buffer]
+    def edit: (changes changes, ?kind: Symbol, ?selections: Array[Selection], ?before_selections: Array[Selection], ?time: Numeric, ?group: bool) -> patch?
+    def undo: () -> bool
+    def redo: () -> bool
+    def save: (?String? path, ?force: bool) -> self
+    def close: () -> void
+  end
+end

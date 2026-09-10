@@ -1,0 +1,375 @@
+module Canopus
+  VERSION: String
+  type json = nil | bool | Integer | Float | String | Array[json] | Hash[String | Symbol, json]
+  type rope = Denebola::Rope | LazyRope
+  type patch = Patch | Patch::Composite | Patch::Reload
+  type changes = Array[[Range[Integer], String]]
+  type bias = :left | :right
+
+  class Error < StandardError
+  end
+  class SaveConflict < Error
+  end
+  module CLI
+    def self.main: (?Array[String] arguments, ?output: IO | StringIO, ?error: IO | StringIO) -> Integer
+  end
+  def self.with_regexp_timeout: [A] (Regexp expression) { () -> A } -> A
+
+  class Selection < Data
+    attr_reader id: Integer
+    attr_reader anchor: Integer
+    attr_reader head: Integer
+    attr_reader goal: Integer?
+    def self.new: (Integer id, Integer anchor, Integer head, Integer? goal) -> instance
+    def start: () -> Integer
+    def end: () -> Integer
+    def range: () -> Range[Integer]
+    def empty?: () -> bool
+    def reversed?: () -> bool
+  end
+
+  class Patch
+    class Edit < Data
+      attr_reader old_range: Range[Integer]
+      attr_reader new_range: Range[Integer]
+      attr_reader old_text: String
+      attr_reader new_text: String
+    end
+    attr_reader before: rope
+    attr_reader after: rope
+    attr_reader edits: Array[Edit]
+    def initialize: (rope before, rope after, changes changes) -> void
+    def map_offset: (Integer offset, ?bias: bias) -> Integer
+    def inverse: () -> Patch
+    def compose: (patch other) -> Composite
+    class Composite
+      attr_reader patches: Array[patch]
+      def initialize: (Array[patch] patches) -> void
+      def before: () -> rope
+      def after: () -> rope
+      def edits: () -> Array[Edit]
+      def map_offset: (Integer offset, ?bias: bias) -> Integer
+      def inverse: () -> Composite
+      def compose: (patch other) -> Composite
+    end
+    class Reload
+      attr_reader before: rope
+      attr_reader after: rope
+      def initialize: (rope before, rope after) -> void
+      def edits: () -> Array[Edit]
+      def map_offset: (Integer offset, ?bias: bias) -> Integer
+    end
+  end
+
+  class Buffer
+    class Anchor < Data
+      attr_reader id: Integer
+      attr_reader bias: bias
+    end
+    class Transaction < Struct[untyped]
+      attr_reader before: rope
+      attr_reader after: rope
+      attr_reader before_selections: Array[Selection]
+      attr_reader after_selections: Array[Selection]
+      attr_reader patch: patch
+      attr_reader kind: Symbol
+      attr_reader time: Numeric
+    end
+    def self.open: (String path, ?large_file_threshold: Integer) -> instance
+    def self.decode_bytes: (String raw) -> [String, Encoding, String]
+    def initialize: (?String text, ?path: String?, ?encoding: Encoding, ?bom: String, ?disk_digest: String?, ?read_only: bool, ?draft: bool, ?rope: rope?) -> void
+    attr_reader rope: rope
+    attr_reader path: String?
+    attr_reader encoding: Encoding
+    attr_reader line_ending: String
+    attr_reader version: Integer
+    attr_reader history: Array[Transaction]
+    attr_reader notification_errors: Array[Error]
+    attr_reader read_only: bool
+    attr_reader disk_digest: String?
+    attr_reader bom: String
+    attr_accessor selections: Array[Selection]
+    def text: () -> String
+    def relocate: (String path) -> String
+    def close: () -> void
+    def line: (Integer row) -> String
+    def line_count: () -> Integer
+    def dirty?: () -> bool
+    def reload: (?force: bool) -> self
+    def on_edit: () { (patch) -> void } -> Zaniah::Subscription
+    def anchor: (Integer offset, ?bias: bias) -> Anchor
+    def resolve: (Anchor anchor) -> Integer
+    def release_anchor: (Anchor anchor) -> Integer?
+    def begin_undo_group: () -> self
+    def end_undo_group: () -> self
+    def edit: (changes changes, ?kind: Symbol, ?selections: Array[Selection]?, ?before_selections: Array[Selection], ?time: Numeric, ?group: bool) -> patch?
+    def undo: () -> bool
+    def redo: () -> bool
+    def save: (?String? path, ?force: bool) -> self
+    def trim_trailing_whitespace: () -> patch?
+  end
+
+  class LazyRope
+    PAGE_SIZE: Integer
+    def initialize: (String path, ?page_limit: Integer) -> void
+    attr_reader bytesize: Integer
+    attr_reader cached_bytes: Integer
+    attr_reader line_ending: String
+    def lazy?: () -> true
+    def line_count: () -> Integer
+    def length: () -> Integer
+    def utf16_length: () -> Integer
+    def empty?: () -> bool
+    def close: () -> void
+    def line_start: (Integer row) -> Integer
+    def line_end: (Integer row) -> Integer
+    def line: (Integer row) -> String
+    def line_window: (Integer row, ?from: Integer, ?max_bytes: Integer) -> [String, Integer]
+    def byteslice: (Integer offset, ?Integer? count) -> Denebola::Rope
+                 | (Range[Integer] range) -> Denebola::Rope
+    def point_at: (Integer offset) -> Denebola::Point
+    def offset_at: (Denebola::Point point) -> Integer
+    def utf16_point_at: (Integer offset) -> Denebola::Point
+    def offset_at_utf16_point: (Denebola::Point point) -> Integer
+    def utf16_offset_at: (Integer offset) -> Integer
+    def offset_at_utf16: (Integer units) -> Integer
+    def each_chunk: () -> Enumerator[String, void]
+                 | () { (String) -> void } -> void
+    def to_s: () -> String
+    def apply_edits: (changes changes) -> bot
+    def check_invariants!: () -> true
+  end
+
+  class DisplayPoint < Data
+    attr_reader row: Integer
+    attr_reader column: Integer
+    def self.new: (Integer row, Integer column) -> instance
+  end
+  class DisplayMap
+    class Row < Data
+      attr_reader text: String
+      attr_reader offsets: Array[Integer]
+      attr_reader kind: Symbol
+      attr_reader metadata: untyped
+    end
+    def initialize: (Buffer buffer, ?tab_size: Integer, ?wrap_width: Integer?, ?background_threshold: Integer?) -> void
+    attr_reader recomputed_lines: Integer
+    def dispose: () -> void
+    def pending?: () -> bool
+    def poll: (?max_lines: Integer) -> bool
+    def progress: () -> [Integer, Integer]
+    def row_count: () -> Integer
+    def wrap_width=: (Integer? width) -> void
+    def tab_size=: (Integer size) -> void
+    def fold: (Range[Integer] range) -> void
+    def unfold: (Integer offset) -> void
+    def insert_block: (untyped id, row: Integer, text: String, ?kind: Symbol) -> void
+    def remove_block: (untyped id) -> void
+    def row: (Integer index) -> Row
+    def source_row: (Integer index) -> Integer
+    def each_row: (?Range[Integer] range) { (Row, Integer) -> void } -> void
+                | (?Range[Integer] range) -> Enumerator[[Row, Integer], void]
+    def to_buffer: (DisplayPoint point, ?bias: bias) -> Integer
+    def to_display: (Integer offset, ?bias: bias) -> DisplayPoint
+  end
+
+  class Editor
+    def self.search_pattern: (String | Regexp pattern, ?case_sensitive: bool, ?whole_word: bool) -> Regexp
+    def initialize: (?Buffer buffer, ?wrap_width: Integer?, ?tab_size: Integer) -> void
+    attr_reader buffer: Buffer
+    attr_reader display_map: DisplayMap
+    attr_reader selections: Array[Selection]
+    attr_reader scroll_x: Numeric
+    attr_reader scroll_y: Numeric
+    attr_accessor tab_size: Integer
+    attr_accessor use_tabs: bool
+    attr_accessor auto_pairs: bool
+    attr_accessor viewport_rows: Integer
+    attr_accessor relative_line_numbers: bool?
+    attr_accessor composition: Zaniah::Input::Composition?
+    def dispose: () -> void
+    def language_document: () -> Language::Document
+    def language=: (Language::Definition definition) -> Language::Document
+    def primary: () -> Selection
+    def select: (Integer first, ?Integer last, ?add: bool) -> self
+    def set_selections: (Array[Selection] selections) -> Array[Selection]
+    def insert_text: (String text, ?auto_indent: bool) -> untyped
+    def edit: (Array[[Range[Integer], String]] changes, ?kind: Symbol) -> Array[Selection]?
+    def delete_backward: () -> untyped
+    def delete_forward: () -> untyped
+    def undo: () -> bool
+    def redo: () -> bool
+    def move: (Symbol direction, ?extend: bool, ?count: Integer) -> void
+    def select_all: () -> self
+    def select_next_occurrence: (?all: bool) -> untyped
+    def rectangle: (DisplayPoint first, DisplayPoint last) -> void
+    def indent: (?outdent: bool) -> untyped
+    def toggle_comment: (?prefix: String, ?suffix: String?) -> untyped
+    def duplicate_lines: () -> untyped
+    def move_lines: (Symbol direction) -> untyped
+    def search: (String | Regexp pattern, ?case_sensitive: bool, ?whole_word: bool, ?range: Range[Integer]?) -> Array[Range[Integer]]
+    def replace_all: (String | Regexp pattern, String replacement, ?case_sensitive: bool, ?whole_word: bool, ?range: Range[Integer]?) -> untyped
+    def replacement_edits: (String | Regexp pattern, String replacement, ?case_sensitive: bool, ?whole_word: bool, ?range: Range[Integer]?) -> Array[[Range[Integer], String]]
+    def scroll: (?dx: Numeric, ?dy: Numeric) -> Numeric
+    def reveal_cursor: () -> Numeric
+  end
+
+  module Language
+    class Definition < Data
+      attr_reader name: String
+      attr_reader lexer: String
+      attr_reader extensions: Array[String]
+      attr_reader comment: String
+      attr_reader indent_open: Regexp
+      attr_reader indent_close: Regexp
+      attr_reader servers: Array[Array[String]]
+      def self.new: (String name, String lexer, Array[String] extensions, String comment, Regexp indent_open, Regexp indent_close, Array[Array[String]] servers) -> instance
+    end
+    class Symbol < Data
+      attr_reader name: String
+      attr_reader kind: ::Symbol
+      attr_reader range: Range[Integer]
+      attr_reader selection: Range[Integer]
+      attr_reader depth: Integer
+    end
+    DEFINITIONS: Array[Definition]
+    PLAIN: Definition
+    def self.for_path: (String? path) -> Definition
+    def self.executable?: (String name) -> bool
+    class Document
+      def initialize: (Buffer buffer, ?definition: Definition, ?background: bool) -> void
+      attr_reader buffer: Buffer
+      attr_reader definition: Definition
+      def dispose: () -> void
+      def background?: () -> bool
+      def pending?: () -> bool
+      def analysis_error: () -> StandardError?
+      def poll: () -> bool
+      def request: (?first_line: Integer?, ?last_line: Integer?, ?rows: Array[Integer]?, ?syntax: bool) -> self
+      def syntax_ready?: () -> bool
+      def syntax_complete?: () -> bool
+      def tokens_current?: (Integer row) -> bool
+      def tokens_for: (Integer row) -> Array[[String | Class, String]]
+      def highlighter: (?strategy: (:auto | :incremental | :window | :full)?, ?window_context: Integer?) -> Antares::Highlighter
+      def outline: () -> Array[Symbol]
+      def diagnostics: () -> Array[{range: Range[Integer], message: String, severity: Integer}]
+      def fold_ranges: () -> Array[Range[Integer]]
+      def indent_for: (Integer offset, ?tab_size: Integer, ?use_tabs: bool) -> String
+      def bracket_at: (Integer offset) -> Range[Integer]?
+    end
+  end
+  class Settings
+    type values = Hash[String, json]
+    def self.schema: () -> values
+    def self.user_path: () -> String
+    def initialize: (*(String | values) layers) -> void
+    attr_reader values: values
+    attr_reader errors: Array[String]
+    attr_reader layers: Array[String | values]
+    def []: (String | Symbol key) -> json
+    def paths: () -> Array[String]
+    def reload: () -> instance
+    def for_language: (String language) -> instance
+    def merge!: (String | values layer) -> instance
+    def set_file: (String path, String key, json value) -> instance
+  end
+  class Theme
+    attr_reader name: String
+    attr_reader colors: Hash[Symbol, String]
+    attr_reader syntax: Hash[String, String]
+    def initialize: (?name: String, ?colors: Hash[Symbol, String], ?syntax: Hash[String, String]) -> void
+    def self.load: (String path) -> instance
+    def []: (Symbol key) -> String
+    def token_color: (untyped token) -> String
+  end
+
+  class Pane
+    def initialize: () -> void
+    attr_reader editors: Array[Editor]
+    attr_reader pinned: Array[Editor]
+    attr_accessor active_index: Integer
+    def active: () -> Editor?
+    def open: (Buffer buffer) -> Editor
+    def activate: (Integer index) -> void
+    def pin: (?Editor editor) -> untyped
+    def close: (?Editor editor, ?discard: bool) -> void
+    def detach: (Editor editor) -> void
+    def back: () -> untyped
+    def forward: () -> untyped
+  end
+  class Workspace
+    def initialize: (?root: String, ?settings: Settings?) -> void
+    attr_reader panes: Array[Pane]
+    attr_reader active_pane: Pane
+    attr_reader buffers: Hash[String | Integer, Buffer]
+    attr_reader settings: Settings
+    attr_reader theme: Theme
+    attr_reader root: String
+    attr_reader clients: Hash[String, LSP::Client]
+    attr_accessor message: String
+    def notify: (String text, ?now: Numeric) -> Integer
+    def notifications: () -> Array[{id: Integer, text: String, expires: Numeric}]
+    def dismiss_notification: (Integer id) -> void
+    def expire_notifications: (?Numeric now) -> bool
+    attr_accessor show_project: bool
+    attr_accessor terminal_visible: bool?
+    attr_accessor performance: PerformanceRecorder?
+    def editor: () -> Editor?
+    def files: () -> Array[String]
+    def refresh_files: () -> void
+    def vim: () -> Vim
+    def open: (String path) -> Editor
+    def canonical_path: (String path) -> String
+    def save_buffer: (?Buffer buffer, ?path: String?) -> Buffer
+    def new_buffer: () -> Editor
+    def focus: (Pane pane) -> void
+    def activate_tab: (Pane pane, Editor tab) -> void
+    def split: (?Symbol direction) -> Pane
+    def close_editor: (?Editor current, ?discard: bool) -> void
+    def clear_vim_states: () -> void
+    def move_tab: (from: Pane, to: Pane, ?editor: Editor, ?index: Integer?) -> void
+    def toggle_dock: (Symbol side) -> bool
+    def register_panel: (String name, ?side: Symbol) { () -> (Zaniah::Element | String) } -> untyped
+    def register_action: (String name, ?description: String) { (*untyped) -> untyped } -> untyped
+    def definition_for: (String? path) -> Language::Definition
+    def register_language: (String name, extensions: Array[String], ?lexer: String, ?comment: String, ?indent_open: String, ?indent_close: String, ?servers: Array[Array[String]]) -> untyped
+    def call: (String name, *untyped arguments) -> untyped
+    def save_session: (String path) -> void
+    def restore_session: (String path) -> self
+    def theme=: (Theme | String theme) -> void
+    def palette_open: (Symbol kind) -> void
+    def show_snippet_choices: (?Editor current) -> untyped
+    def update_palette: () -> void
+    def palette_accept: () -> void
+    def connect_server: (String language, Array[String] command) -> LSP::Client
+    def language_client: (?Buffer buffer) -> LSP::Client
+    def language_request: (Symbol kind, **json options) -> void
+    def diagnostics_for: (Buffer buffer) -> Array[LSP::object]
+    def apply_workspace_edit: (LSP::object edit, ?confirmed: bool) -> LSP::object
+    def resource_workspace_edit?: (LSP::object edit) -> bool
+    def confirm_workspace_edit: (LSP::object edit, ?label: String, ?response: LSP::Future?, ?on_applied: ^() -> void) -> untyped
+    def post: () { () -> void } -> void
+    def drain: () -> void
+    def close: () -> void
+    def plugins: () -> Plugins::Registry
+  end
+
+  module Plugins
+    class PermissionDenied < Error
+    end
+    class API
+      def text: () -> String
+      def replace: (Range[Integer] range, String text) -> patch?
+      def files: () -> Array[String]
+      def notify: (String message) -> String
+      def run: (Array[String] command) -> [String, String, Process::Status]
+      def http_get: (String url) -> String
+    end
+    class Registry
+      PERMISSIONS: Array[String]
+      def initialize: (Workspace workspace) -> void
+      def load: (String path, ?isolated: bool, ?permissions: Array[String], ?trusted: bool, ?timeout: Numeric) -> untyped
+      def close: () -> void
+    end
+  end
+end

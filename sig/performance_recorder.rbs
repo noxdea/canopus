@@ -1,0 +1,23 @@
+module Canopus
+  class PerformanceRecorder
+    type statistics = {
+      frames: Integer, retained_frames: Integer, last_frame_ms: Float?,
+      last_allocations: Integer?, last_draw_calls: Integer?, median_frame_ms: Numeric,
+      p95_frame_ms: Numeric, max_frame_ms: Numeric, mean_allocations: Numeric,
+      sampling_samples: Integer
+    }
+    def initialize: (Zaniah::Platform::Headless::Window window, ?trace_allocations: bool, ?sampling: bool,
+      ?capacity: Integer, ?sample_capacity: Integer, ?interval: Numeric) -> void
+    attr_reader sampler: Thread?
+    def start: () -> self
+    def stop: () -> self
+    def measure: [A] () { () -> A } -> A
+    def statistics: () -> statistics
+    def report: () -> Hash[Symbol, untyped]
+    def write: (String path) -> String
+    def self.context: (?Zaniah::Platform::Headless::Window? window) -> Hash[Symbol, untyped]
+    def self.validate_paths: (Array[String?] paths, ?protected: Array[String?]) -> Array[String]
+    def self.write_json: (String path, untyped report) -> String
+    def self.write_crash: (String path, Exception exception, ?window: Zaniah::Platform::Headless::Window?) -> String
+  end
+end

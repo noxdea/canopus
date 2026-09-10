@@ -1,0 +1,6400 @@
+[
+  {
+    "name": "d-h-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-h-8",
+    "cursor": 7,
+    "register": "n",
+    "type": "v",
+    "text": "Alpha oe+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-h-25",
+    "cursor": 24,
+    "register": "u",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  for five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-l-0",
+    "cursor": 0,
+    "register": "A",
+    "type": "v",
+    "text": "lpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-l-8",
+    "cursor": 8,
+    "register": "e",
+    "type": "v",
+    "text": "Alpha on+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-l-25",
+    "cursor": 25,
+    "register": "r",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fou five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-w-0",
+    "cursor": 0,
+    "register": "Alpha ",
+    "type": "v",
+    "text": "one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-w-8",
+    "cursor": 8,
+    "register": "e",
+    "type": "v",
+    "text": "Alpha on+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-w-25",
+    "cursor": 25,
+    "register": "r ",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  foufive-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-W-0",
+    "cursor": 0,
+    "register": "Alpha ",
+    "type": "v",
+    "text": "one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-W-8",
+    "cursor": 8,
+    "register": "e+two ",
+    "type": "v",
+    "text": "Alpha onTHREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-W-25",
+    "cursor": 25,
+    "register": "r ",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  foufive-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-b-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-b-8",
+    "cursor": 6,
+    "register": "on",
+    "type": "v",
+    "text": "Alpha e+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-b-25",
+    "cursor": 22,
+    "register": "fou",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  r five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-B-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-B-8",
+    "cursor": 6,
+    "register": "on",
+    "type": "v",
+    "text": "Alpha e+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-B-25",
+    "cursor": 22,
+    "register": "fou",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  r five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-e-0",
+    "cursor": 0,
+    "register": "Alpha",
+    "type": "v",
+    "text": " one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-e-8",
+    "cursor": 8,
+    "register": "e+",
+    "type": "v",
+    "text": "Alpha ontwo THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-e-25",
+    "cursor": 25,
+    "register": "r five",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fou-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-E-0",
+    "cursor": 0,
+    "register": "Alpha",
+    "type": "v",
+    "text": " one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-E-8",
+    "cursor": 8,
+    "register": "e+two",
+    "type": "v",
+    "text": "Alpha on THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-E-25",
+    "cursor": 24,
+    "register": "r five-six",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fou\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-ge-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-ge-8",
+    "cursor": 4,
+    "register": "a one",
+    "type": "v",
+    "text": "Alph+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-ge-25",
+    "cursor": 18,
+    "register": "E\n  four",
+    "type": "v",
+    "text": "Alpha one+two THRE five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-gE-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-gE-8",
+    "cursor": 4,
+    "register": "a one",
+    "type": "v",
+    "text": "Alph+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-gE-25",
+    "cursor": 18,
+    "register": "E\n  four",
+    "type": "v",
+    "text": "Alpha one+two THRE five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-0-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-0-8",
+    "cursor": 0,
+    "register": "Alpha on",
+    "type": "v",
+    "text": "e+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-0-25",
+    "cursor": 20,
+    "register": "  fou",
+    "type": "v",
+    "text": "Alpha one+two THREE\nr five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-^-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-^-8",
+    "cursor": 0,
+    "register": "Alpha on",
+    "type": "v",
+    "text": "e+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-^-25",
+    "cursor": 22,
+    "register": "fou",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  r five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-$-0",
+    "cursor": 0,
+    "register": "Alpha one+two THREE",
+    "type": "v",
+    "text": "\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-$-8",
+    "cursor": 7,
+    "register": "e+two THREE",
+    "type": "v",
+    "text": "Alpha on\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-$-25",
+    "cursor": 24,
+    "register": "r five-six",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fou\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-j-0",
+    "cursor": 0,
+    "register": "Alpha one+two THREE\n  four five-six\n",
+    "type": "V",
+    "text": "seven EIGHT nine\n"
+  },
+  {
+    "name": "d-j-8",
+    "cursor": 0,
+    "register": "Alpha one+two THREE\n  four five-six\n",
+    "type": "V",
+    "text": "seven EIGHT nine\n"
+  },
+  {
+    "name": "d-j-25",
+    "cursor": 0,
+    "register": "  four five-six\nseven EIGHT nine\n",
+    "type": "V",
+    "text": "Alpha one+two THREE\n"
+  },
+  {
+    "name": "d-k-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-k-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-k-25",
+    "cursor": 0,
+    "register": "Alpha one+two THREE\n  four five-six\n",
+    "type": "V",
+    "text": "seven EIGHT nine\n"
+  },
+  {
+    "name": "d-gg-0",
+    "cursor": 2,
+    "register": "Alpha one+two THREE\n",
+    "type": "V",
+    "text": "  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-gg-8",
+    "cursor": 2,
+    "register": "Alpha one+two THREE\n",
+    "type": "V",
+    "text": "  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "d-gg-25",
+    "cursor": 0,
+    "register": "Alpha one+two THREE\n  four five-six\n",
+    "type": "V",
+    "text": "seven EIGHT nine\n"
+  },
+  {
+    "name": "d-G-0",
+    "cursor": 0,
+    "register": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n",
+    "type": "V",
+    "text": ""
+  },
+  {
+    "name": "d-G-8",
+    "cursor": 0,
+    "register": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n",
+    "type": "V",
+    "text": ""
+  },
+  {
+    "name": "d-G-25",
+    "cursor": 0,
+    "register": "  four five-six\nseven EIGHT nine\n",
+    "type": "V",
+    "text": "Alpha one+two THREE\n"
+  },
+  {
+    "name": "d-fo",
+    "cursor": 6,
+    "register": "o fo",
+    "type": "v",
+    "text": "one twur\n"
+  },
+  {
+    "name": "d-Fo",
+    "cursor": 0,
+    "register": "one tw",
+    "type": "v",
+    "text": "o four\n"
+  },
+  {
+    "name": "d-to",
+    "cursor": 6,
+    "register": "o f",
+    "type": "v",
+    "text": "one twour\n"
+  },
+  {
+    "name": "d-To",
+    "cursor": 1,
+    "register": "ne tw",
+    "type": "v",
+    "text": "oo four\n"
+  },
+  {
+    "name": "d-iw",
+    "cursor": 10,
+    "register": "+",
+    "type": "v",
+    "text": "prefix onetwo suffix"
+  },
+  {
+    "name": "d-aw",
+    "cursor": 10,
+    "register": "+",
+    "type": "v",
+    "text": "prefix onetwo suffix"
+  },
+  {
+    "name": "d-iW",
+    "cursor": 7,
+    "register": "one+two",
+    "type": "v",
+    "text": "prefix  suffix"
+  },
+  {
+    "name": "d-aW",
+    "cursor": 7,
+    "register": "one+two ",
+    "type": "v",
+    "text": "prefix suffix"
+  },
+  {
+    "name": "d-ip",
+    "cursor": 8,
+    "register": "first\nsecond\n",
+    "type": "V",
+    "text": "before\n\n\nafter\n"
+  },
+  {
+    "name": "d-ap",
+    "cursor": 8,
+    "register": "first\nsecond\n\n",
+    "type": "V",
+    "text": "before\n\nafter\n"
+  },
+  {
+    "name": "d-i(",
+    "cursor": 5,
+    "register": "outer (inner) tail",
+    "type": "v",
+    "text": "pre () post"
+  },
+  {
+    "name": "d-a(",
+    "cursor": 4,
+    "register": "(outer (inner) tail)",
+    "type": "v",
+    "text": "pre  post"
+  },
+  {
+    "name": "d-i)",
+    "cursor": 5,
+    "register": "outer (inner) tail",
+    "type": "v",
+    "text": "pre () post"
+  },
+  {
+    "name": "d-a)",
+    "cursor": 4,
+    "register": "(outer (inner) tail)",
+    "type": "v",
+    "text": "pre  post"
+  },
+  {
+    "name": "d-ib",
+    "cursor": 5,
+    "register": "outer (inner) tail",
+    "type": "v",
+    "text": "pre () post"
+  },
+  {
+    "name": "d-ab",
+    "cursor": 4,
+    "register": "(outer (inner) tail)",
+    "type": "v",
+    "text": "pre  post"
+  },
+  {
+    "name": "d-i[",
+    "cursor": 5,
+    "register": "outer [inner] tail",
+    "type": "v",
+    "text": "pre [] post"
+  },
+  {
+    "name": "d-a[",
+    "cursor": 4,
+    "register": "[outer [inner] tail]",
+    "type": "v",
+    "text": "pre  post"
+  },
+  {
+    "name": "d-i]",
+    "cursor": 5,
+    "register": "outer [inner] tail",
+    "type": "v",
+    "text": "pre [] post"
+  },
+  {
+    "name": "d-a]",
+    "cursor": 4,
+    "register": "[outer [inner] tail]",
+    "type": "v",
+    "text": "pre  post"
+  },
+  {
+    "name": "d-i{",
+    "cursor": 5,
+    "register": "outer {inner} tail",
+    "type": "v",
+    "text": "pre {} post"
+  },
+  {
+    "name": "d-a{",
+    "cursor": 4,
+    "register": "{outer {inner} tail}",
+    "type": "v",
+    "text": "pre  post"
+  },
+  {
+    "name": "d-i}",
+    "cursor": 5,
+    "register": "outer {inner} tail",
+    "type": "v",
+    "text": "pre {} post"
+  },
+  {
+    "name": "d-a}",
+    "cursor": 4,
+    "register": "{outer {inner} tail}",
+    "type": "v",
+    "text": "pre  post"
+  },
+  {
+    "name": "d-iB",
+    "cursor": 5,
+    "register": "outer {inner} tail",
+    "type": "v",
+    "text": "pre {} post"
+  },
+  {
+    "name": "d-aB",
+    "cursor": 4,
+    "register": "{outer {inner} tail}",
+    "type": "v",
+    "text": "pre  post"
+  },
+  {
+    "name": "d-i\"",
+    "cursor": 5,
+    "register": "a \\\"b",
+    "type": "v",
+    "text": "pre \"\" post"
+  },
+  {
+    "name": "d-a\"",
+    "cursor": 4,
+    "register": "\"a \\\"b\" ",
+    "type": "v",
+    "text": "pre post"
+  },
+  {
+    "name": "d-i'",
+    "cursor": 5,
+    "register": "a \\'b",
+    "type": "v",
+    "text": "pre '' post"
+  },
+  {
+    "name": "d-a'",
+    "cursor": 4,
+    "register": "'a \\'b' ",
+    "type": "v",
+    "text": "pre post"
+  },
+  {
+    "name": "d-i`",
+    "cursor": 5,
+    "register": "a \\`b",
+    "type": "v",
+    "text": "pre `` post"
+  },
+  {
+    "name": "d-a`",
+    "cursor": 4,
+    "register": "`a \\`b` ",
+    "type": "v",
+    "text": "pre post"
+  },
+  {
+    "name": "d-i<",
+    "cursor": 5,
+    "register": "outer <inner> tail",
+    "type": "v",
+    "text": "pre <> post"
+  },
+  {
+    "name": "d-a<",
+    "cursor": 4,
+    "register": "<outer <inner> tail>",
+    "type": "v",
+    "text": "pre  post"
+  },
+  {
+    "name": "d-i>",
+    "cursor": 5,
+    "register": "outer <inner> tail",
+    "type": "v",
+    "text": "pre <> post"
+  },
+  {
+    "name": "d-a>",
+    "cursor": 4,
+    "register": "<outer <inner> tail>",
+    "type": "v",
+    "text": "pre  post"
+  },
+  {
+    "name": "d-it",
+    "cursor": 5,
+    "register": "<b>inner</b> tail",
+    "type": "v",
+    "text": "<div></div>"
+  },
+  {
+    "name": "d-at",
+    "cursor": 0,
+    "register": "<div><b>inner</b> tail</div>",
+    "type": "v",
+    "text": ""
+  },
+  {
+    "name": "c-h-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "XAlpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-h-8",
+    "cursor": 7,
+    "register": "n",
+    "type": "v",
+    "text": "Alpha oXe+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-h-25",
+    "cursor": 24,
+    "register": "u",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  foXr five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-l-0",
+    "cursor": 0,
+    "register": "A",
+    "type": "v",
+    "text": "Xlpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-l-8",
+    "cursor": 8,
+    "register": "e",
+    "type": "v",
+    "text": "Alpha onX+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-l-25",
+    "cursor": 25,
+    "register": "r",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fouX five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-w-0",
+    "cursor": 0,
+    "register": "Alpha",
+    "type": "v",
+    "text": "X one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-w-8",
+    "cursor": 8,
+    "register": "e",
+    "type": "v",
+    "text": "Alpha onX+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-w-25",
+    "cursor": 25,
+    "register": "r",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fouX five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-W-0",
+    "cursor": 0,
+    "register": "Alpha",
+    "type": "v",
+    "text": "X one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-W-8",
+    "cursor": 8,
+    "register": "e+two",
+    "type": "v",
+    "text": "Alpha onX THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-W-25",
+    "cursor": 25,
+    "register": "r",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fouX five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-b-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-b-8",
+    "cursor": 6,
+    "register": "on",
+    "type": "v",
+    "text": "Alpha Xe+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-b-25",
+    "cursor": 22,
+    "register": "fou",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  Xr five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-B-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-B-8",
+    "cursor": 6,
+    "register": "on",
+    "type": "v",
+    "text": "Alpha Xe+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-B-25",
+    "cursor": 22,
+    "register": "fou",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  Xr five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-e-0",
+    "cursor": 0,
+    "register": "Alpha",
+    "type": "v",
+    "text": "X one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-e-8",
+    "cursor": 8,
+    "register": "e+",
+    "type": "v",
+    "text": "Alpha onXtwo THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-e-25",
+    "cursor": 25,
+    "register": "r five",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fouX-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-E-0",
+    "cursor": 0,
+    "register": "Alpha",
+    "type": "v",
+    "text": "X one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-E-8",
+    "cursor": 8,
+    "register": "e+two",
+    "type": "v",
+    "text": "Alpha onX THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-E-25",
+    "cursor": 25,
+    "register": "r five-six",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fouX\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-ge-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-ge-8",
+    "cursor": 4,
+    "register": "a one",
+    "type": "v",
+    "text": "AlphX+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-ge-25",
+    "cursor": 18,
+    "register": "E\n  four",
+    "type": "v",
+    "text": "Alpha one+two THREX five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-gE-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-gE-8",
+    "cursor": 4,
+    "register": "a one",
+    "type": "v",
+    "text": "AlphX+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-gE-25",
+    "cursor": 18,
+    "register": "E\n  four",
+    "type": "v",
+    "text": "Alpha one+two THREX five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-0-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "XAlpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-0-8",
+    "cursor": 0,
+    "register": "Alpha on",
+    "type": "v",
+    "text": "Xe+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-0-25",
+    "cursor": 20,
+    "register": "  fou",
+    "type": "v",
+    "text": "Alpha one+two THREE\nXr five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-^-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "XAlpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-^-8",
+    "cursor": 0,
+    "register": "Alpha on",
+    "type": "v",
+    "text": "Xe+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-^-25",
+    "cursor": 22,
+    "register": "fou",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  Xr five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-$-0",
+    "cursor": 0,
+    "register": "Alpha one+two THREE",
+    "type": "v",
+    "text": "X\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-$-8",
+    "cursor": 8,
+    "register": "e+two THREE",
+    "type": "v",
+    "text": "Alpha onX\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-$-25",
+    "cursor": 25,
+    "register": "r five-six",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fouX\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-j-0",
+    "cursor": 0,
+    "register": "Alpha one+two THREE\n  four five-six\n",
+    "type": "V",
+    "text": "X\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-j-8",
+    "cursor": 0,
+    "register": "Alpha one+two THREE\n  four five-six\n",
+    "type": "V",
+    "text": "X\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-j-25",
+    "cursor": 22,
+    "register": "  four five-six\nseven EIGHT nine\n",
+    "type": "V",
+    "text": "Alpha one+two THREE\n  X\n"
+  },
+  {
+    "name": "c-k-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-k-8",
+    "cursor": 7,
+    "register": "n",
+    "type": "v",
+    "text": "Alpha oe+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-k-25",
+    "cursor": 0,
+    "register": "Alpha one+two THREE\n  four five-six\n",
+    "type": "V",
+    "text": "X\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-gg-0",
+    "cursor": 0,
+    "register": "Alpha one+two THREE\n",
+    "type": "V",
+    "text": "X\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-gg-8",
+    "cursor": 0,
+    "register": "Alpha one+two THREE\n",
+    "type": "V",
+    "text": "X\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-gg-25",
+    "cursor": 0,
+    "register": "Alpha one+two THREE\n  four five-six\n",
+    "type": "V",
+    "text": "X\nseven EIGHT nine\n"
+  },
+  {
+    "name": "c-G-0",
+    "cursor": 0,
+    "register": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n",
+    "type": "V",
+    "text": "X\n"
+  },
+  {
+    "name": "c-G-8",
+    "cursor": 0,
+    "register": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n",
+    "type": "V",
+    "text": "X\n"
+  },
+  {
+    "name": "c-G-25",
+    "cursor": 22,
+    "register": "  four five-six\nseven EIGHT nine\n",
+    "type": "V",
+    "text": "Alpha one+two THREE\n  X\n"
+  },
+  {
+    "name": "c-fo",
+    "cursor": 6,
+    "register": "o fo",
+    "type": "v",
+    "text": "one twXur\n"
+  },
+  {
+    "name": "c-Fo",
+    "cursor": 0,
+    "register": "one tw",
+    "type": "v",
+    "text": "Xo four\n"
+  },
+  {
+    "name": "c-to",
+    "cursor": 6,
+    "register": "o f",
+    "type": "v",
+    "text": "one twXour\n"
+  },
+  {
+    "name": "c-To",
+    "cursor": 1,
+    "register": "ne tw",
+    "type": "v",
+    "text": "oXo four\n"
+  },
+  {
+    "name": "c-iw",
+    "cursor": 10,
+    "register": "+",
+    "type": "v",
+    "text": "prefix oneXtwo suffix"
+  },
+  {
+    "name": "c-aw",
+    "cursor": 10,
+    "register": "+",
+    "type": "v",
+    "text": "prefix oneXtwo suffix"
+  },
+  {
+    "name": "c-iW",
+    "cursor": 7,
+    "register": "one+two",
+    "type": "v",
+    "text": "prefix X suffix"
+  },
+  {
+    "name": "c-aW",
+    "cursor": 7,
+    "register": "one+two ",
+    "type": "v",
+    "text": "prefix Xsuffix"
+  },
+  {
+    "name": "c-ip",
+    "cursor": 8,
+    "register": "first\nsecond\n",
+    "type": "V",
+    "text": "before\n\nX\n\nafter\n"
+  },
+  {
+    "name": "c-ap",
+    "cursor": 8,
+    "register": "first\nsecond\n\n",
+    "type": "V",
+    "text": "before\n\nX\nafter\n"
+  },
+  {
+    "name": "c-i(",
+    "cursor": 5,
+    "register": "outer (inner) tail",
+    "type": "v",
+    "text": "pre (X) post"
+  },
+  {
+    "name": "c-a(",
+    "cursor": 4,
+    "register": "(outer (inner) tail)",
+    "type": "v",
+    "text": "pre X post"
+  },
+  {
+    "name": "c-i)",
+    "cursor": 5,
+    "register": "outer (inner) tail",
+    "type": "v",
+    "text": "pre (X) post"
+  },
+  {
+    "name": "c-a)",
+    "cursor": 4,
+    "register": "(outer (inner) tail)",
+    "type": "v",
+    "text": "pre X post"
+  },
+  {
+    "name": "c-ib",
+    "cursor": 5,
+    "register": "outer (inner) tail",
+    "type": "v",
+    "text": "pre (X) post"
+  },
+  {
+    "name": "c-ab",
+    "cursor": 4,
+    "register": "(outer (inner) tail)",
+    "type": "v",
+    "text": "pre X post"
+  },
+  {
+    "name": "c-i[",
+    "cursor": 5,
+    "register": "outer [inner] tail",
+    "type": "v",
+    "text": "pre [X] post"
+  },
+  {
+    "name": "c-a[",
+    "cursor": 4,
+    "register": "[outer [inner] tail]",
+    "type": "v",
+    "text": "pre X post"
+  },
+  {
+    "name": "c-i]",
+    "cursor": 5,
+    "register": "outer [inner] tail",
+    "type": "v",
+    "text": "pre [X] post"
+  },
+  {
+    "name": "c-a]",
+    "cursor": 4,
+    "register": "[outer [inner] tail]",
+    "type": "v",
+    "text": "pre X post"
+  },
+  {
+    "name": "c-i{",
+    "cursor": 5,
+    "register": "outer {inner} tail",
+    "type": "v",
+    "text": "pre {X} post"
+  },
+  {
+    "name": "c-a{",
+    "cursor": 4,
+    "register": "{outer {inner} tail}",
+    "type": "v",
+    "text": "pre X post"
+  },
+  {
+    "name": "c-i}",
+    "cursor": 5,
+    "register": "outer {inner} tail",
+    "type": "v",
+    "text": "pre {X} post"
+  },
+  {
+    "name": "c-a}",
+    "cursor": 4,
+    "register": "{outer {inner} tail}",
+    "type": "v",
+    "text": "pre X post"
+  },
+  {
+    "name": "c-iB",
+    "cursor": 5,
+    "register": "outer {inner} tail",
+    "type": "v",
+    "text": "pre {X} post"
+  },
+  {
+    "name": "c-aB",
+    "cursor": 4,
+    "register": "{outer {inner} tail}",
+    "type": "v",
+    "text": "pre X post"
+  },
+  {
+    "name": "c-i\"",
+    "cursor": 5,
+    "register": "a \\\"b",
+    "type": "v",
+    "text": "pre \"X\" post"
+  },
+  {
+    "name": "c-a\"",
+    "cursor": 4,
+    "register": "\"a \\\"b\" ",
+    "type": "v",
+    "text": "pre Xpost"
+  },
+  {
+    "name": "c-i'",
+    "cursor": 5,
+    "register": "a \\'b",
+    "type": "v",
+    "text": "pre 'X' post"
+  },
+  {
+    "name": "c-a'",
+    "cursor": 4,
+    "register": "'a \\'b' ",
+    "type": "v",
+    "text": "pre Xpost"
+  },
+  {
+    "name": "c-i`",
+    "cursor": 5,
+    "register": "a \\`b",
+    "type": "v",
+    "text": "pre `X` post"
+  },
+  {
+    "name": "c-a`",
+    "cursor": 4,
+    "register": "`a \\`b` ",
+    "type": "v",
+    "text": "pre Xpost"
+  },
+  {
+    "name": "c-i<",
+    "cursor": 5,
+    "register": "outer <inner> tail",
+    "type": "v",
+    "text": "pre <X> post"
+  },
+  {
+    "name": "c-a<",
+    "cursor": 4,
+    "register": "<outer <inner> tail>",
+    "type": "v",
+    "text": "pre X post"
+  },
+  {
+    "name": "c-i>",
+    "cursor": 5,
+    "register": "outer <inner> tail",
+    "type": "v",
+    "text": "pre <X> post"
+  },
+  {
+    "name": "c-a>",
+    "cursor": 4,
+    "register": "<outer <inner> tail>",
+    "type": "v",
+    "text": "pre X post"
+  },
+  {
+    "name": "c-it",
+    "cursor": 5,
+    "register": "<b>inner</b> tail",
+    "type": "v",
+    "text": "<div>X</div>"
+  },
+  {
+    "name": "c-at",
+    "cursor": 0,
+    "register": "<div><b>inner</b> tail</div>",
+    "type": "v",
+    "text": "X"
+  },
+  {
+    "name": "y-h-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-h-8",
+    "cursor": 7,
+    "register": "n",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-h-25",
+    "cursor": 24,
+    "register": "u",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-l-0",
+    "cursor": 0,
+    "register": "A",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-l-8",
+    "cursor": 8,
+    "register": "e",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-l-25",
+    "cursor": 25,
+    "register": "r",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-w-0",
+    "cursor": 0,
+    "register": "Alpha ",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-w-8",
+    "cursor": 8,
+    "register": "e",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-w-25",
+    "cursor": 25,
+    "register": "r ",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-W-0",
+    "cursor": 0,
+    "register": "Alpha ",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-W-8",
+    "cursor": 8,
+    "register": "e+two ",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-W-25",
+    "cursor": 25,
+    "register": "r ",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-b-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-b-8",
+    "cursor": 6,
+    "register": "on",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-b-25",
+    "cursor": 22,
+    "register": "fou",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-B-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-B-8",
+    "cursor": 6,
+    "register": "on",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-B-25",
+    "cursor": 22,
+    "register": "fou",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-e-0",
+    "cursor": 0,
+    "register": "Alpha",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-e-8",
+    "cursor": 8,
+    "register": "e+",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-e-25",
+    "cursor": 25,
+    "register": "r five",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-E-0",
+    "cursor": 0,
+    "register": "Alpha",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-E-8",
+    "cursor": 8,
+    "register": "e+two",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-E-25",
+    "cursor": 25,
+    "register": "r five-six",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-ge-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-ge-8",
+    "cursor": 4,
+    "register": "a one",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-ge-25",
+    "cursor": 18,
+    "register": "E\n  four",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-gE-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-gE-8",
+    "cursor": 4,
+    "register": "a one",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-gE-25",
+    "cursor": 18,
+    "register": "E\n  four",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-0-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-0-8",
+    "cursor": 0,
+    "register": "Alpha on",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-0-25",
+    "cursor": 20,
+    "register": "  fou",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-^-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-^-8",
+    "cursor": 0,
+    "register": "Alpha on",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-^-25",
+    "cursor": 22,
+    "register": "fou",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-$-0",
+    "cursor": 0,
+    "register": "Alpha one+two THREE",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-$-8",
+    "cursor": 8,
+    "register": "e+two THREE",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-$-25",
+    "cursor": 25,
+    "register": "r five-six",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-j-0",
+    "cursor": 0,
+    "register": "Alpha one+two THREE\n  four five-six\n",
+    "type": "V",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-j-8",
+    "cursor": 8,
+    "register": "Alpha one+two THREE\n  four five-six\n",
+    "type": "V",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-j-25",
+    "cursor": 25,
+    "register": "  four five-six\nseven EIGHT nine\n",
+    "type": "V",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-k-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-k-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-k-25",
+    "cursor": 5,
+    "register": "Alpha one+two THREE\n  four five-six\n",
+    "type": "V",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-gg-0",
+    "cursor": 0,
+    "register": "Alpha one+two THREE\n",
+    "type": "V",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-gg-8",
+    "cursor": 0,
+    "register": "Alpha one+two THREE\n",
+    "type": "V",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-gg-25",
+    "cursor": 0,
+    "register": "Alpha one+two THREE\n  four five-six\n",
+    "type": "V",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-G-0",
+    "cursor": 0,
+    "register": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n",
+    "type": "V",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-G-8",
+    "cursor": 8,
+    "register": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n",
+    "type": "V",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-G-25",
+    "cursor": 25,
+    "register": "  four five-six\nseven EIGHT nine\n",
+    "type": "V",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "y-fo",
+    "cursor": 6,
+    "register": "o fo",
+    "type": "v",
+    "text": "one two four\n"
+  },
+  {
+    "name": "y-Fo",
+    "cursor": 0,
+    "register": "one tw",
+    "type": "v",
+    "text": "one two four\n"
+  },
+  {
+    "name": "y-to",
+    "cursor": 6,
+    "register": "o f",
+    "type": "v",
+    "text": "one two four\n"
+  },
+  {
+    "name": "y-To",
+    "cursor": 1,
+    "register": "ne tw",
+    "type": "v",
+    "text": "one two four\n"
+  },
+  {
+    "name": "y-iw",
+    "cursor": 10,
+    "register": "+",
+    "type": "v",
+    "text": "prefix one+two suffix"
+  },
+  {
+    "name": "y-aw",
+    "cursor": 10,
+    "register": "+",
+    "type": "v",
+    "text": "prefix one+two suffix"
+  },
+  {
+    "name": "y-iW",
+    "cursor": 7,
+    "register": "one+two",
+    "type": "v",
+    "text": "prefix one+two suffix"
+  },
+  {
+    "name": "y-aW",
+    "cursor": 7,
+    "register": "one+two ",
+    "type": "v",
+    "text": "prefix one+two suffix"
+  },
+  {
+    "name": "y-ip",
+    "cursor": 8,
+    "register": "first\nsecond\n",
+    "type": "V",
+    "text": "before\n\nfirst\nsecond\n\nafter\n"
+  },
+  {
+    "name": "y-ap",
+    "cursor": 8,
+    "register": "first\nsecond\n\n",
+    "type": "V",
+    "text": "before\n\nfirst\nsecond\n\nafter\n"
+  },
+  {
+    "name": "y-i(",
+    "cursor": 5,
+    "register": "outer (inner) tail",
+    "type": "v",
+    "text": "pre (outer (inner) tail) post"
+  },
+  {
+    "name": "y-a(",
+    "cursor": 4,
+    "register": "(outer (inner) tail)",
+    "type": "v",
+    "text": "pre (outer (inner) tail) post"
+  },
+  {
+    "name": "y-i)",
+    "cursor": 5,
+    "register": "outer (inner) tail",
+    "type": "v",
+    "text": "pre (outer (inner) tail) post"
+  },
+  {
+    "name": "y-a)",
+    "cursor": 4,
+    "register": "(outer (inner) tail)",
+    "type": "v",
+    "text": "pre (outer (inner) tail) post"
+  },
+  {
+    "name": "y-ib",
+    "cursor": 5,
+    "register": "outer (inner) tail",
+    "type": "v",
+    "text": "pre (outer (inner) tail) post"
+  },
+  {
+    "name": "y-ab",
+    "cursor": 4,
+    "register": "(outer (inner) tail)",
+    "type": "v",
+    "text": "pre (outer (inner) tail) post"
+  },
+  {
+    "name": "y-i[",
+    "cursor": 5,
+    "register": "outer [inner] tail",
+    "type": "v",
+    "text": "pre [outer [inner] tail] post"
+  },
+  {
+    "name": "y-a[",
+    "cursor": 4,
+    "register": "[outer [inner] tail]",
+    "type": "v",
+    "text": "pre [outer [inner] tail] post"
+  },
+  {
+    "name": "y-i]",
+    "cursor": 5,
+    "register": "outer [inner] tail",
+    "type": "v",
+    "text": "pre [outer [inner] tail] post"
+  },
+  {
+    "name": "y-a]",
+    "cursor": 4,
+    "register": "[outer [inner] tail]",
+    "type": "v",
+    "text": "pre [outer [inner] tail] post"
+  },
+  {
+    "name": "y-i{",
+    "cursor": 5,
+    "register": "outer {inner} tail",
+    "type": "v",
+    "text": "pre {outer {inner} tail} post"
+  },
+  {
+    "name": "y-a{",
+    "cursor": 4,
+    "register": "{outer {inner} tail}",
+    "type": "v",
+    "text": "pre {outer {inner} tail} post"
+  },
+  {
+    "name": "y-i}",
+    "cursor": 5,
+    "register": "outer {inner} tail",
+    "type": "v",
+    "text": "pre {outer {inner} tail} post"
+  },
+  {
+    "name": "y-a}",
+    "cursor": 4,
+    "register": "{outer {inner} tail}",
+    "type": "v",
+    "text": "pre {outer {inner} tail} post"
+  },
+  {
+    "name": "y-iB",
+    "cursor": 5,
+    "register": "outer {inner} tail",
+    "type": "v",
+    "text": "pre {outer {inner} tail} post"
+  },
+  {
+    "name": "y-aB",
+    "cursor": 4,
+    "register": "{outer {inner} tail}",
+    "type": "v",
+    "text": "pre {outer {inner} tail} post"
+  },
+  {
+    "name": "y-i\"",
+    "cursor": 5,
+    "register": "a \\\"b",
+    "type": "v",
+    "text": "pre \"a \\\"b\" post"
+  },
+  {
+    "name": "y-a\"",
+    "cursor": 4,
+    "register": "\"a \\\"b\" ",
+    "type": "v",
+    "text": "pre \"a \\\"b\" post"
+  },
+  {
+    "name": "y-i'",
+    "cursor": 5,
+    "register": "a \\'b",
+    "type": "v",
+    "text": "pre 'a \\'b' post"
+  },
+  {
+    "name": "y-a'",
+    "cursor": 4,
+    "register": "'a \\'b' ",
+    "type": "v",
+    "text": "pre 'a \\'b' post"
+  },
+  {
+    "name": "y-i`",
+    "cursor": 5,
+    "register": "a \\`b",
+    "type": "v",
+    "text": "pre `a \\`b` post"
+  },
+  {
+    "name": "y-a`",
+    "cursor": 4,
+    "register": "`a \\`b` ",
+    "type": "v",
+    "text": "pre `a \\`b` post"
+  },
+  {
+    "name": "y-i<",
+    "cursor": 5,
+    "register": "outer <inner> tail",
+    "type": "v",
+    "text": "pre <outer <inner> tail> post"
+  },
+  {
+    "name": "y-a<",
+    "cursor": 4,
+    "register": "<outer <inner> tail>",
+    "type": "v",
+    "text": "pre <outer <inner> tail> post"
+  },
+  {
+    "name": "y-i>",
+    "cursor": 5,
+    "register": "outer <inner> tail",
+    "type": "v",
+    "text": "pre <outer <inner> tail> post"
+  },
+  {
+    "name": "y-a>",
+    "cursor": 4,
+    "register": "<outer <inner> tail>",
+    "type": "v",
+    "text": "pre <outer <inner> tail> post"
+  },
+  {
+    "name": "y-it",
+    "cursor": 5,
+    "register": "<b>inner</b> tail",
+    "type": "v",
+    "text": "<div><b>inner</b> tail</div>"
+  },
+  {
+    "name": "y-at",
+    "cursor": 0,
+    "register": "<div><b>inner</b> tail</div>",
+    "type": "v",
+    "text": "<div><b>inner</b> tail</div>"
+  },
+  {
+    "name": ">-h-0",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-h-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-h-25",
+    "cursor": 26,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n      four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-l-0",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-l-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-l-25",
+    "cursor": 26,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n      four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-w-0",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-w-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-w-25",
+    "cursor": 26,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n      four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-W-0",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-W-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-W-25",
+    "cursor": 26,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n      four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-b-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-b-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-b-25",
+    "cursor": 26,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n      four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-B-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-B-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-B-25",
+    "cursor": 26,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n      four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-e-0",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-e-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-e-25",
+    "cursor": 26,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n      four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-E-0",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-E-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-E-25",
+    "cursor": 26,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n      four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-ge-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-ge-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-ge-25",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n      four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-gE-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-gE-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-gE-25",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n      four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-0-0",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-0-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-0-25",
+    "cursor": 26,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n      four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-^-0",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-^-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-^-25",
+    "cursor": 26,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n      four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-$-0",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-$-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-$-25",
+    "cursor": 26,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n      four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-j-0",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n      four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-j-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n      four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-j-25",
+    "cursor": 26,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n      four five-six\n    seven EIGHT nine\n"
+  },
+  {
+    "name": ">-k-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-k-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-k-25",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n      four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-gg-0",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-gg-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-gg-25",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n      four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": ">-G-0",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n      four five-six\n    seven EIGHT nine\n"
+  },
+  {
+    "name": ">-G-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    Alpha one+two THREE\n      four five-six\n    seven EIGHT nine\n"
+  },
+  {
+    "name": ">-G-25",
+    "cursor": 26,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n      four five-six\n    seven EIGHT nine\n"
+  },
+  {
+    "name": ">-fo",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    one two four\n"
+  },
+  {
+    "name": ">-Fo",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    one two four\n"
+  },
+  {
+    "name": ">-to",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    one two four\n"
+  },
+  {
+    "name": ">-To",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    one two four\n"
+  },
+  {
+    "name": ">-iw",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    prefix one+two suffix"
+  },
+  {
+    "name": ">-aw",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    prefix one+two suffix"
+  },
+  {
+    "name": ">-iW",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    prefix one+two suffix"
+  },
+  {
+    "name": ">-aW",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    prefix one+two suffix"
+  },
+  {
+    "name": ">-ip",
+    "cursor": 12,
+    "register": "",
+    "type": "v",
+    "text": "before\n\n    first\n    second\n\nafter\n"
+  },
+  {
+    "name": ">-ap",
+    "cursor": 12,
+    "register": "",
+    "type": "v",
+    "text": "before\n\n    first\n    second\n\nafter\n"
+  },
+  {
+    "name": ">-i(",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre (outer (inner) tail) post"
+  },
+  {
+    "name": ">-a(",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre (outer (inner) tail) post"
+  },
+  {
+    "name": ">-i)",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre (outer (inner) tail) post"
+  },
+  {
+    "name": ">-a)",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre (outer (inner) tail) post"
+  },
+  {
+    "name": ">-ib",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre (outer (inner) tail) post"
+  },
+  {
+    "name": ">-ab",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre (outer (inner) tail) post"
+  },
+  {
+    "name": ">-i[",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre [outer [inner] tail] post"
+  },
+  {
+    "name": ">-a[",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre [outer [inner] tail] post"
+  },
+  {
+    "name": ">-i]",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre [outer [inner] tail] post"
+  },
+  {
+    "name": ">-a]",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre [outer [inner] tail] post"
+  },
+  {
+    "name": ">-i{",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre {outer {inner} tail} post"
+  },
+  {
+    "name": ">-a{",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre {outer {inner} tail} post"
+  },
+  {
+    "name": ">-i}",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre {outer {inner} tail} post"
+  },
+  {
+    "name": ">-a}",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre {outer {inner} tail} post"
+  },
+  {
+    "name": ">-iB",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre {outer {inner} tail} post"
+  },
+  {
+    "name": ">-aB",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre {outer {inner} tail} post"
+  },
+  {
+    "name": ">-i\"",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre \"a \\\"b\" post"
+  },
+  {
+    "name": ">-a\"",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre \"a \\\"b\" post"
+  },
+  {
+    "name": ">-i'",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre 'a \\'b' post"
+  },
+  {
+    "name": ">-a'",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre 'a \\'b' post"
+  },
+  {
+    "name": ">-i`",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre `a \\`b` post"
+  },
+  {
+    "name": ">-a`",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre `a \\`b` post"
+  },
+  {
+    "name": ">-i<",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre <outer <inner> tail> post"
+  },
+  {
+    "name": ">-a<",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre <outer <inner> tail> post"
+  },
+  {
+    "name": ">-i>",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre <outer <inner> tail> post"
+  },
+  {
+    "name": ">-a>",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    pre <outer <inner> tail> post"
+  },
+  {
+    "name": ">-it",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    <div><b>inner</b> tail</div>"
+  },
+  {
+    "name": ">-at",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    <div><b>inner</b> tail</div>"
+  },
+  {
+    "name": "<-h-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-h-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-h-25",
+    "cursor": 20,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\nfour five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-l-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-l-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-l-25",
+    "cursor": 20,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\nfour five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-w-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-w-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-w-25",
+    "cursor": 20,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\nfour five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-W-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-W-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-W-25",
+    "cursor": 20,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\nfour five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-b-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-b-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-b-25",
+    "cursor": 20,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\nfour five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-B-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-B-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-B-25",
+    "cursor": 20,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\nfour five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-e-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-e-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-e-25",
+    "cursor": 20,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\nfour five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-E-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-E-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-E-25",
+    "cursor": 20,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\nfour five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-ge-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-ge-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-ge-25",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\nfour five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-gE-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-gE-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-gE-25",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\nfour five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-0-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-0-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-0-25",
+    "cursor": 20,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\nfour five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-^-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-^-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-^-25",
+    "cursor": 20,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\nfour five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-$-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-$-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-$-25",
+    "cursor": 20,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\nfour five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-j-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\nfour five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-j-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\nfour five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-j-25",
+    "cursor": 20,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\nfour five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-k-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-k-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-k-25",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\nfour five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-gg-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-gg-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-gg-25",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\nfour five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-G-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\nfour five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-G-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\nfour five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-G-25",
+    "cursor": 20,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\nfour five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "<-fo",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "one two four\n"
+  },
+  {
+    "name": "<-Fo",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "one two four\n"
+  },
+  {
+    "name": "<-to",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "one two four\n"
+  },
+  {
+    "name": "<-To",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "one two four\n"
+  },
+  {
+    "name": "<-iw",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "prefix one+two suffix"
+  },
+  {
+    "name": "<-aw",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "prefix one+two suffix"
+  },
+  {
+    "name": "<-iW",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "prefix one+two suffix"
+  },
+  {
+    "name": "<-aW",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "prefix one+two suffix"
+  },
+  {
+    "name": "<-ip",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "before\n\nfirst\nsecond\n\nafter\n"
+  },
+  {
+    "name": "<-ap",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "before\n\nfirst\nsecond\n\nafter\n"
+  },
+  {
+    "name": "<-i(",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre (outer (inner) tail) post"
+  },
+  {
+    "name": "<-a(",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre (outer (inner) tail) post"
+  },
+  {
+    "name": "<-i)",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre (outer (inner) tail) post"
+  },
+  {
+    "name": "<-a)",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre (outer (inner) tail) post"
+  },
+  {
+    "name": "<-ib",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre (outer (inner) tail) post"
+  },
+  {
+    "name": "<-ab",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre (outer (inner) tail) post"
+  },
+  {
+    "name": "<-i[",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre [outer [inner] tail] post"
+  },
+  {
+    "name": "<-a[",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre [outer [inner] tail] post"
+  },
+  {
+    "name": "<-i]",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre [outer [inner] tail] post"
+  },
+  {
+    "name": "<-a]",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre [outer [inner] tail] post"
+  },
+  {
+    "name": "<-i{",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre {outer {inner} tail} post"
+  },
+  {
+    "name": "<-a{",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre {outer {inner} tail} post"
+  },
+  {
+    "name": "<-i}",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre {outer {inner} tail} post"
+  },
+  {
+    "name": "<-a}",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre {outer {inner} tail} post"
+  },
+  {
+    "name": "<-iB",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre {outer {inner} tail} post"
+  },
+  {
+    "name": "<-aB",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre {outer {inner} tail} post"
+  },
+  {
+    "name": "<-i\"",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre \"a \\\"b\" post"
+  },
+  {
+    "name": "<-a\"",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre \"a \\\"b\" post"
+  },
+  {
+    "name": "<-i'",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre 'a \\'b' post"
+  },
+  {
+    "name": "<-a'",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre 'a \\'b' post"
+  },
+  {
+    "name": "<-i`",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre `a \\`b` post"
+  },
+  {
+    "name": "<-a`",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre `a \\`b` post"
+  },
+  {
+    "name": "<-i<",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre <outer <inner> tail> post"
+  },
+  {
+    "name": "<-a<",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre <outer <inner> tail> post"
+  },
+  {
+    "name": "<-i>",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre <outer <inner> tail> post"
+  },
+  {
+    "name": "<-a>",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "pre <outer <inner> tail> post"
+  },
+  {
+    "name": "<-it",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "<div><b>inner</b> tail</div>"
+  },
+  {
+    "name": "<-at",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "<div><b>inner</b> tail</div>"
+  },
+  {
+    "name": "gu-h-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-h-8",
+    "cursor": 7,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-h-25",
+    "cursor": 24,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-l-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-l-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-l-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-w-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-w-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-w-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-W-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-W-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-W-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-b-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-b-8",
+    "cursor": 6,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-b-25",
+    "cursor": 22,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-B-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-B-8",
+    "cursor": 6,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-B-25",
+    "cursor": 22,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-e-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-e-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-e-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-E-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-E-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-E-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-ge-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-ge-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-ge-25",
+    "cursor": 18,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREe\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-gE-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-gE-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-gE-25",
+    "cursor": 18,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREe\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-0-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-0-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-0-25",
+    "cursor": 20,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-^-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-^-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-^-25",
+    "cursor": 22,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-$-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two three\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-$-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two three\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-$-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-j-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two three\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-j-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two three\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-j-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven eight nine\n"
+  },
+  {
+    "name": "gu-k-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-k-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-k-25",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two three\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-gg-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two three\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-gg-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two three\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-gg-25",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two three\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gu-G-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two three\n  four five-six\nseven eight nine\n"
+  },
+  {
+    "name": "gu-G-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two three\n  four five-six\nseven eight nine\n"
+  },
+  {
+    "name": "gu-G-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven eight nine\n"
+  },
+  {
+    "name": "gu-fo",
+    "cursor": 6,
+    "register": "",
+    "type": "v",
+    "text": "one two four\n"
+  },
+  {
+    "name": "gu-Fo",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "one two four\n"
+  },
+  {
+    "name": "gu-to",
+    "cursor": 6,
+    "register": "",
+    "type": "v",
+    "text": "one two four\n"
+  },
+  {
+    "name": "gu-To",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "one two four\n"
+  },
+  {
+    "name": "gu-iw",
+    "cursor": 10,
+    "register": "",
+    "type": "v",
+    "text": "prefix one+two suffix"
+  },
+  {
+    "name": "gu-aw",
+    "cursor": 10,
+    "register": "",
+    "type": "v",
+    "text": "prefix one+two suffix"
+  },
+  {
+    "name": "gu-iW",
+    "cursor": 7,
+    "register": "",
+    "type": "v",
+    "text": "prefix one+two suffix"
+  },
+  {
+    "name": "gu-aW",
+    "cursor": 7,
+    "register": "",
+    "type": "v",
+    "text": "prefix one+two suffix"
+  },
+  {
+    "name": "gu-ip",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "before\n\nfirst\nsecond\n\nafter\n"
+  },
+  {
+    "name": "gu-ap",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "before\n\nfirst\nsecond\n\nafter\n"
+  },
+  {
+    "name": "gu-i(",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre (outer (inner) tail) post"
+  },
+  {
+    "name": "gu-a(",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre (outer (inner) tail) post"
+  },
+  {
+    "name": "gu-i)",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre (outer (inner) tail) post"
+  },
+  {
+    "name": "gu-a)",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre (outer (inner) tail) post"
+  },
+  {
+    "name": "gu-ib",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre (outer (inner) tail) post"
+  },
+  {
+    "name": "gu-ab",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre (outer (inner) tail) post"
+  },
+  {
+    "name": "gu-i[",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre [outer [inner] tail] post"
+  },
+  {
+    "name": "gu-a[",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre [outer [inner] tail] post"
+  },
+  {
+    "name": "gu-i]",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre [outer [inner] tail] post"
+  },
+  {
+    "name": "gu-a]",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre [outer [inner] tail] post"
+  },
+  {
+    "name": "gu-i{",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre {outer {inner} tail} post"
+  },
+  {
+    "name": "gu-a{",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre {outer {inner} tail} post"
+  },
+  {
+    "name": "gu-i}",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre {outer {inner} tail} post"
+  },
+  {
+    "name": "gu-a}",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre {outer {inner} tail} post"
+  },
+  {
+    "name": "gu-iB",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre {outer {inner} tail} post"
+  },
+  {
+    "name": "gu-aB",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre {outer {inner} tail} post"
+  },
+  {
+    "name": "gu-i\"",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre \"a \\\"b\" post"
+  },
+  {
+    "name": "gu-a\"",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre \"a \\\"b\" post"
+  },
+  {
+    "name": "gu-i'",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre 'a \\'b' post"
+  },
+  {
+    "name": "gu-a'",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre 'a \\'b' post"
+  },
+  {
+    "name": "gu-i`",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre `a \\`b` post"
+  },
+  {
+    "name": "gu-a`",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre `a \\`b` post"
+  },
+  {
+    "name": "gu-i<",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre <outer <inner> tail> post"
+  },
+  {
+    "name": "gu-a<",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre <outer <inner> tail> post"
+  },
+  {
+    "name": "gu-i>",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre <outer <inner> tail> post"
+  },
+  {
+    "name": "gu-a>",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre <outer <inner> tail> post"
+  },
+  {
+    "name": "gu-it",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "<div><b>inner</b> tail</div>"
+  },
+  {
+    "name": "gu-at",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "<div><b>inner</b> tail</div>"
+  },
+  {
+    "name": "gU-h-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-h-8",
+    "cursor": 7,
+    "register": "",
+    "type": "v",
+    "text": "Alpha oNe+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-h-25",
+    "cursor": 24,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  foUr five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-l-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-l-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha onE+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-l-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fouR five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-w-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "ALPHA one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-w-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha onE+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-w-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fouR five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-W-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "ALPHA one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-W-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha onE+TWO THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-W-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fouR five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-b-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-b-8",
+    "cursor": 6,
+    "register": "",
+    "type": "v",
+    "text": "Alpha ONe+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-b-25",
+    "cursor": 22,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  FOUr five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-B-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-B-8",
+    "cursor": 6,
+    "register": "",
+    "type": "v",
+    "text": "Alpha ONe+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-B-25",
+    "cursor": 22,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  FOUr five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-e-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "ALPHA one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-e-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha onE+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-e-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fouR FIVE-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-E-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "ALPHA one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-E-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha onE+TWO THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-E-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fouR FIVE-SIX\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-ge-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-ge-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "AlphA ONE+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-ge-25",
+    "cursor": 18,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  FOUR five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-gE-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-gE-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "AlphA ONE+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-gE-25",
+    "cursor": 18,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  FOUR five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-0-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-0-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "ALPHA ONe+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-0-25",
+    "cursor": 20,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  FOUr five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-^-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-^-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "ALPHA ONe+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-^-25",
+    "cursor": 22,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  FOUr five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-$-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "ALPHA ONE+TWO THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-$-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha onE+TWO THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-$-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fouR FIVE-SIX\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-j-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "ALPHA ONE+TWO THREE\n  FOUR FIVE-SIX\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-j-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "ALPHA ONE+TWO THREE\n  FOUR FIVE-SIX\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-j-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  FOUR FIVE-SIX\nSEVEN EIGHT NINE\n"
+  },
+  {
+    "name": "gU-k-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-k-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-k-25",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "ALPHA ONE+TWO THREE\n  FOUR FIVE-SIX\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-gg-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "ALPHA ONE+TWO THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-gg-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "ALPHA ONE+TWO THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-gg-25",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "ALPHA ONE+TWO THREE\n  FOUR FIVE-SIX\nseven EIGHT nine\n"
+  },
+  {
+    "name": "gU-G-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "ALPHA ONE+TWO THREE\n  FOUR FIVE-SIX\nSEVEN EIGHT NINE\n"
+  },
+  {
+    "name": "gU-G-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "ALPHA ONE+TWO THREE\n  FOUR FIVE-SIX\nSEVEN EIGHT NINE\n"
+  },
+  {
+    "name": "gU-G-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  FOUR FIVE-SIX\nSEVEN EIGHT NINE\n"
+  },
+  {
+    "name": "gU-fo",
+    "cursor": 6,
+    "register": "",
+    "type": "v",
+    "text": "one twO FOur\n"
+  },
+  {
+    "name": "gU-Fo",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "ONE TWo four\n"
+  },
+  {
+    "name": "gU-to",
+    "cursor": 6,
+    "register": "",
+    "type": "v",
+    "text": "one twO Four\n"
+  },
+  {
+    "name": "gU-To",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "oNE TWo four\n"
+  },
+  {
+    "name": "gU-iw",
+    "cursor": 10,
+    "register": "",
+    "type": "v",
+    "text": "prefix one+two suffix"
+  },
+  {
+    "name": "gU-aw",
+    "cursor": 10,
+    "register": "",
+    "type": "v",
+    "text": "prefix one+two suffix"
+  },
+  {
+    "name": "gU-iW",
+    "cursor": 7,
+    "register": "",
+    "type": "v",
+    "text": "prefix ONE+TWO suffix"
+  },
+  {
+    "name": "gU-aW",
+    "cursor": 7,
+    "register": "",
+    "type": "v",
+    "text": "prefix ONE+TWO suffix"
+  },
+  {
+    "name": "gU-ip",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "before\n\nFIRST\nSECOND\n\nafter\n"
+  },
+  {
+    "name": "gU-ap",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "before\n\nFIRST\nSECOND\n\nafter\n"
+  },
+  {
+    "name": "gU-i(",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre (OUTER (INNER) TAIL) post"
+  },
+  {
+    "name": "gU-a(",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre (OUTER (INNER) TAIL) post"
+  },
+  {
+    "name": "gU-i)",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre (OUTER (INNER) TAIL) post"
+  },
+  {
+    "name": "gU-a)",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre (OUTER (INNER) TAIL) post"
+  },
+  {
+    "name": "gU-ib",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre (OUTER (INNER) TAIL) post"
+  },
+  {
+    "name": "gU-ab",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre (OUTER (INNER) TAIL) post"
+  },
+  {
+    "name": "gU-i[",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre [OUTER [INNER] TAIL] post"
+  },
+  {
+    "name": "gU-a[",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre [OUTER [INNER] TAIL] post"
+  },
+  {
+    "name": "gU-i]",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre [OUTER [INNER] TAIL] post"
+  },
+  {
+    "name": "gU-a]",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre [OUTER [INNER] TAIL] post"
+  },
+  {
+    "name": "gU-i{",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre {OUTER {INNER} TAIL} post"
+  },
+  {
+    "name": "gU-a{",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre {OUTER {INNER} TAIL} post"
+  },
+  {
+    "name": "gU-i}",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre {OUTER {INNER} TAIL} post"
+  },
+  {
+    "name": "gU-a}",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre {OUTER {INNER} TAIL} post"
+  },
+  {
+    "name": "gU-iB",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre {OUTER {INNER} TAIL} post"
+  },
+  {
+    "name": "gU-aB",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre {OUTER {INNER} TAIL} post"
+  },
+  {
+    "name": "gU-i\"",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre \"A \\\"B\" post"
+  },
+  {
+    "name": "gU-a\"",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre \"A \\\"B\" post"
+  },
+  {
+    "name": "gU-i'",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre 'A \\'B' post"
+  },
+  {
+    "name": "gU-a'",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre 'A \\'B' post"
+  },
+  {
+    "name": "gU-i`",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre `A \\`B` post"
+  },
+  {
+    "name": "gU-a`",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre `A \\`B` post"
+  },
+  {
+    "name": "gU-i<",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre <OUTER <INNER> TAIL> post"
+  },
+  {
+    "name": "gU-a<",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre <OUTER <INNER> TAIL> post"
+  },
+  {
+    "name": "gU-i>",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre <OUTER <INNER> TAIL> post"
+  },
+  {
+    "name": "gU-a>",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre <OUTER <INNER> TAIL> post"
+  },
+  {
+    "name": "gU-it",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "<div><B>INNER</B> TAIL</div>"
+  },
+  {
+    "name": "gU-at",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "<DIV><B>INNER</B> TAIL</DIV>"
+  },
+  {
+    "name": "g~-h-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-h-8",
+    "cursor": 7,
+    "register": "",
+    "type": "v",
+    "text": "Alpha oNe+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-h-25",
+    "cursor": 24,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  foUr five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-l-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-l-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha onE+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-l-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fouR five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-w-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "aLPHA one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-w-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha onE+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-w-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fouR five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-W-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "aLPHA one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-W-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha onE+TWO THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-W-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fouR five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-b-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-b-8",
+    "cursor": 6,
+    "register": "",
+    "type": "v",
+    "text": "Alpha ONe+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-b-25",
+    "cursor": 22,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  FOUr five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-B-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-B-8",
+    "cursor": 6,
+    "register": "",
+    "type": "v",
+    "text": "Alpha ONe+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-B-25",
+    "cursor": 22,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  FOUr five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-e-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "aLPHA one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-e-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha onE+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-e-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fouR FIVE-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-E-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "aLPHA one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-E-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha onE+TWO THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-E-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fouR FIVE-SIX\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-ge-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-ge-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "AlphA ONE+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-ge-25",
+    "cursor": 18,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREe\n  FOUR five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-gE-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-gE-8",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "AlphA ONE+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-gE-25",
+    "cursor": 18,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREe\n  FOUR five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-0-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-0-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "aLPHA ONe+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-0-25",
+    "cursor": 20,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  FOUr five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-^-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-^-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "aLPHA ONe+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-^-25",
+    "cursor": 22,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  FOUr five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-$-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "aLPHA ONE+TWO three\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-$-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha onE+TWO three\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-$-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  fouR FIVE-SIX\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-j-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "aLPHA ONE+TWO three\n  FOUR FIVE-SIX\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-j-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "aLPHA ONE+TWO three\n  FOUR FIVE-SIX\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-j-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  FOUR FIVE-SIX\nSEVEN eight NINE\n"
+  },
+  {
+    "name": "g~-k-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-k-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-k-25",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "aLPHA ONE+TWO three\n  FOUR FIVE-SIX\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-gg-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "aLPHA ONE+TWO three\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-gg-8",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "aLPHA ONE+TWO three\n  four five-six\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-gg-25",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "aLPHA ONE+TWO three\n  FOUR FIVE-SIX\nseven EIGHT nine\n"
+  },
+  {
+    "name": "g~-G-0",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "aLPHA ONE+TWO three\n  FOUR FIVE-SIX\nSEVEN eight NINE\n"
+  },
+  {
+    "name": "g~-G-8",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "aLPHA ONE+TWO three\n  FOUR FIVE-SIX\nSEVEN eight NINE\n"
+  },
+  {
+    "name": "g~-G-25",
+    "cursor": 25,
+    "register": "",
+    "type": "v",
+    "text": "Alpha one+two THREE\n  FOUR FIVE-SIX\nSEVEN eight NINE\n"
+  },
+  {
+    "name": "g~-fo",
+    "cursor": 6,
+    "register": "",
+    "type": "v",
+    "text": "one twO FOur\n"
+  },
+  {
+    "name": "g~-Fo",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "ONE TWo four\n"
+  },
+  {
+    "name": "g~-to",
+    "cursor": 6,
+    "register": "",
+    "type": "v",
+    "text": "one twO Four\n"
+  },
+  {
+    "name": "g~-To",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "oNE TWo four\n"
+  },
+  {
+    "name": "g~-iw",
+    "cursor": 10,
+    "register": "",
+    "type": "v",
+    "text": "prefix one+two suffix"
+  },
+  {
+    "name": "g~-aw",
+    "cursor": 10,
+    "register": "",
+    "type": "v",
+    "text": "prefix one+two suffix"
+  },
+  {
+    "name": "g~-iW",
+    "cursor": 7,
+    "register": "",
+    "type": "v",
+    "text": "prefix ONE+TWO suffix"
+  },
+  {
+    "name": "g~-aW",
+    "cursor": 7,
+    "register": "",
+    "type": "v",
+    "text": "prefix ONE+TWO suffix"
+  },
+  {
+    "name": "g~-ip",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "before\n\nFIRST\nSECOND\n\nafter\n"
+  },
+  {
+    "name": "g~-ap",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "before\n\nFIRST\nSECOND\n\nafter\n"
+  },
+  {
+    "name": "g~-i(",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre (OUTER (INNER) TAIL) post"
+  },
+  {
+    "name": "g~-a(",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre (OUTER (INNER) TAIL) post"
+  },
+  {
+    "name": "g~-i)",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre (OUTER (INNER) TAIL) post"
+  },
+  {
+    "name": "g~-a)",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre (OUTER (INNER) TAIL) post"
+  },
+  {
+    "name": "g~-ib",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre (OUTER (INNER) TAIL) post"
+  },
+  {
+    "name": "g~-ab",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre (OUTER (INNER) TAIL) post"
+  },
+  {
+    "name": "g~-i[",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre [OUTER [INNER] TAIL] post"
+  },
+  {
+    "name": "g~-a[",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre [OUTER [INNER] TAIL] post"
+  },
+  {
+    "name": "g~-i]",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre [OUTER [INNER] TAIL] post"
+  },
+  {
+    "name": "g~-a]",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre [OUTER [INNER] TAIL] post"
+  },
+  {
+    "name": "g~-i{",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre {OUTER {INNER} TAIL} post"
+  },
+  {
+    "name": "g~-a{",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre {OUTER {INNER} TAIL} post"
+  },
+  {
+    "name": "g~-i}",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre {OUTER {INNER} TAIL} post"
+  },
+  {
+    "name": "g~-a}",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre {OUTER {INNER} TAIL} post"
+  },
+  {
+    "name": "g~-iB",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre {OUTER {INNER} TAIL} post"
+  },
+  {
+    "name": "g~-aB",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre {OUTER {INNER} TAIL} post"
+  },
+  {
+    "name": "g~-i\"",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre \"A \\\"B\" post"
+  },
+  {
+    "name": "g~-a\"",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre \"A \\\"B\" post"
+  },
+  {
+    "name": "g~-i'",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre 'A \\'B' post"
+  },
+  {
+    "name": "g~-a'",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre 'A \\'B' post"
+  },
+  {
+    "name": "g~-i`",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre `A \\`B` post"
+  },
+  {
+    "name": "g~-a`",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre `A \\`B` post"
+  },
+  {
+    "name": "g~-i<",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre <OUTER <INNER> TAIL> post"
+  },
+  {
+    "name": "g~-a<",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre <OUTER <INNER> TAIL> post"
+  },
+  {
+    "name": "g~-i>",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "pre <OUTER <INNER> TAIL> post"
+  },
+  {
+    "name": "g~-a>",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "pre <OUTER <INNER> TAIL> post"
+  },
+  {
+    "name": "g~-it",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "<div><B>INNER</B> TAIL</div>"
+  },
+  {
+    "name": "g~-at",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "<DIV><B>INNER</B> TAIL</DIV>"
+  },
+  {
+    "name": "v-ll-d",
+    "cursor": 9,
+    "register": "ijk",
+    "type": "v",
+    "text": "abcdef\nghl\nmnopqr\n"
+  },
+  {
+    "name": "v-jll-d",
+    "cursor": 9,
+    "register": "ijkl\nmnopq",
+    "type": "v",
+    "text": "abcdef\nghr\n"
+  },
+  {
+    "name": "v-khh-d",
+    "cursor": 0,
+    "register": "abcdef\nghi",
+    "type": "v",
+    "text": "jkl\nmnopqr\n"
+  },
+  {
+    "name": "v-ll-c",
+    "cursor": 9,
+    "register": "ijk",
+    "type": "v",
+    "text": "abcdef\nghXl\nmnopqr\n"
+  },
+  {
+    "name": "v-jll-c",
+    "cursor": 9,
+    "register": "ijkl\nmnopq",
+    "type": "v",
+    "text": "abcdef\nghXr\n"
+  },
+  {
+    "name": "v-khh-c",
+    "cursor": 0,
+    "register": "abcdef\nghi",
+    "type": "v",
+    "text": "Xjkl\nmnopqr\n"
+  },
+  {
+    "name": "v-ll-y",
+    "cursor": 9,
+    "register": "ijk",
+    "type": "v",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "v-jll-y",
+    "cursor": 9,
+    "register": "ijkl\nmnopq",
+    "type": "v",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "v-khh-y",
+    "cursor": 0,
+    "register": "abcdef\nghi",
+    "type": "v",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "v-ll->",
+    "cursor": 11,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\n    ghijkl\nmnopqr\n"
+  },
+  {
+    "name": "v-jll->",
+    "cursor": 11,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\n    ghijkl\n    mnopqr\n"
+  },
+  {
+    "name": "v-khh->",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    abcdef\n    ghijkl\nmnopqr\n"
+  },
+  {
+    "name": "v-ll-<",
+    "cursor": 7,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "v-jll-<",
+    "cursor": 7,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "v-khh-<",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "v-ll-gu",
+    "cursor": 9,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "v-jll-gu",
+    "cursor": 9,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "v-khh-gu",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "v-ll-gU",
+    "cursor": 9,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghIJKl\nmnopqr\n"
+  },
+  {
+    "name": "v-jll-gU",
+    "cursor": 9,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghIJKL\nMNOPQr\n"
+  },
+  {
+    "name": "v-khh-gU",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "ABCDEF\nGHIjkl\nmnopqr\n"
+  },
+  {
+    "name": "v-ll-g~",
+    "cursor": 9,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghIJKl\nmnopqr\n"
+  },
+  {
+    "name": "v-jll-g~",
+    "cursor": 9,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghIJKL\nMNOPQr\n"
+  },
+  {
+    "name": "v-khh-g~",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "ABCDEF\nGHIjkl\nmnopqr\n"
+  },
+  {
+    "name": "V-ll-d",
+    "cursor": 7,
+    "register": "ghijkl\n",
+    "type": "V",
+    "text": "abcdef\nmnopqr\n"
+  },
+  {
+    "name": "V-jll-d",
+    "cursor": 0,
+    "register": "ghijkl\nmnopqr\n",
+    "type": "V",
+    "text": "abcdef\n"
+  },
+  {
+    "name": "V-khh-d",
+    "cursor": 0,
+    "register": "abcdef\nghijkl\n",
+    "type": "V",
+    "text": "mnopqr\n"
+  },
+  {
+    "name": "V-ll-c",
+    "cursor": 7,
+    "register": "ghijkl\n",
+    "type": "V",
+    "text": "abcdef\nX\nmnopqr\n"
+  },
+  {
+    "name": "V-jll-c",
+    "cursor": 7,
+    "register": "ghijkl\nmnopqr\n",
+    "type": "V",
+    "text": "abcdef\nX\n"
+  },
+  {
+    "name": "V-khh-c",
+    "cursor": 0,
+    "register": "abcdef\nghijkl\n",
+    "type": "V",
+    "text": "X\nmnopqr\n"
+  },
+  {
+    "name": "V-ll-y",
+    "cursor": 7,
+    "register": "ghijkl\n",
+    "type": "V",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "V-jll-y",
+    "cursor": 7,
+    "register": "ghijkl\nmnopqr\n",
+    "type": "V",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "V-khh-y",
+    "cursor": 0,
+    "register": "abcdef\nghijkl\n",
+    "type": "V",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "V-ll->",
+    "cursor": 11,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\n    ghijkl\nmnopqr\n"
+  },
+  {
+    "name": "V-jll->",
+    "cursor": 11,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\n    ghijkl\n    mnopqr\n"
+  },
+  {
+    "name": "V-khh->",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "    abcdef\n    ghijkl\nmnopqr\n"
+  },
+  {
+    "name": "V-ll-<",
+    "cursor": 7,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "V-jll-<",
+    "cursor": 7,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "V-khh-<",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "V-ll-gu",
+    "cursor": 7,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "V-jll-gu",
+    "cursor": 7,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "V-khh-gu",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "V-ll-gU",
+    "cursor": 7,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nGHIJKL\nmnopqr\n"
+  },
+  {
+    "name": "V-jll-gU",
+    "cursor": 7,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nGHIJKL\nMNOPQR\n"
+  },
+  {
+    "name": "V-khh-gU",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "ABCDEF\nGHIJKL\nmnopqr\n"
+  },
+  {
+    "name": "V-ll-g~",
+    "cursor": 7,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nGHIJKL\nmnopqr\n"
+  },
+  {
+    "name": "V-jll-g~",
+    "cursor": 7,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nGHIJKL\nMNOPQR\n"
+  },
+  {
+    "name": "V-khh-g~",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "ABCDEF\nGHIJKL\nmnopqr\n"
+  },
+  {
+    "name": "ctrl-v-ll-d",
+    "cursor": 9,
+    "register": "ijk",
+    "type": "\u00163",
+    "text": "abcdef\nghl\nmnopqr\n"
+  },
+  {
+    "name": "ctrl-v-jll-d",
+    "cursor": 9,
+    "register": "ijk\nopq",
+    "type": "\u00163",
+    "text": "abcdef\nghl\nmnr\n"
+  },
+  {
+    "name": "ctrl-v-khh-d",
+    "cursor": 0,
+    "register": "abc\nghi",
+    "type": "\u00163",
+    "text": "def\njkl\nmnopqr\n"
+  },
+  {
+    "name": "ctrl-v-ll-c",
+    "cursor": 9,
+    "register": "ijk",
+    "type": "\u00163",
+    "text": "abcdef\nghXl\nmnopqr\n"
+  },
+  {
+    "name": "ctrl-v-jll-c",
+    "cursor": 9,
+    "register": "ijk\nopq",
+    "type": "\u00163",
+    "text": "abcdef\nghXl\nmnXr\n"
+  },
+  {
+    "name": "ctrl-v-khh-c",
+    "cursor": 0,
+    "register": "abc\nghi",
+    "type": "\u00163",
+    "text": "Xdef\nXjkl\nmnopqr\n"
+  },
+  {
+    "name": "ctrl-v-ll-y",
+    "cursor": 9,
+    "register": "ijk",
+    "type": "\u00163",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "ctrl-v-jll-y",
+    "cursor": 9,
+    "register": "ijk\nopq",
+    "type": "\u00163",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "ctrl-v-khh-y",
+    "cursor": 0,
+    "register": "abc\nghi",
+    "type": "\u00163",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "ctrl-v-ll->",
+    "cursor": 9,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\ngh    ijkl\nmnopqr\n"
+  },
+  {
+    "name": "ctrl-v-jll->",
+    "cursor": 9,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\ngh    ijkl\nmn    opqr\n"
+  },
+  {
+    "name": "ctrl-v-khh->",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "    abcdef\n    ghijkl\nmnopqr\n"
+  },
+  {
+    "name": "ctrl-v-ll-<",
+    "cursor": 9,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "ctrl-v-jll-<",
+    "cursor": 9,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "ctrl-v-khh-<",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "ctrl-v-ll-gu",
+    "cursor": 9,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "ctrl-v-jll-gu",
+    "cursor": 9,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "ctrl-v-khh-gu",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghijkl\nmnopqr\n"
+  },
+  {
+    "name": "ctrl-v-ll-gU",
+    "cursor": 9,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghIJKl\nmnopqr\n"
+  },
+  {
+    "name": "ctrl-v-jll-gU",
+    "cursor": 9,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghIJKl\nmnOPQr\n"
+  },
+  {
+    "name": "ctrl-v-khh-gU",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "ABCdef\nGHIjkl\nmnopqr\n"
+  },
+  {
+    "name": "ctrl-v-ll-g~",
+    "cursor": 9,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghIJKl\nmnopqr\n"
+  },
+  {
+    "name": "ctrl-v-jll-g~",
+    "cursor": 9,
+    "register": "",
+    "type": "v",
+    "text": "abcdef\nghIJKl\nmnOPQr\n"
+  },
+  {
+    "name": "ctrl-v-khh-g~",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "ABCdef\nGHIjkl\nmnopqr\n"
+  },
+  {
+    "name": "count-before-and-after",
+    "cursor": 0,
+    "register": "one two three four five six ",
+    "type": "v",
+    "text": "seven"
+  },
+  {
+    "name": "counted-inner-word",
+    "cursor": 0,
+    "register": "one ",
+    "type": "v",
+    "text": "two three four"
+  },
+  {
+    "name": "outer-counted-parens",
+    "cursor": 5,
+    "register": "a (b) c",
+    "type": "v",
+    "text": "one () two"
+  },
+  {
+    "name": "backward-percent",
+    "cursor": 2,
+    "register": "(one [two])",
+    "type": "v",
+    "text": "a  z"
+  },
+  {
+    "name": "counted-insert",
+    "cursor": 2,
+    "register": "",
+    "type": "v",
+    "text": "XXXabc"
+  },
+  {
+    "name": "replace-backspace",
+    "cursor": 2,
+    "register": "",
+    "type": "v",
+    "text": "aXZdef"
+  },
+  {
+    "name": "replace-short-line",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "ab\ncd"
+  },
+  {
+    "name": "line-yank-paste-eof",
+    "cursor": 8,
+    "register": "two\n",
+    "type": "V",
+    "text": "one\ntwo\ntwo"
+  },
+  {
+    "name": "line-delete-eof",
+    "cursor": 0,
+    "register": "two\n",
+    "type": "V",
+    "text": "one"
+  },
+  {
+    "name": "change-line",
+    "cursor": 4,
+    "register": "two\n",
+    "type": "V",
+    "text": "one\nX\nthree"
+  },
+  {
+    "name": "change-word-undo",
+    "cursor": 0,
+    "register": "one",
+    "type": "v",
+    "text": "one two"
+  },
+  {
+    "name": "insert-undo",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "one"
+  },
+  {
+    "name": "find-till-repeat",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "axbxcxd"
+  },
+  {
+    "name": "find-reverse-repeat",
+    "cursor": 3,
+    "register": "",
+    "type": "v",
+    "text": "axbxcxd"
+  },
+  {
+    "name": "named-append",
+    "cursor": 12,
+    "register": "one two ",
+    "type": "v",
+    "text": "one tone two wo three"
+  },
+  {
+    "name": "blackhole-register",
+    "cursor": 4,
+    "register": "one ",
+    "type": "v",
+    "text": "tone wo three"
+  },
+  {
+    "name": "macro-repeat",
+    "cursor": 0,
+    "register": "c",
+    "type": "v",
+    "text": "d"
+  },
+  {
+    "name": "join-three",
+    "cursor": 7,
+    "register": "",
+    "type": "v",
+    "text": "one two three\nfour"
+  },
+  {
+    "name": "unicode-motion",
+    "cursor": 3,
+    "register": "いう ",
+    "type": "v",
+    "text": "あαβγ emoji"
+  },
+  {
+    "name": "quote-closing",
+    "cursor": 5,
+    "register": "inside",
+    "type": "v",
+    "text": "pre \"\" post"
+  },
+  {
+    "name": "tag-inner",
+    "cursor": 8,
+    "register": "inside",
+    "type": "v",
+    "text": "<div><b></b></div>"
+  },
+  {
+    "name": "block-insert",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "aXYbcd\neXYfgh\nijkl"
+  },
+  {
+    "name": "block-append",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "abcXYd\nefgXYh\nijkl"
+  },
+  {
+    "name": "block-append-short",
+    "cursor": 2,
+    "register": "",
+    "type": "v",
+    "text": "abcdX\ne   X\nijklX"
+  },
+  {
+    "name": "block-insert-short",
+    "cursor": 2,
+    "register": "",
+    "type": "v",
+    "text": "abXcd\ne\nijXkl"
+  },
+  {
+    "name": "block-replace",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "aXXd\neXXh\nijkl"
+  },
+  {
+    "name": "visual-replace",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "aXXX\nXXXh"
+  },
+  {
+    "name": "block-yank-paste",
+    "cursor": 7,
+    "register": "bc\nfg",
+    "type": "\u00162",
+    "text": "abcd\nefbcgh\nijfgkl"
+  },
+  {
+    "name": "visual-paste",
+    "cursor": 7,
+    "register": "two",
+    "type": "v",
+    "text": "one one  three"
+  },
+  {
+    "name": "visual-line-paste-char",
+    "cursor": 8,
+    "register": "three four\n",
+    "type": "V",
+    "text": "one two\none \nfive"
+  },
+  {
+    "name": "visual-char-paste-line",
+    "cursor": 5,
+    "register": "tw",
+    "type": "v",
+    "text": "one\n\none\no three"
+  },
+  {
+    "name": "visual-block-paste",
+    "cursor": 1,
+    "register": "bc\nfg",
+    "type": "\u00162",
+    "text": "abcd\nefgh\nijkl"
+  },
+  {
+    "name": "macro-register-paste",
+    "cursor": 1,
+    "register": "a",
+    "type": "v",
+    "text": "bxcd"
+  },
+  {
+    "name": "mark-motion-delete",
+    "cursor": 0,
+    "register": "one two\n",
+    "type": "V",
+    "text": "three four\nfive"
+  },
+  {
+    "name": "mark-line-delete",
+    "cursor": 0,
+    "register": "one two\nthree four\n",
+    "type": "V",
+    "text": "five"
+  },
+  {
+    "name": "sentence-inner",
+    "cursor": 14,
+    "register": "Two words!",
+    "type": "v",
+    "text": "One sentence.  Last one."
+  },
+  {
+    "name": "sentence-around",
+    "cursor": 14,
+    "register": "Two words! ",
+    "type": "v",
+    "text": "One sentence. Last one."
+  },
+  {
+    "name": "counted-around-word",
+    "cursor": 0,
+    "register": "one two ",
+    "type": "v",
+    "text": "three four"
+  },
+  {
+    "name": "change-word-twice",
+    "cursor": 2,
+    "register": "e two",
+    "type": "v",
+    "text": "onX three four"
+  },
+  {
+    "name": "dot-count-insert",
+    "cursor": 7,
+    "register": "",
+    "type": "v",
+    "text": "XXabc XXdef ghi"
+  },
+  {
+    "name": "normal-right-boundary",
+    "cursor": 1,
+    "register": "c",
+    "type": "v",
+    "text": "ab\ndef"
+  },
+  {
+    "name": "normal-left-boundary",
+    "cursor": 4,
+    "register": "d",
+    "type": "v",
+    "text": "abc\nef"
+  },
+  {
+    "name": "search-operator",
+    "cursor": 0,
+    "register": "one ",
+    "type": "v",
+    "text": "two three two end"
+  },
+  {
+    "name": "block-change-two",
+    "cursor": 2,
+    "register": "bc\nfg",
+    "type": "\u00162",
+    "text": "aXYd\neXYh"
+  },
+  {
+    "name": "delete-word-before-newline",
+    "cursor": 3,
+    "register": "two",
+    "type": "v",
+    "text": "one \nthree four"
+  },
+  {
+    "name": "yank-word-before-newline",
+    "cursor": 4,
+    "register": "two",
+    "type": "v",
+    "text": "one two\nthree four"
+  },
+  {
+    "name": "change-whitespace",
+    "cursor": 3,
+    "register": "   ",
+    "type": "v",
+    "text": "oneXtwo"
+  },
+  {
+    "name": "word-empty-line",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "one\n\ntwo\nthree"
+  },
+  {
+    "name": "word-through-empty-line",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "one\n\ntwo\nthree"
+  },
+  {
+    "name": "paragraph-delete",
+    "cursor": 1,
+    "register": "e\ntwo",
+    "type": "v",
+    "text": "on\n\nthree\nfour"
+  },
+  {
+    "name": "counted-inner-three",
+    "cursor": 0,
+    "register": "one two",
+    "type": "v",
+    "text": " three four"
+  },
+  {
+    "name": "nested-inner-count",
+    "cursor": 12,
+    "register": "two (three)",
+    "type": "v",
+    "text": "outer (one () end)"
+  },
+  {
+    "name": "undo-delete",
+    "cursor": 4,
+    "register": "two ",
+    "type": "v",
+    "text": "one two three"
+  },
+  {
+    "name": "undo-indent",
+    "cursor": 5,
+    "register": "",
+    "type": "v",
+    "text": "one\n two\nthree"
+  },
+  {
+    "name": "visual-block-dot",
+    "cursor": 3,
+    "register": "gh\nij",
+    "type": "\u00162",
+    "text": "cd\n\nkl\nmnop"
+  },
+  {
+    "name": "substitute-first",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "two one\ntwo one"
+  },
+  {
+    "name": "substitute-match",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "[one] two"
+  },
+  {
+    "name": "visual-substitute",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "NEW two\nNEW two\none two"
+  },
+  {
+    "name": "plain-reindent",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "one\ntwo\nthree\nfour"
+  },
+  {
+    "name": "search-count-reset",
+    "cursor": 2,
+    "register": "a b a b ",
+    "type": "v",
+    "text": "a b a"
+  },
+  {
+    "name": "visual-block-gv",
+    "cursor": 1,
+    "register": "bc\nfg",
+    "type": "\u00162",
+    "text": "abcd\nefgh\nijkl"
+  },
+  {
+    "name": "macro-count-undo",
+    "cursor": 0,
+    "register": "c",
+    "type": "v",
+    "text": "bcdefgh"
+  },
+  {
+    "name": "macro-insert-undo",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Xabcdefgh"
+  },
+  {
+    "name": "macro-with-undo",
+    "cursor": 2,
+    "register": "b",
+    "type": "v",
+    "text": "abcdefgh"
+  },
+  {
+    "name": "counted-case-after-count",
+    "cursor": 0,
+    "register": "one two\nthree four\n",
+    "type": "V",
+    "text": "ONE TWO\nTHREE FOUR\nFIVE SIX"
+  },
+  {
+    "name": "case-line-repeat",
+    "cursor": 4,
+    "register": "",
+    "type": "v",
+    "text": "ONE\nTWO\nthree"
+  },
+  {
+    "name": "change-line-repeat",
+    "cursor": 2,
+    "register": "two\n",
+    "type": "V",
+    "text": "X\nX\nthree"
+  },
+  {
+    "name": "visual-yank-gv",
+    "cursor": 2,
+    "register": "c d",
+    "type": "v",
+    "text": "abef ghi"
+  },
+  {
+    "name": "visual-counted-shift-v->",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "        a        bcd\n        e        fgh\nijkl"
+  },
+  {
+    "name": "visual-counted-shift-v-<",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "a        bcd\ne        fgh\nijkl"
+  },
+  {
+    "name": "visual-counted-shift-V->",
+    "cursor": 8,
+    "register": "",
+    "type": "v",
+    "text": "        a        bcd\n        e        fgh\nijkl"
+  },
+  {
+    "name": "visual-counted-shift-V-<",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "a        bcd\ne        fgh\nijkl"
+  },
+  {
+    "name": "visual-counted-shift-ctrl-v->",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "a                bcd\ne                fgh\nijkl"
+  },
+  {
+    "name": "visual-counted-shift-ctrl-v-<",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "abcd\nefgh\nijkl"
+  },
+  {
+    "name": "block-cells-0-jl-d",
+    "cursor": 0,
+    "register": "bcd\n   E",
+    "type": "\u00164",
+    "text": "a\n F\nijkl"
+  },
+  {
+    "name": "block-cells-0-j-d",
+    "cursor": 0,
+    "register": "abcd\n\t",
+    "type": "\u00164",
+    "text": "\nEF\nijkl"
+  },
+  {
+    "name": "block-cells-0-jj-d",
+    "cursor": 1,
+    "register": "b\n \nj",
+    "type": "\u00161",
+    "text": "acd\n   EF\nikl"
+  },
+  {
+    "name": "block-cells-0-jl-y",
+    "cursor": 1,
+    "register": "bcd\n   E",
+    "type": "\u00164",
+    "text": "abcd\n\tEF\nijkl"
+  },
+  {
+    "name": "block-cells-0-j-y",
+    "cursor": 0,
+    "register": "abcd\n\t",
+    "type": "\u00164",
+    "text": "abcd\n\tEF\nijkl"
+  },
+  {
+    "name": "block-cells-0-jj-y",
+    "cursor": 1,
+    "register": "b\n \nj",
+    "type": "\u00161",
+    "text": "abcd\n\tEF\nijkl"
+  },
+  {
+    "name": "block-cells-0-jl-cXesc",
+    "cursor": 1,
+    "register": "bcd\n   E",
+    "type": "\u00164",
+    "text": "aX\n XF\nijkl"
+  },
+  {
+    "name": "block-cells-0-j-cXesc",
+    "cursor": 0,
+    "register": "abcd\n\t",
+    "type": "\u00164",
+    "text": "X\nXEF\nijkl"
+  },
+  {
+    "name": "block-cells-0-jj-cXesc",
+    "cursor": 1,
+    "register": "b\n \nj",
+    "type": "\u00161",
+    "text": "aXcd\n X  EF\niXkl"
+  },
+  {
+    "name": "block-cells-0-jl-rX",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "aXXX\n XXXXF\nijkl"
+  },
+  {
+    "name": "block-cells-0-j-rX",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "XXXX\nXXXXEF\nijkl"
+  },
+  {
+    "name": "block-cells-0-jj-rX",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "aXcd\n X  EF\niXkl"
+  },
+  {
+    "name": "block-cells-0-jl-IXesc",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "aXbcd\n X   EF\nijkl"
+  },
+  {
+    "name": "block-cells-0-j-IXesc",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Xabcd\nX\tEF\nijkl"
+  },
+  {
+    "name": "block-cells-0-jj-IXesc",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "aXbcd\n X   EF\niXjkl"
+  },
+  {
+    "name": "block-cells-0-jl-AXesc",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "abcd X\n\tEXF\nijkl"
+  },
+  {
+    "name": "block-cells-0-j-AXesc",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "abcdX\n\tXEF\nijkl"
+  },
+  {
+    "name": "block-cells-0-jj-AXesc",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "abXcd\n  X  EF\nijXkl"
+  },
+  {
+    "name": "block-cells-0-jl->",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "a    bcd\n        EF\nijkl"
+  },
+  {
+    "name": "block-cells-0-j->",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "    abcd\n        EF\nijkl"
+  },
+  {
+    "name": "block-cells-0-jj->",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "a    bcd\n        EF\ni    jkl"
+  },
+  {
+    "name": "block-cells-0-jl-<",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "abcd\n EF\nijkl"
+  },
+  {
+    "name": "block-cells-0-j-<",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "abcd\nEF\nijkl"
+  },
+  {
+    "name": "block-cells-0-jj-<",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "abcd\n EF\nijkl"
+  },
+  {
+    "name": "block-cells-0-jl-yjp",
+    "cursor": 6,
+    "register": "bcd\n   E",
+    "type": "\u00164",
+    "text": "abcd\n\tbcd EF\nijkl   E"
+  },
+  {
+    "name": "block-cells-0-j-yjp",
+    "cursor": 6,
+    "register": "abcd\n\t",
+    "type": "\u00164",
+    "text": "abcd\n\tabcdEF\nijkl\t"
+  },
+  {
+    "name": "block-cells-0-jj-yjp",
+    "cursor": 6,
+    "register": "b\n \nj",
+    "type": "\u00161",
+    "text": "abcd\n\tbEF\nijkl \n    j"
+  },
+  {
+    "name": "block-cells-paste-0",
+    "cursor": 1,
+    "register": "bc\n  \njk",
+    "type": "\u00162",
+    "text": "abd\n b EF\nibl"
+  },
+  {
+    "name": "block-cells-1-jl-d",
+    "cursor": 0,
+    "register": "bcd\n い",
+    "type": "\u00163",
+    "text": "a\n う\nijkl"
+  },
+  {
+    "name": "block-cells-1-j-d",
+    "cursor": 0,
+    "register": "ab\nあ",
+    "type": "\u00162",
+    "text": "cd\nいう\nijkl"
+  },
+  {
+    "name": "block-cells-1-jj-d",
+    "cursor": 1,
+    "register": "b\n \nj",
+    "type": "\u00161",
+    "text": "acd\n いう\nikl"
+  },
+  {
+    "name": "block-cells-1-jl-y",
+    "cursor": 1,
+    "register": "bcd\n い",
+    "type": "\u00163",
+    "text": "abcd\nあいう\nijkl"
+  },
+  {
+    "name": "block-cells-1-j-y",
+    "cursor": 0,
+    "register": "ab\nあ",
+    "type": "\u00162",
+    "text": "abcd\nあいう\nijkl"
+  },
+  {
+    "name": "block-cells-1-jj-y",
+    "cursor": 1,
+    "register": "b\n \nj",
+    "type": "\u00161",
+    "text": "abcd\nあいう\nijkl"
+  },
+  {
+    "name": "block-cells-1-jl-cXesc",
+    "cursor": 1,
+    "register": "bcd\n い",
+    "type": "\u00163",
+    "text": "aX\n Xう\nijkl"
+  },
+  {
+    "name": "block-cells-1-j-cXesc",
+    "cursor": 0,
+    "register": "ab\nあ",
+    "type": "\u00162",
+    "text": "Xcd\nXいう\nijkl"
+  },
+  {
+    "name": "block-cells-1-jj-cXesc",
+    "cursor": 1,
+    "register": "b\n \nj",
+    "type": "\u00161",
+    "text": "aXcd\n Xいう\niXkl"
+  },
+  {
+    "name": "block-cells-1-jl-rX",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "aXXX\n XXXう\nijkl"
+  },
+  {
+    "name": "block-cells-1-j-rX",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "XXcd\nXXいう\nijkl"
+  },
+  {
+    "name": "block-cells-1-jj-rX",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "aXcd\n Xいう\niXkl"
+  },
+  {
+    "name": "block-cells-1-jl-IXesc",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "aXbcd\n Xあいう\nijkl"
+  },
+  {
+    "name": "block-cells-1-j-IXesc",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "Xabcd\nXあいう\nijkl"
+  },
+  {
+    "name": "block-cells-1-jj-IXesc",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "aXbcd\n Xあいう\niXjkl"
+  },
+  {
+    "name": "block-cells-1-jl-AXesc",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "abcdX\nあいXう\nijkl"
+  },
+  {
+    "name": "block-cells-1-j-AXesc",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "abXcd\nあXいう\nijkl"
+  },
+  {
+    "name": "block-cells-1-jj-AXesc",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "abXcd\nあXいう\nijXkl"
+  },
+  {
+    "name": "block-cells-1-jl->",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "a    bcd\n    あいう\nijkl"
+  },
+  {
+    "name": "block-cells-1-j->",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "    abcd\n    あいう\nijkl"
+  },
+  {
+    "name": "block-cells-1-jj->",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "a    bcd\n    あいう\ni    jkl"
+  },
+  {
+    "name": "block-cells-1-jl-<",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "abcd\n いう\nijkl"
+  },
+  {
+    "name": "block-cells-1-j-<",
+    "cursor": 0,
+    "register": "",
+    "type": "v",
+    "text": "abcd\nあいう\nijkl"
+  },
+  {
+    "name": "block-cells-1-jj-<",
+    "cursor": 1,
+    "register": "",
+    "type": "v",
+    "text": "abcd\n いう\nijkl"
+  },
+  {
+    "name": "block-cells-1-jl-yjp",
+    "cursor": 8,
+    "register": "bcd\n い",
+    "type": "\u00163",
+    "text": "abcd\nあbcdいう\nij いkl"
+  },
+  {
+    "name": "block-cells-1-j-yjp",
+    "cursor": 8,
+    "register": "ab\nあ",
+    "type": "\u00162",
+    "text": "abcd\nあabいう\nijあkl"
+  },
+  {
+    "name": "block-cells-1-jj-yjp",
+    "cursor": 8,
+    "register": "b\n \nj",
+    "type": "\u00161",
+    "text": "abcd\nあbいう\nij kl\n  j"
+  },
+  {
+    "name": "block-cells-paste-1",
+    "cursor": 1,
+    "register": "bc\n  \njk",
+    "type": "\u00162",
+    "text": "abd\n b う\nibl"
+  }
+]

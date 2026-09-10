@@ -1,0 +1,8 @@
+module Canopus
+  class Buffer
+    def copy_anchor: (Buffer source, Anchor anchor) -> Anchor
+  end
+  class Workspace
+    def cancel_project_search: () -> void
+  end
+end

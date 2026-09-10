@@ -1,0 +1,11 @@
+module Canopus
+  class Markdown
+    class Run < Data
+      attr_reader text: String
+      attr_reader style: Symbol | String
+      attr_reader url: String?
+    end
+    def initialize: (String source, ?width: Integer, ?max_rows: Integer, ?markup: bool) -> void
+    attr_reader rows: Array[Array[Run]]
+  end
+end

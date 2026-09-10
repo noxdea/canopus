@@ -1,0 +1,37 @@
+# frozen_string_literal: true
+
+require "canopus"
+require "canopus/vim"
+require_relative "../test/support/vim_cases"
+require_relative "../test/support/vim_oracle"
+require "fileutils"
+
+cases = VimCases.all
+expected = VimOracle.run(cases)
+failures = []
+cases.zip(expected).each do |item, oracle|
+  editor = Canopus::Editor.new(Canopus::Buffer.new(item.fetch(:text)))
+  editor.select(item.fetch(:start))
+  vim = Canopus::Vim.new(editor)
+  begin
+    item.fetch(:keys).each { |key| vim.feed(key) }
+    register = vim.registers['"'] || ["", false]
+    type = register[1] == true ? "V" : (register[1] == :block ? "\x16#{register[2]}" : "v")
+    actual = {"text" => editor.buffer.text, "cursor" => vim.cursor_position, "register" => register[0], "type" => type}
+    failures << [item, oracle, actual] unless actual.all? { |key, value| oracle.fetch(key) == value }
+  rescue StandardError => error
+    failures << [item, oracle, "#{error.class}: #{error.message}"]
+  ensure
+    vim.dispose
+    editor.dispose
+  end
+end
+failures.first(80).each { |item, oracle, actual| puts "#{item[:name]} #{item[:keys].join.inspect}\n  expected: #{oracle.inspect}\n  actual:   #{actual.inspect}" }
+puts "#{cases.length - failures.length}/#{cases.length} Vim differential cases passed"
+if ARGV.include?("--write")
+  raise "cannot certify failing Vim behavior" unless failures.empty?
+  path = File.expand_path("../test/fixtures/vim_oracle.json", __dir__)
+  FileUtils.mkdir_p(File.dirname(path))
+  File.write(path, JSON.pretty_generate(expected) + "\n")
+end
+exit(failures.empty? ? 0 : 1)

@@ -1,0 +1,11 @@
+module Canopus
+  module Workspace::Edit
+    # A preflighted, single-use plan. Resource changes still require explicit UI
+    # confirmation at Workspace#apply_workspace_edit; construction does not write.
+    class Plan
+      def initialize: (Workspace workspace, LSP::object edit) -> void
+      def apply: () -> LSP::object
+      def close: () -> void
+    end
+  end
+end
