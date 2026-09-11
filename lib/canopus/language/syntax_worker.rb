@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "antares"
 require_relative "../../canopus"
 
 module Canopus

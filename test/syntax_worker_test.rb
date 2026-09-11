@@ -2,6 +2,8 @@
 
 require_relative "test_helper"
 require "canopus/language/syntax_worker"
+require "open3"
+require "rbconfig"
 
 class SyntaxWorkerTest < Minitest::Test
   Worker = Canopus::Language::SyntaxWorker
@@ -11,6 +13,13 @@ class SyntaxWorkerTest < Minitest::Test
     {"source" => source, "lexer" => lexer, "name" => lexer, "id" => id,
       "base" => 0, "base_line" => 0, "first" => 0, "last" => source.count("\n"),
       "version" => 0, "syntax" => syntax, "complete" => true, "context" => 0}
+  end
+
+  def test_unbundled_worker_boot_does_not_reload_strscan
+    _, error, status = Open3.capture3({"RUBYOPT" => nil, "RUBYLIB" => nil}, RbConfig.ruby, "-Ilib", "-e",
+      'require "canopus/language/syntax_worker"; require "antares"', chdir: File.expand_path("..", __dir__))
+    assert status.success?, error
+    refute_includes error, "already initialized constant StringScanner"
   end
 
   def test_persistent_lexer_caches_match_fresh_oracle_after_unicode_mutations
