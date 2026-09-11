@@ -65,7 +65,7 @@ module Canopus
     def terminal_point(point)
       grid = @workspace.terminal.grid
       column = ((point.x - @terminal_bounds.x) / @terminal_cell_width).floor.clamp(0, grid.columns - 1)
-      row = ((point.y - @terminal_bounds.y) / @line_height).floor.clamp(0, grid.rows - 1)
+      row = ((point.y - @terminal_bounds.y) / (@terminal_line_height || @line_height)).floor.clamp(0, grid.rows - 1)
       [column, row]
     end
     def terminal_scroll(delta)
@@ -136,15 +136,36 @@ module Canopus
     end
     def render_terminal(bounds)
       fill(bounds, :panel)
+      @terminal_bounds = nil
       terminal = @workspace.terminal
-      return unless terminal
-      text(terminal.vt.title.to_s.empty? ? "Terminal" : terminal.vt.title, bounds.x + 12, bounds.y + 5, color: :muted, size: 12)
-      @terminal_cell_width = @cx.text_system&.layout_line("M", size: @font_size)&.width || @font_size * 0.6
-      columns = [(bounds.width - 24) / @terminal_cell_width, 1].max.floor
-      rows = [(bounds.height - 28) / @line_height, 1].max.floor
-      terminal.resize(columns: columns, rows: rows) if terminal.grid.columns != columns || terminal.grid.rows != rows
+      unless terminal
+        text("No terminals — Ctrl+Shift+` to create one", bounds.x + 12, bounds.y + 8, color: :muted, size: 12)
+        return
+      end
+      if @terminal_owner != terminal
+        @terminal_owner, @terminal_scroll, @terminal_selection = terminal, 0, nil
+      end
+      x = bounds.x
+      @workspace.terminals.each_with_index do |current, index|
+        label = @workspace.terminal_title(current)
+        width = [[label.length * 7.5 + 42, 100].max, 220].min
+        tab = Zaniah::Bounds.new(x, bounds.y, width, 28)
+        fill(tab, :active_tab) if current.equal?(terminal)
+        text(label, tab.x + 10, tab.y + 6, color: current.equal?(terminal) ? :foreground : :muted, size: 12)
+        region(tab, role: :tab, label: label, action: [:terminal_tab, index])
+        close = Zaniah::Bounds.new(tab.right - 25, tab.y, 25, tab.height)
+        text("×", close.x + 6, close.y + 5, color: :muted, size: 12)
+        region(close, role: :button, label: "Close #{label}", action: [:terminal_close, index])
+        x += width
+      end
+      @terminal_font_size = @workspace.settings["terminal"]["font_size"] || @font_size
+      @terminal_line_height = (@terminal_font_size * @workspace.settings["terminal"]["line_height"]).ceil
+      @terminal_cell_width = @cx.text_system&.layout_line("M", size: @terminal_font_size)&.width || @terminal_font_size * 0.6
+      columns = [(bounds.width - 24) / @terminal_cell_width, @workspace.settings["terminal"]["min_cols"]].max.floor
+      rows = [(bounds.height - 40) / @terminal_line_height, @workspace.settings["terminal"]["min_rows"]].max.floor
+      @workspace.resize_terminal(columns, rows)
       grid = terminal.grid
-      @terminal_bounds = Zaniah::Bounds.new(bounds.x + 12, bounds.y + 28, columns * @terminal_cell_width, rows * @line_height)
+      @terminal_bounds = Zaniah::Bounds.new(bounds.x + 12, bounds.y + 32, columns * @terminal_cell_width, rows * @terminal_line_height).intersect(bounds)
       @terminal_scroll = (@terminal_scroll || 0).clamp(0, grid.scrollback.length)
       @terminal_first = grid.scrollback.length - @terminal_scroll.floor
       selection = @terminal_selection&.sort
@@ -153,11 +174,11 @@ module Canopus
           cells = terminal_row(@terminal_first + row)
           cells.each_with_index do |cell, column|
             next if cell.width.zero?
-            x, y = @terminal_bounds.x + column * @terminal_cell_width, @terminal_bounds.y + row * @line_height
+            x, y = @terminal_bounds.x + column * @terminal_cell_width, @terminal_bounds.y + row * @terminal_line_height
             foreground = terminal_color(cell.foreground, :foreground)
             background = terminal_color(cell.background, :panel)
             foreground, background = background, foreground if cell.attributes[:inverse]
-            rect = Zaniah::Bounds.new(x, y, cell.width * @terminal_cell_width, @line_height)
+            rect = Zaniah::Bounds.new(x, y, cell.width * @terminal_cell_width, @terminal_line_height)
             fill(rect, background) if background != @theme[:panel]
             position = [@terminal_first + row, column]
             fill(rect, :selection) if selection && (position <=> selection.first) >= 0 && (position <=> selection.last) <= 0
@@ -165,19 +186,38 @@ module Canopus
             foreground = Zaniah::Color.parse(foreground).opacity(0.6) if cell.attributes[:dim]
             unless cell.text.strip.empty?
               font = terminal_font(cell)
-              text(cell.text, x, y, color: foreground, font: font)
-              text(cell.text, x + 0.5, y, color: foreground, font: font) if cell.attributes[:bold]
+              text(cell.text, x, y, color: foreground, size: @terminal_font_size, font: font)
+              text(cell.text, x + 0.5, y, color: foreground, size: @terminal_font_size, font: font) if cell.attributes[:bold]
             end
             if cell.attributes[:underline] || cell.hyperlink
-              fill(Zaniah::Bounds.new(x, y + @line_height - 2, rect.width, 1), terminal_color(cell.attributes[:underline_color], :foreground))
+              fill(Zaniah::Bounds.new(x, y + @terminal_line_height - 2, rect.width, 1), terminal_color(cell.attributes[:underline_color], :foreground))
             end
-            fill(Zaniah::Bounds.new(x, y + @line_height / 2, rect.width, 1), foreground) if cell.attributes[:strikethrough]
+            fill(Zaniah::Bounds.new(x, y + @terminal_line_height / 2, rect.width, 1), foreground) if cell.attributes[:strikethrough]
           end
         end
-        if grid.cursor_visible && @terminal_scroll.zero?
-          fill(Zaniah::Bounds.new(@terminal_bounds.x + grid.cursor_x * @terminal_cell_width,
-            @terminal_bounds.y + grid.cursor_y * @line_height, @terminal_cell_width, @line_height), "#e9a66166")
+        blinking = @workspace.settings["terminal"]["blinking"]
+        if grid.cursor_visible && @terminal_scroll.zero? &&
+            (blinking == "off" || @cursor_visible || !@workspace.terminal_composition&.text.to_s.empty?)
+          x = @terminal_bounds.x + grid.cursor_x * @terminal_cell_width
+          y = @terminal_bounds.y + grid.cursor_y * @terminal_line_height
+          cursor = case @workspace.settings["terminal"]["cursor_shape"]
+          when "bar" then Zaniah::Bounds.new(x, y, 2, @terminal_line_height)
+          when "underline" then Zaniah::Bounds.new(x, y + @terminal_line_height - 2, @terminal_cell_width, 2)
+          else Zaniah::Bounds.new(x, y, @terminal_cell_width, @terminal_line_height)
+          end
+          fill(cursor, "#e9a66166")
+          composition = @workspace.terminal_composition
+          if composition && !composition.text.empty?
+            layout = text(composition.text, x, y, color: :accent, size: @terminal_font_size)
+            fill(Zaniah::Bounds.new(x, y + @terminal_line_height - 2, layout&.width || 20, 1), :accent)
+            @cx.window.ime_state = Zaniah::Bounds.new(x, y, 2, @terminal_line_height)
+          end
         end
+      end
+      if terminal.respond_to?(:status) && terminal.status
+        code = terminal.status.exited? ? terminal.status.exitstatus : "signal #{terminal.status.termsig}"
+        text("Process exited with #{code} — press Enter to restart", @terminal_bounds.x + 4,
+          [@terminal_bounds.bottom - @terminal_line_height, @terminal_bounds.y].max, color: :muted, size: 11)
       end
       region(@terminal_bounds, role: :terminal, label: "Terminal", action: [:terminal])
     end

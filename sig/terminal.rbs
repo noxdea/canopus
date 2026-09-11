@@ -110,8 +110,11 @@ module Canopus
       attr_reader grid: Grid
       attr_reader vt: VT
       attr_reader status: Process::Status?
-      def initialize: (?command: String | Array[String], ?cwd: String, ?columns: Integer, ?rows: Integer, ?env: Hash[String, String?], ?scrollback: Integer) -> void
-      def read: (?timeout: Numeric?, ?max_bytes: Integer) -> String?
+      attr_reader initial_cwd: String
+      attr_reader command_name: String
+      def initialize: (?command: String | Array[String], ?cwd: String, ?columns: Integer, ?rows: Integer, ?env: Hash[String, String?], ?scrollback: Integer, ?queue_limit_bytes: Integer) -> void
+      def read: (?timeout: Numeric?, ?max_bytes: Integer, ?max_seconds: Numeric?) -> String?
+      def pending?: () -> bool
       def write: (String bytes) -> Integer
       def paste: (String text) -> Integer
       def key: (String | Symbol name, ?shift: bool, ?alt: bool, ?control: bool) -> Integer
@@ -119,6 +122,8 @@ module Canopus
       def resize: (columns: Integer, rows: Integer) -> void
       def signal: (?String | Integer name) -> void
       def alive?: () -> bool
+      def busy?: () -> bool
+      def foreground_process_name: (?now: Numeric) -> String?
       def close: () -> void
     end
   end

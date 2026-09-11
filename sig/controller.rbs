@@ -1,6 +1,7 @@
 module Canopus
   class Controller
     SHORTCUTS: Hash[String, String]
+    TERMINAL_SHORTCUTS: Hash[String, String]
     attr_reader workspace: Workspace
     attr_reader view: Workspace::View
     attr_reader window: Zaniah::Platform::Headless::Window

@@ -27,13 +27,29 @@ module Canopus
     def pin(editor = active)
       @pinned << editor unless @pinned.include?(editor)
     end
-    def close(editor = active, discard: false)
+    def close(editor = active, discard: false, activate: :history)
       raise Error, "buffer has unsaved changes" if editor.buffer.dirty? && !discard
+      index = @editors.index(editor)
+      raise Error, "tab is not in pane" unless index
+      current = active
+      historical = @past.reverse.find { |item| !item.equal?(editor) && @editors.include?(item) }
       @pinned.delete(editor)
       @editors.delete(editor)
       @past.delete(editor)
       @future.delete(editor)
-      @active_index = [@active_index, @editors.length - 1].min.clamp(0, @editors.length)
+      @future.clear if current.equal?(editor)
+      @active_index = if @editors.empty?
+        0
+      elsif !current.equal?(editor)
+        @editors.index(current)
+      elsif activate == :history && historical
+        @past.delete(historical)
+        @editors.index(historical)
+      elsif activate == :left
+        [index - 1, 0].max
+      else
+        [index, @editors.length - 1].min
+      end
       editor.dispose
     end
     def detach(editor)

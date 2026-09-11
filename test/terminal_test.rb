@@ -118,4 +118,21 @@ class TerminalTest < Minitest::Test
   ensure
     terminal&.close
   end
+
+  def test_pty_queue_applies_backpressure_without_losing_output
+    size = 100_000
+    terminal = Canopus::Terminal::PTY.new(command: [RbConfig.ruby, "-e", "STDOUT.write('x' * #{size})"],
+      queue_limit_bytes: 65_536)
+    total = 0
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
+    loop do
+      chunk = terminal.read(timeout: 0.05, max_bytes: 32_768, max_seconds: 0.004)
+      total += chunk.to_s.bytesize
+      break unless chunk
+      raise "PTY output timed out" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+    end
+    assert_equal size, total
+  ensure
+    terminal&.close
+  end
 end

@@ -34,7 +34,7 @@ installable.
 - Native GPU windows on macOS, Linux, and Windows, plus TUI and headless modes
 - Persistent buffers, tabs, splits, sessions, and explicit save-conflict handling
 - LSP completion, diagnostics, hover, symbols, formatting, rename, and code actions
-- Integrated terminal with scrollback, selection, colors, and clickable links
+- Resizable integrated terminal with multiple tabs, scrollback, selection, colors, and clickable links
 - Git diff, blame, hunk reversal, and branch switching
 - Editable project-wide search results and safe project file operations
 - Optional Vim-compatible modes, motions, operators, registers, macros, and Ex commands
@@ -87,6 +87,9 @@ plugin options.
 | All occurrences / move lines | Cmd-Shift-L / Alt-Up or Down | Ctrl-Shift-L / Alt-Up or Down |
 | Completion / definition | Ctrl-Space / F12 | Ctrl-Space / F12 |
 | Split / terminal | Cmd-Backslash / Ctrl-Backtick | Ctrl-Backslash / Ctrl-Backtick |
+| Close / reopen tab | Cmd-W / Cmd-Shift-T | Ctrl-W / Ctrl-Shift-T |
+| New terminal tab | Ctrl-Shift-Backtick | Ctrl-Shift-Backtick |
+| Next / previous terminal | Ctrl-Shift-] / Ctrl-Shift-[ | Ctrl-Shift-] / Ctrl-Shift-[ |
 
 The command palette also exposes Git operations, language actions, project file
 operations, settings, themes, docks, and Vim mode. Project deletion moves files
@@ -104,6 +107,9 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
   "font_size": 14,
   "vim_mode": false,
   "use_tabs": false,
+  "tabs": { "activate_on_close": "history", "reopen_history_limit": 20 },
+  "terminal": { "working_directory": "project", "scrollback_lines": 10000 },
+  "dock": { "bottom": { "size": 280, "visible": false } },
   "keymap": [
     { "context": "Editor && !vim_mode", "bindings": { "ctrl-k ctrl-s": "file.save" } }
   ],
@@ -111,6 +117,12 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
   "language_servers": { "ruby": ["ruby-lsp"] }
 }
 ```
+
+Closing a dirty tab asks whether to save, discard, or cancel. Reopening restores
+the file, selections, position, and pane while Canopus is running; discarded
+unsaved changes are never restored. Terminal session restoration, when enabled,
+starts fresh shells with the saved tab count and working directories and does
+not restore processes or scrollback.
 
 Settings are layered from defaults through user, project, explicit `--settings`,
 and language overrides. Invalid saved settings leave the previous valid values

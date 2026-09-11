@@ -7,7 +7,15 @@ module Canopus
   class Settings
     DEFAULTS = {"font_size" => 14, "tab_size" => 4, "use_tabs" => false, "soft_wrap" => false, "vim_mode" => false, "keymap" => [].freeze,
       "scroll_friction" => 12,
-      "theme" => "Canopus Dark", "font_family" => nil, "icon_theme" => nil, "languages" => {}, "language_servers" => {}}.freeze
+      "theme" => "Canopus Dark", "font_family" => nil, "icon_theme" => nil, "languages" => {}, "language_servers" => {},
+      "tabs" => {"activate_on_close" => "history", "close_on_middle_click" => true, "close_empty_pane" => true,
+        "reopen_history_limit" => 20, "confirm_on_close_dirty" => true}.freeze,
+      "dock" => {"bottom" => {"size" => 280, "visible" => false}.freeze}.freeze,
+      "terminal" => {"shell" => nil, "working_directory" => "project", "env" => {}.freeze, "scrollback_lines" => 10_000,
+        "font_size" => nil, "line_height" => 1.2, "copy_on_select" => false, "blinking" => "terminal_controlled", "cursor_shape" => "block",
+        "close_on_exit" => "clean", "confirm_close_running" => true, "confirm_multiline_paste" => true,
+        "restore_on_startup" => false, "hide_when_empty" => false, "max_bytes_per_frame" => 262_144,
+        "queue_limit_bytes" => 8_388_608, "resize_debounce_ms" => 100, "min_rows" => 4, "min_cols" => 20}.freeze}.freeze
     SCHEMA = {"$schema" => "https://json-schema.org/draft/2020-12/schema", "type" => "object", "properties" => {
       "font_size" => {"type" => "number", "minimum" => 6, "maximum" => 96},
       "tab_size" => {"type" => "integer", "minimum" => 1, "maximum" => 16},
@@ -19,6 +27,7 @@ module Canopus
         "bindings" => {"type" => "object", "maxProperties" => 1024, "additionalProperties" => {"type" => ["string", "null"]}}}}},
       "theme" => {"type" => "string"}, "font_family" => {"type" => ["string", "null"]},
       "icon_theme" => {"type" => ["string", "null"]},
+      "tabs" => {"type" => "object"}, "terminal" => {"type" => "object"}, "dock" => {"type" => "object"},
       "languages" => {"type" => "object", "additionalProperties" => {"$ref" => "#"}},
       "language_servers" => {"type" => "object"}}}.freeze
     attr_reader :values, :errors, :layers
@@ -85,6 +94,9 @@ module Canopus
       raise Error, "theme must be a string" unless @values["theme"].is_a?(String)
       raise Error, "font_family must be a string or null" unless @values["font_family"].nil? || @values["font_family"].is_a?(String)
       raise Error, "icon_theme must be a string or null" unless @values["icon_theme"].nil? || @values["icon_theme"].is_a?(String)
+      validate_tabs!
+      validate_terminal!
+      validate_dock!
       @values["languages"] = @values["languages"].to_h do |name, layer|
         raise Error, "language settings must be objects" unless name.is_a?(String) && layer.is_a?(Hash)
         raise Error, "language settings cannot contain nested languages" if layer.key?("languages")
@@ -113,6 +125,46 @@ module Canopus
       end.freeze
     rescue ArgumentError => error
       raise Error, "invalid keymap: #{error.message}"
+    end
+
+    def validate_tabs!
+      tabs = @values["tabs"]
+      raise Error, "tabs must be an object" unless tabs.is_a?(Hash)
+      raise Error, "invalid tabs.activate_on_close" unless %w[history neighbour left right].include?(tabs["activate_on_close"])
+      %w[close_on_middle_click close_empty_pane confirm_on_close_dirty].each do |key|
+        raise Error, "tabs.#{key} must be true or false" unless [true, false].include?(tabs[key])
+      end
+      limit = tabs["reopen_history_limit"]
+      raise Error, "invalid tabs.reopen_history_limit" unless limit.is_a?(Integer) && limit.between?(0, 1000)
+    end
+
+    def validate_terminal!
+      terminal = @values["terminal"]
+      raise Error, "terminal must be an object" unless terminal.is_a?(Hash)
+      raise Error, "invalid terminal.shell" unless terminal["shell"].nil? || terminal["shell"].is_a?(String) ||
+        (terminal["shell"].is_a?(Array) && terminal["shell"].all? { |value| value.is_a?(String) })
+      raise Error, "invalid terminal.working_directory" unless terminal["working_directory"].is_a?(String)
+      raise Error, "invalid terminal.env" unless terminal["env"].is_a?(Hash) && terminal["env"].all? { |key, value| key.is_a?(String) && (value.nil? || value.is_a?(String)) }
+      raise Error, "invalid terminal.font_size" unless terminal["font_size"].nil? || terminal["font_size"].is_a?(Numeric) && terminal["font_size"].between?(6, 96)
+      raise Error, "invalid terminal.line_height" unless terminal["line_height"].is_a?(Numeric) && terminal["line_height"].between?(0.5, 4)
+      %w[confirm_close_running confirm_multiline_paste copy_on_select restore_on_startup hide_when_empty].each do |key|
+        raise Error, "terminal.#{key} must be true or false" unless [true, false].include?(terminal[key])
+      end
+      raise Error, "invalid terminal.close_on_exit" unless %w[never clean always].include?(terminal["close_on_exit"])
+      raise Error, "invalid terminal.blinking" unless %w[off on terminal_controlled].include?(terminal["blinking"])
+      raise Error, "invalid terminal.cursor_shape" unless %w[block bar underline].include?(terminal["cursor_shape"])
+      {"scrollback_lines" => 0..1_000_000, "max_bytes_per_frame" => 1..16_777_216,
+       "queue_limit_bytes" => 65_536..268_435_456, "resize_debounce_ms" => 0..10_000,
+       "min_rows" => 1..1000, "min_cols" => 1..1000}.each do |key, range|
+        value = terminal[key]
+        raise Error, "invalid terminal.#{key}" unless value.is_a?(Integer) && range.cover?(value)
+      end
+    end
+
+    def validate_dock!
+      dock = @values["dock"]
+      bottom = dock["bottom"] if dock.is_a?(Hash)
+      raise Error, "invalid dock.bottom" unless bottom.is_a?(Hash) && bottom["size"].is_a?(Numeric) && bottom["size"].positive? && [true, false].include?(bottom["visible"])
     end
   end
 end

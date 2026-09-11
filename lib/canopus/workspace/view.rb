@@ -170,7 +170,7 @@ module Canopus
         height = bounds.height / panels.length
         area = Zaniah::Bounds.new(bounds.x + 8, bounds.y + height * index, [bounds.width - 16, 0].max, height)
         text(name, area.x + 4, area.y + 10, color: :muted, size: 12)
-        key = [name, @workspace.editor.buffer.object_id, @workspace.editor.buffer.version, @theme.object_id]
+        key = [name, @workspace.editor&.buffer&.object_id, @workspace.editor&.buffer&.version, @theme.object_id]
         @panel_cache ||= {}
         @panel_cache.clear if @panel_cache.length > 50
         element = @panel_cache[key] ||= render.call
@@ -219,11 +219,19 @@ module Canopus
           end
           text(name, x + 14, bounds.y + 10, color: pane.active.equal?(editor) ? :foreground : :muted, size: 12)
           region(tab, role: :tab, label: name, action: [:tab, pane, editor])
+          close = Zaniah::Bounds.new(tab.right - 26, tab.y, 26, tab.height)
+          text(editor.buffer.dirty? ? "●" : "×", close.x + 6, close.y + 9, color: :muted, size: 12)
+          region(close, role: :button, label: "Close #{name}", action: [:tab_close, pane, editor])
           x += width
         end
       end
       editor = pane.active
-      return unless editor
+      unless editor
+        text("Open a file or create a new one", bounds.x + 24, bounds.y + 58, color: :muted, size: 14)
+        text("Cmd/Ctrl+P  Open    Cmd/Ctrl+N  New", bounds.x + 24, bounds.y + 84, color: :muted, size: 11)
+        fill(Zaniah::Bounds.new(bounds.right - 1, bounds.y, 1, bounds.height), :border)
+        return
+      end
       area = Zaniah::Bounds.new(bounds.x, bounds.y + 34, bounds.width, [bounds.height - 34, 0].max)
       @editor_bounds[editor] = area
       region(area, role: :textbox, label: editor.buffer.path || "Untitled document", action: [:editor, pane, editor])
@@ -576,7 +584,8 @@ module Canopus
     end
     def shortcut_labels
       return {} unless @keymap
-      context = {"Editor" => true, "vim_mode" => @workspace.settings["vim_mode"] ? @workspace.vim.mode.to_s : false}
+      context = {"Editor" => !!@workspace.editor,
+        "vim_mode" => @workspace.settings["vim_mode"] && @workspace.editor ? @workspace.vim.mode.to_s : false}
       seen, labels = {}, {}
       @keymap.bindings.reverse_each do |binding|
         next unless binding.predicate.call(context)

@@ -292,12 +292,21 @@ module Canopus
     def open: (Buffer buffer) -> Editor
     def activate: (Integer index) -> void
     def pin: (?Editor editor) -> untyped
-    def close: (?Editor editor, ?discard: bool) -> void
+    def close: (?Editor editor, ?discard: bool, ?activate: Symbol) -> void
     def detach: (Editor editor) -> void
     def back: () -> untyped
     def forward: () -> untyped
   end
   class Workspace
+    class ClosedTab < Data
+      attr_reader path: String
+      attr_reader selections: Array[[Integer, Integer]]
+      attr_reader scroll_x: Numeric
+      attr_reader scroll_y: Numeric
+      attr_reader pane_id: Integer
+      attr_reader index: Integer
+      def self.new: (String path, Array[[Integer, Integer]] selections, Numeric scroll_x, Numeric scroll_y, Integer pane_id, Integer index) -> instance
+    end
     def initialize: (?root: String, ?settings: Settings?) -> void
     attr_reader panes: Array[Pane]
     attr_reader active_pane: Pane
@@ -313,6 +322,9 @@ module Canopus
     def expire_notifications: (?Numeric now) -> bool
     attr_accessor show_project: bool
     attr_accessor terminal_visible: bool?
+    attr_accessor terminal_composition: Zaniah::Input::Composition?
+    attr_reader terminals: Array[Terminal::PTY]
+    attr_reader active_terminal_index: Integer
     attr_accessor performance: PerformanceRecorder?
     def editor: () -> Editor?
     def files: () -> Array[String]
@@ -326,8 +338,23 @@ module Canopus
     def activate_tab: (Pane pane, Editor tab) -> void
     def split: (?Symbol direction) -> Pane
     def close_editor: (?Editor current, ?discard: bool) -> void
+    def request_close: (?Array[Editor?] editors) -> bool
+    def resolve_tab_close: (:save | :discard | :cancel choice) -> bool?
+    def reopen_closed: () -> Editor?
+    def buffer_refs: (String | Buffer path_or_buffer) -> Array[[Symbol, Integer]]
     def clear_vim_states: () -> void
     def move_tab: (from: Pane, to: Pane, ?editor: Editor, ?index: Integer?) -> void
+    def new_terminal: (?cwd: String) -> Terminal::PTY
+    def activate_terminal: (Integer index) -> Terminal::PTY
+    def move_terminal: (Integer from, Integer to) -> Terminal::PTY
+    def request_terminal_close: (?Integer index) -> (Terminal::PTY | false | nil)
+    def close_terminal: (?Integer index) -> Terminal::PTY?
+    def restart_terminal: (?Integer index) -> Terminal::PTY?
+    def terminal_title: (?Terminal::PTY? current) -> String
+    def rename_terminal: (String name, ?Terminal::PTY? current) -> String?
+    def drain_terminals: (?now: Numeric) -> bool
+    def resize_terminal: (Integer columns, Integer rows, ?final: bool, ?now: Numeric) -> void
+    def flush_terminal_resize: () -> void
     def toggle_dock: (Symbol side) -> bool
     def register_panel: (String name, ?side: Symbol) { () -> (Zaniah::Element | String) } -> untyped
     def register_action: (String name, ?description: String) { (*untyped) -> untyped } -> untyped

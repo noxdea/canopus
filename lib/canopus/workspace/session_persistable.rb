@@ -20,6 +20,8 @@ module Canopus
       end
       state = {version: 2, root: @root, layout: encode_layout(@layout), recent_files: @recent_files || [],
         active_pane: @panes.index(@active_pane), docks: @docks,
+        terminals: @terminals.map { |current| {cwd: current.vt.cwd || (current.respond_to?(:initial_cwd) ? current.initial_cwd : @root), title: @terminal_names[current]} },
+        active_terminal: @active_terminal_index, terminal_visible: !!@terminal_visible,
         panes: @panes.map do |pane|
           {active: pane.active_index, tabs: pane.editors.map do |current|
             {buffer_id: record.call(current.buffer), cursor: current.primary.head, pinned: pane.pinned.include?(current),
@@ -133,6 +135,7 @@ module Canopus
       end
       active = data.fetch("active_pane", 0)
       raise Error, "invalid active pane" unless active.is_a?(Integer) && active.between?(0, restored_panes.length - 1)
+      terminal_records = validate_session_terminals(data) if @settings["terminal"]["restore_on_startup"]
       clear_vim_states
       close_language_documents
       @panes.each { |pane| pane.editors.each(&:dispose) }
@@ -140,7 +143,7 @@ module Canopus
       @panes, @buffers, @layout, @docks = restored_panes, restored_buffers, restored_layout, restored_docks
       @active_pane = @panes[active]
       @recent_files = Array(data["recent_files"]).select { |item| item.is_a?(String) && File.file?(item) }.first(100)
-      new_buffer unless editor
+      restore_terminals(data, terminal_records) if terminal_records
       self
     rescue StandardError
       unless @panes.equal?(restored_panes)
@@ -148,6 +151,34 @@ module Canopus
         restored_buffers&.each_value(&:close)
       end
       raise
+    end
+
+    private
+
+    def validate_session_terminals(data)
+      records = data.fetch("terminals", [])
+      raise Error, "invalid session terminals" unless records.is_a?(Array) && records.length <= 100 && records.all? { |item| item.is_a?(Hash) && item["cwd"].is_a?(String) }
+      active = data.fetch("active_terminal", 0)
+      raise Error, "invalid active terminal" unless records.empty? || active.is_a?(Integer) && active.between?(0, records.length - 1)
+      records
+    end
+
+    def restore_terminals(data, records)
+      old, old_index, old_visible = @terminals, @active_terminal_index, @terminal_visible
+      @terminals = []
+      records.each do |record|
+        cwd = File.directory?(record["cwd"]) ? record["cwd"] : @root
+        created = new_terminal(cwd: cwd)
+        rename_terminal(record["title"], created) if record["title"].is_a?(String)
+      end
+      @active_terminal_index = @terminals.empty? ? 0 : data.fetch("active_terminal", 0)
+      @terminal_visible = !!data["terminal_visible"] && !@terminals.empty?
+      old.each { |current| current.close if current.respond_to?(:close) }
+    rescue StandardError
+      @terminals.each { |current| current.close if current.respond_to?(:close) }
+      @terminals = old
+      @active_terminal_index, @terminal_visible = old_index, old_visible
+      @message = "Session restored; terminals could not start"
     end
   end
 end

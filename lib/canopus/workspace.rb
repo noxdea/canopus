@@ -11,8 +11,10 @@ require_relative "project/tree"
 
 module Canopus
   class Workspace
+    ClosedTab = Data.define(:path, :selections, :scroll_x, :scroll_y, :pane_id, :index)
     attr_reader :panes, :active_pane, :buffers, :actions, :settings, :theme, :project, :clients, :root, :docks, :panels
-    attr_accessor :window, :show_project, :terminal, :terminal_visible, :selected_project_path, :performance
+    attr_reader :terminals, :active_terminal_index
+    attr_accessor :window, :show_project, :terminal_visible, :terminal_composition, :selected_project_path, :performance
     attr_reader :message, :palette
 
     def initialize(root: Dir.pwd, settings: nil)
@@ -25,11 +27,25 @@ module Canopus
       @actions, @clients, @vim_states = Zaniah::Input::ActionRegistry.new, {}, {}
       @show_project, @message = true, ""
       @project = Project.new(@root) if defined?(Project)
-      @docks = {left: {visible: true, size: 220}, right: {visible: false, size: 260}, bottom: {visible: false, size: 220}}
-      @panels, @languages = {}, {}
+      bottom = @settings["dock"]["bottom"]
+      @docks = {left: {visible: true, size: 220}, right: {visible: false, size: 260},
+        bottom: {visible: bottom["visible"], size: bottom["size"]}}
+      @panels, @languages, @terminals = {}, {}, []
+      @active_terminal_index = 0
+      @closed_tabs, @terminal_names = [], {}
       register_actions
     end
     def editor = @active_pane.active
+    def terminal = @terminals[@active_terminal_index]
+    def terminal=(value)
+      @terminals.each { |item| item.close if !item.equal?(value) && item.respond_to?(:close) }
+      @terminal_names.clear
+      @terminal_sizes&.clear
+      @terminal_resize_times&.clear
+      @terminals = value ? [value] : []
+      @active_terminal_index = 0
+      value
+    end
     def palette=(value)
       previous, @palette = @palette, @closed ? nil : value
       response = previous&.dig(:response)
@@ -158,7 +174,6 @@ module Canopus
       raise Error, "pane is not in workspace" unless @panes.include?(pane)
       @vim_states[editor]&.deactivate unless pane.equal?(@active_pane)
       @active_pane = pane
-      new_buffer unless editor
       @window&.request_frame
     end
     def activate_tab(pane, tab)
@@ -192,16 +207,78 @@ module Canopus
       raise Error, "buffer has unsaved changes" if current.buffer.dirty? && !discard
       pane = @panes.find { |item| item.editors.include?(current) }
       raise Error, "editor is not in workspace" unless pane
-      @vim_states.delete(current)&.dispose
-      pane.close(current, discard: discard)
-      remaining = @panes.flat_map(&:editors).any? { |item| item.buffer.equal?(current.buffer) }
-      remaining ||= @buffers.values.grep(MultiBuffer).any? { |multi| multi.excerpts.any? { |excerpt| excerpt.buffer.equal?(current.buffer) } }
-      unless remaining
-        close_language_documents(current.buffer)
-        @buffers.delete_if { |_, buffer| buffer.equal?(current.buffer) }
-        current.buffer.close
+      closed = if current.buffer.path && !current.buffer.dirty?
+        ClosedTab.new(current.buffer.path, current.selections.map { |selection| [selection.anchor, selection.head] },
+          current.scroll_x, current.scroll_y, pane.object_id, pane.editors.index(current))
       end
-      new_buffer unless editor
+      sources = current.buffer.is_a?(MultiBuffer) ? current.buffer.excerpts.map(&:buffer).uniq : []
+      @vim_states.delete(current)&.dispose
+      pane.close(current, discard: discard, activate: @settings["tabs"]["activate_on_close"].to_sym)
+      release_buffer(current.buffer, discard: discard)
+      sources.each { |source| release_buffer(source, discard: discard) }
+      remember_closed_tab(closed) if closed
+      close_empty_pane(pane) if pane.editors.empty?
+    end
+
+    def request_close(editors = [editor])
+      pending = editors.compact.uniq.select { |current| @panes.any? { |pane| pane.editors.include?(current) } }
+      while (current = pending.shift)
+        if current.buffer.dirty? && @settings["tabs"]["confirm_on_close_dirty"]
+          self.palette = {kind: :confirm_tab_close, query: "Save changes to #{File.basename(current.buffer.path || 'Untitled')}?",
+            index: 0, matches: ["Save", "Don't Save", "Cancel"], editor: current, remaining: pending,
+            refs: buffer_refs(current.buffer)}
+          return false
+        end
+        close_editor(current, discard: current.buffer.dirty?)
+      end
+      true
+    end
+
+    def resolve_tab_close(choice)
+      prompt = @palette
+      return unless prompt&.dig(:kind) == :confirm_tab_close
+      current = prompt[:editor]
+      self.palette = nil
+      return false if choice == :cancel
+      unless buffer_refs(current.buffer) == prompt[:refs]
+        self.message = "Close cancelled because the document is now open elsewhere"
+        return false
+      end
+      if choice == :save && !current.buffer.path
+        self.palette = {kind: :save_as, query: +"", index: 0, matches: [], after_save: {editor: current, remaining: prompt[:remaining]}}
+        return false
+      end
+      save_buffer(current.buffer) if choice == :save
+      close_editor(current, discard: choice == :discard)
+      request_close(prompt[:remaining])
+    end
+
+    def reopen_closed
+      while (closed = @closed_tabs.pop)
+        next unless File.file?(closed.path)
+        pane = @panes.find { |item| item.object_id == closed.pane_id } || @active_pane
+        focus(pane)
+        current = open(closed.path)
+        pane.editors.delete(current)
+        pane.editors.insert(closed.index.clamp(0, pane.editors.length), current)
+        pane.active_index = pane.editors.index(current)
+        closed.selections.each_with_index do |(anchor, head), index|
+          current.select(anchor.clamp(0, current.buffer.rope.bytesize), head.clamp(0, current.buffer.rope.bytesize), add: index.positive?)
+        end
+        current.scroll(dx: closed.scroll_x, dy: closed.scroll_y)
+        return current
+      end
+      nil
+    end
+
+    def buffer_refs(path_or_buffer)
+      buffer = path_or_buffer.is_a?(Buffer) ? path_or_buffer : @buffers[canonical_path(path_or_buffer)]
+      return [] unless buffer
+      refs = @panes.flat_map { |pane| pane.editors.filter_map { |current| [:editor, current.object_id] if current.buffer.equal?(buffer) } }
+      @buffers.values.grep(MultiBuffer).each do |multi|
+        refs << [:multi_buffer, multi.object_id] if multi.excerpts.any? { |excerpt| excerpt.buffer.equal?(buffer) }
+      end
+      refs.sort_by { |kind, id| [kind.to_s, id] }
     end
     def clear_vim_states
       @vim_states.each_value(&:dispose)
@@ -221,6 +298,135 @@ module Canopus
       to.pin(editor) if pinned
       focus(to)
     end
+
+    def new_terminal(cwd: terminal_working_directory)
+      options = @settings["terminal"]
+      created = Terminal::PTY.new(command: options["shell"] || ENV.fetch("SHELL", "/bin/sh"), cwd: cwd,
+        columns: 100, rows: 12, env: options["env"], scrollback: options["scrollback_lines"],
+        queue_limit_bytes: options["queue_limit_bytes"])
+      @terminals << created
+      @active_terminal_index = @terminals.length - 1
+      @terminal_visible = true
+      resize_terminal(*@terminal_dimensions, final: true) if @terminal_dimensions
+      @window&.request_frame
+      created
+    end
+
+    def activate_terminal(index)
+      raise IndexError, "terminal tab outside panel" unless index.is_a?(Integer) && index.between?(0, @terminals.length - 1)
+      @active_terminal_index = index
+      resize_terminal(*@terminal_dimensions, final: true) if @terminal_dimensions
+      @window&.request_frame
+      terminal
+    end
+
+    def move_terminal(from, to)
+      raise IndexError, "terminal tab outside panel" unless from.is_a?(Integer) && from.between?(0, @terminals.length - 1) && to.is_a?(Integer) && to.between?(0, @terminals.length - 1)
+      current = @terminals.delete_at(from)
+      @terminals.insert(to, current)
+      @active_terminal_index = to
+      current
+    end
+
+    def request_terminal_close(index = @active_terminal_index)
+      current = @terminals[index]
+      return unless current
+      if @settings["terminal"]["confirm_close_running"] && current.respond_to?(:busy?) && current.busy?
+        self.palette = {kind: :confirm_terminal_close, query: "A process is still running in this terminal.", index: 1,
+          matches: ["Close terminal", "Cancel"], terminal: current}
+        return false
+      end
+      close_terminal(index)
+    end
+
+    def close_terminal(index = @active_terminal_index)
+      active = terminal
+      current = @terminals.delete_at(index)
+      return unless current
+      @terminal_names.delete(current)
+      @terminal_sizes&.delete(current)
+      @terminal_resize_times&.delete(current)
+      current.close if current.respond_to?(:close)
+      @active_terminal_index = if current.equal?(active)
+        [index, @terminals.length - 1].min.clamp(0, @terminals.length)
+      else
+        @terminals.index(active) || 0
+      end
+      @terminal_visible = false if @terminals.empty? && @settings["terminal"]["hide_when_empty"]
+      @window&.request_frame
+      current
+    end
+
+    def restart_terminal(index = @active_terminal_index)
+      current = @terminals[index]
+      return unless current
+      cwd = current.vt.cwd || (current.respond_to?(:initial_cwd) ? current.initial_cwd : @root)
+      name = @terminal_names[current]
+      close_terminal(index)
+      replacement = new_terminal(cwd: File.directory?(cwd) ? cwd : @root)
+      move_terminal(@terminals.length - 1, index) if index < @terminals.length - 1
+      rename_terminal(name, replacement) if name
+      replacement
+    end
+
+    def terminal_title(current = terminal)
+      return "Terminal" unless current
+      title = @terminal_names[current] || current.vt.title.to_s.then { |value| value.empty? ? nil : value } ||
+        current.vt.cwd&.then { |cwd| File.basename(cwd).empty? ? cwd : File.basename(cwd) } ||
+        (current.respond_to?(:foreground_process_name) ? current.foreground_process_name : nil) ||
+        (current.respond_to?(:command_name) ? current.command_name : nil) || "shell"
+      title.to_s.encode(Encoding::UTF_8, invalid: :replace, undef: :replace).scrub.slice(0, 200)
+    end
+
+    def rename_terminal(name, current = terminal)
+      return unless current
+      value = name.to_s.strip
+      value.empty? ? @terminal_names.delete(current) : @terminal_names[current] = value.slice(0, 200)
+    end
+
+    def drain_terminals(now: Process.clock_gettime(Process::CLOCK_MONOTONIC))
+      return false if @terminals.empty?
+      remaining = @settings["terminal"]["max_bytes_per_frame"]
+      deadline = now + 0.004
+      changed = false
+      order = @terminals.rotate(@terminal_poll_index.to_i % @terminals.length)
+      @terminal_poll_index = @terminal_poll_index.to_i + 1
+      order.each do |current|
+        break if remaining <= 0 || Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+        method = current.method(:read)
+        keywords = method.parameters.any? { |kind, _| [:key, :keyreq, :keyrest].include?(kind) }
+        data = keywords ? current.read(max_bytes: remaining, max_seconds: [deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC), 0].max) : current.read
+        changed ||= !!(data && !data.empty?)
+        remaining -= data.bytesize if data
+      end
+      reap_exited_terminals
+      @window&.request_frame if changed || @terminals.any? { |current| current.respond_to?(:pending?) && current.pending? }
+      changed
+    end
+
+    def resize_terminal(columns, rows, final: false, now: Process.clock_gettime(Process::CLOCK_MONOTONIC))
+      minimum = @settings["terminal"]
+      dimensions = [[columns.to_i, minimum["min_cols"]].max, [rows.to_i, minimum["min_rows"]].max]
+      @terminal_dimensions = dimensions
+      return if @terminals.empty?
+      final ||= @terminal_resize_final
+      @terminal_resize_final = false
+      wait = minimum["resize_debounce_ms"] / 1000.0
+      @terminals.each do |current|
+        previous = (@terminal_resize_times ||= {})[current]
+        next if !final && previous && now - previous < wait
+        next if (@terminal_sizes ||= {})[current] == dimensions
+        current.resize(columns: dimensions.first, rows: dimensions.last)
+        @terminal_sizes[current] = dimensions
+        @terminal_resize_times[current] = now
+      end
+    end
+
+    def flush_terminal_resize
+      resize_terminal(*@terminal_dimensions, final: true) if @terminal_dimensions
+      @terminal_resize_final = true
+    end
+
     def toggle_dock(side)
       dock = @docks.fetch(side)
       dock[:visible] = !dock[:visible]
@@ -297,6 +503,7 @@ module Canopus
     end
     def palette_accept
       search_state = @palette.slice(:search_options, :selection, :editor, :version)
+      after_save = @palette[:after_save]
       if @palette[:kind] == :snippet_choices
         current = @palette
         self.palette = nil
@@ -338,7 +545,12 @@ module Canopus
         expression, options = search_query(pattern, search_state)
         @message = "#{replace_in_buffer(expression, query, **options)} replacements (unsaved)"
       elsif kind == :save_as
-        save_buffer(path: query)
+        current = after_save&.dig(:editor)
+        save_buffer(current&.buffer || editor.buffer, path: query)
+        if current
+          close_editor(current)
+          request_close(after_save[:remaining])
+        end
       elsif kind == :rename
         language_request(:rename, name: query)
       elsif kind == :workspace_symbols
@@ -394,7 +606,11 @@ module Canopus
       @plugins&.close
       @watcher&.close
       stop_language_servers
-      @terminal&.close
+      terminal_closers = @terminals.filter_map do |current|
+        Thread.new { current.close } if current.respond_to?(:close)
+      end
+      terminal_closers.each(&:join)
+      @terminals.clear
       clear_vim_states
       @panes.each { |pane| pane.editors.each(&:dispose) }
       @buffers.each_value(&:close)
@@ -404,7 +620,15 @@ module Canopus
     def register_actions
       register_action("file.new") { new_buffer }
       register_action("file.save") { editor.buffer.path || editor.buffer.is_a?(MultiBuffer) ? save_buffer : palette_open(:save_as) }
-      register_action("file.close") { close_editor }
+      register_action("file.close") { request_close }
+      register_action("tab.close") { request_close }
+      register_action("tab.close_others") { request_close(@active_pane.editors.reject { |current| current.equal?(editor) }) }
+      register_action("tab.close_right") { request_close(@active_pane.editors.drop(@active_pane.active_index + 1)) }
+      register_action("tab.close_saved") { request_close(@active_pane.editors.reject { |current| current.buffer.dirty? }) }
+      register_action("tab.close_all") { request_close(@active_pane.editors.dup) }
+      register_action("tab.reopen_closed") { reopen_closed }
+      register_action("pane.close") { request_close(@active_pane.editors.dup) }
+      register_action("debug.buffer_refs") { self.message = buffer_refs(editor.buffer).map { |kind, id| "#{kind}:#{id}" }.join(", ") }
       register_action("file.find") { palette_open(:files) }
       register_action("project.new_file") { project_prompt(:create_file) }
       register_action("project.new_folder") { project_prompt(:create_folder) }
@@ -458,9 +682,17 @@ module Canopus
         clear_vim_states unless @settings["vim_mode"]
       end
       register_action("view.terminal") do
-        @terminal ||= Terminal::PTY.new(cwd: @root, columns: 100, rows: 12)
-        @terminal_visible = !@terminal_visible
+        @terminals.empty? ? new_terminal : @terminal_visible = !@terminal_visible
       end
+      register_action("terminal.toggle") { call("view.terminal") }
+      register_action("terminal.new") { new_terminal }
+      register_action("terminal.close") { request_terminal_close }
+      register_action("terminal.restart") { restart_terminal }
+      register_action("terminal.next") { activate_terminal((@active_terminal_index + 1) % @terminals.length) unless @terminals.empty? }
+      register_action("terminal.prev") { activate_terminal((@active_terminal_index - 1) % @terminals.length) unless @terminals.empty? }
+      9.times { |index| register_action("terminal.select_#{index + 1}") { activate_terminal(index) if index < @terminals.length } }
+      register_action("terminal.rename") { self.palette = {kind: :terminal_rename, query: +"", index: 0, matches: []} if terminal }
+      register_action("terminal.clear") { terminal&.grid&.reset }
     end
     def encode_layout(node)
       node[:pane] ? {pane: @panes.index(node[:pane])} : {direction: node[:direction], ratio: node.fetch(:ratio, 0.5), children: node[:children].map { |child| encode_layout(child) }}
@@ -500,6 +732,60 @@ module Canopus
       when "split", "sp" then split(:vertical)
       when "vsplit", "vs" then split(:horizontal)
       else open(command.delete_prefix("e ")) if command.start_with?("e ")
+      end
+    end
+
+    def remember_closed_tab(closed)
+      limit = @settings["tabs"]["reopen_history_limit"]
+      return if limit.zero?
+      @closed_tabs << closed
+      @closed_tabs.shift while @closed_tabs.length > limit
+    end
+
+    def release_buffer(buffer, discard: false)
+      return unless buffer_refs(buffer).empty?
+      return if buffer.dirty? && !discard
+      close_language_documents(buffer)
+      @buffers.delete_if { |_, current| current.equal?(buffer) }
+      buffer.close
+    end
+
+    def close_empty_pane(pane)
+      return unless @settings["tabs"]["close_empty_pane"] && @panes.length > 1
+      sibling = nil
+      collapse = lambda do |node|
+        return nil if node[:pane].equal?(pane)
+        return node if node[:pane]
+        children = node[:children].map { |child| collapse.call(child) }
+        sibling ||= layout_pane(children.compact.first) if children.any?(&:nil?)
+        children.compact!
+        children.length == 1 ? children.first : node.merge(children: children)
+      end
+      @layout = collapse.call(@layout)
+      @panes.delete(pane)
+      @active_pane = sibling || @panes.first if @active_pane.equal?(pane)
+    end
+
+    def layout_pane(node) = node&.dig(:pane) || layout_pane(node&.dig(:children)&.first)
+
+    def terminal_working_directory
+      value = @settings["terminal"]["working_directory"]
+      path = case value
+      when "project" then @root
+      when "current_file" then editor&.buffer&.path ? File.dirname(editor.buffer.path) : @root
+      when "home" then Dir.home
+      else File.expand_path(value, @root)
+      end
+      raise Error, "terminal working directory does not exist" unless File.directory?(path)
+      path
+    end
+
+    def reap_exited_terminals
+      policy = @settings["terminal"]["close_on_exit"]
+      @terminals.dup.each do |current|
+        next unless current.respond_to?(:alive?) && !current.alive?
+        clean = !current.respond_to?(:status) || current.status&.success?
+        close_terminal(@terminals.index(current)) if policy == "always" || (policy == "clean" && clean)
       end
     end
   end
