@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#080b12">
+    <meta name="description" content="Canopus is a Ruby-native code editor with GPU windows, language-server tools, a terminal, Git integration, and Vim bindings.">
+    <meta property="og:title" content="Canopus — Ruby, all the way down">
+    <meta property="og:description" content="A native code editor built in Ruby, for macOS, Linux, and Windows.">
+    <meta property="og:image" content="https://noxdea.github.io/canopus/assets/canopus-editor.png">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://noxdea.github.io/canopus/">
+    <title>Canopus — Ruby-native code editor</title>
+    <link rel="icon" href="assets/logo.png">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <a class="brand" href="#main" aria-label="Canopus home">
+        <span class="brand-mark" aria-hidden="true"><img src="assets/logo.png" alt=""></span>
+        <span>Canopus</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="#features">Features</a>
+        <a href="#install">Install</a>
+        <a href="https://github.com/noxdea/canopus">GitHub</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="version tabular-nums">Canopus 0.1.0</p>
+          <h1 id="hero-title" class="text-balance">Ruby, all the way down.</h1>
+          <p class="lede text-pretty">A native code editor built in Ruby. GPU-rendered windows, language intelligence, a real terminal, Git tools, and Vim bindings—without leaving your stack.</p>
+          <div class="hero-actions">
+            <a class="button" href="#install">Install Canopus</a>
+            <a class="text-link" href="https://github.com/noxdea/canopus">View source</a>
+          </div>
+          <dl class="platforms">
+            <div><dt>Runs on</dt><dd>macOS · Linux · Windows</dd></div>
+            <div><dt>Requires</dt><dd>CRuby 3.1+</dd></div>
+          </dl>
+        </div>
+
+        <figure class="product-shot">
+          <div class="window-bar" aria-hidden="true">
+            <span></span><span></span><span></span>
+            <b>native_smoke.rb — Canopus</b>
+          </div>
+          <img src="assets/canopus-editor.png" width="1440" height="900" alt="Canopus editing a Ruby file in its native dark interface">
+          <figcaption>Native rendering. Ruby source. No browser shell.</figcaption>
+        </figure>
+      </section>
+
+      <section class="features" id="features" aria-labelledby="features-title">
+        <div class="section-heading">
+          <h2 id="features-title" class="text-balance">The tools stay close to the code.</h2>
+          <p class="text-pretty">Canopus keeps the daily loop in one fast, native workspace while external tools remain independently installable.</p>
+        </div>
+        <div class="feature-list">
+          <article>
+            <h3>Native by default</h3>
+            <p class="text-pretty">GPU windows on every desktop, plus TUI and headless modes when a window is the wrong tool.</p>
+            <small>Metal · OpenGL · WGL</small>
+          </article>
+          <article>
+            <h3>Language aware</h3>
+            <p class="text-pretty">Completion, diagnostics, rename, formatting, symbols, and code actions through language servers.</p>
+            <small>LSP · snippets · folding</small>
+          </article>
+          <article>
+            <h3>Built for flow</h3>
+            <p class="text-pretty">Tabs, splits, sessions, terminals, project search, Git operations, and optional Vim modes.</p>
+            <small>Terminal · Git · Vim</small>
+          </article>
+        </div>
+      </section>
+
+      <section class="install" id="install" aria-labelledby="install-title">
+        <div>
+          <h2 id="install-title" class="text-balance">Open your project in two commands.</h2>
+          <p class="text-pretty">Canopus ships as a Ruby gem. Install it, then point it at the directory you already use.</p>
+        </div>
+        <div class="terminal" aria-label="Installation commands">
+          <div><span aria-hidden="true">$</span><code>gem install canopus</code></div>
+          <div><span aria-hidden="true">$</span><code>canopus --project .</code></div>
+        </div>
+        <p class="install-note">Native windows require platform graphics libraries. <a href="https://github.com/noxdea/canopus/blob/main/docs/distribution.md">Check platform details</a>.</p>
+      </section>
+    </main>
+
+    <footer>
+      <p>Canopus is open source under the MIT License.</p>
+      <div>
+        <a href="https://rubygems.org/gems/canopus">RubyGems</a>
+        <a href="https://github.com/noxdea/canopus/blob/main/README.md">Documentation</a>
+        <a href="https://github.com/noxdea/canopus/issues">Issues</a>
+      </div>
+    </footer>
+  </body>
+</html>
