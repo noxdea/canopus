@@ -1,42 +1,80 @@
-# Canopus
+<p align="center">
+  <img src="assets/logo.png" alt="Canopus logo">
+</p>
 
-A Ruby-native code editor built on Zaniah: persistent UTF-8 buffers, native GPU
-windows, language-server tools, a terminal, Git inspection, editable project
-search results, and Vim bindings.
+<p align="center">
+  <strong>Ruby-native code editor with GPU windows, language-server tools, a terminal, Git integration, and Vim bindings</strong>
+</p>
 
-The launcher requires CRuby 3.1+. It attempts to enable YJIT on macOS/Linux
-and falls back to ordinary Ruby when unavailable; Windows uses ordinary Ruby
-([runtime decision](docs/adr/005-windows-runtime.md)). OS libraries use Fiddle; language
-servers and the terminal shell are user-installed programs. Ruby libraries are
-installed as gem dependencies; Prism is bundled with recent Ruby releases.
+<p align="center">
+  <a href="https://rubygems.org/gems/canopus"><img src="https://img.shields.io/gem/v/canopus.svg" alt="Gem version"></a>
+  <a href="https://rubygems.org/gems/canopus"><img src="https://img.shields.io/gem/dt/canopus.svg" alt="Gem downloads"></a>
+  <a href="https://github.com/noxdea/canopus/actions/workflows/main.yml"><img src="https://github.com/noxdea/canopus/actions/workflows/main.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/CRuby-%3E%3D%203.1-cc342d.svg" alt="CRuby 3.1 or newer">
+  <a href="LICENSE.txt"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license"></a>
+</p>
 
-Native windows need `require "fiddle"` to work in the chosen Ruby installation.
-On Ruby distributions that package it separately (including the Ruby 4.0 build
-used here), install that standard-library component first. Development Bundler
-configuration includes it; headless rendering does not load it.
+<p align="center">
+  <a href="#features">Features</a> ·
+  <a href="#installation">Installation</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#configuration">Configuration</a> ·
+  <a href="#development">Development</a>
+</p>
 
-## Run from this checkout
+---
+
+Canopus is a code editor implemented in Ruby. It combines persistent UTF-8
+buffers with native rendering through [Zaniah](https://github.com/noxdea/zaniah),
+while keeping language servers, shells, and other external tools independently
+installable.
+
+## Features
+
+- Native GPU windows on macOS, Linux, and Windows, plus TUI and headless modes
+- Persistent buffers, tabs, splits, sessions, and explicit save-conflict handling
+- LSP completion, diagnostics, hover, symbols, formatting, rename, and code actions
+- Integrated terminal with scrollback, selection, colors, and clickable links
+- Git diff, blame, hunk reversal, and branch switching
+- Editable project-wide search results and safe project file operations
+- Optional Vim-compatible modes, motions, operators, registers, macros, and Ex commands
+- Layered JSONC settings, keymaps, themes, snippets, and trusted Ruby plugins
+
+## Installation
+
+Install the released gem:
 
 ```sh
-bundle install
-bundle exec ruby exe/canopus --project . README.md
-ruby exe/canopus --headless /tmp/canopus.png README.md
-ruby exe/canopus --tui README.md
+gem install canopus
+canopus --version
 ```
 
-`--help` lists backend, session, settings, replay, cache, and plugin options.
-macOS uses Metal, Linux uses Wayland/EGL or X11/GLX, and Windows uses WGL.
+Canopus requires CRuby 3.1 or newer. The launcher enables YJIT when supported
+and otherwise uses the interpreter. Native windows also require the `fiddle`
+standard-library component; some Ruby distributions package it separately.
 
-Install a local artifact with:
+macOS uses Metal. Linux requires Wayland/EGL/OpenGL or X11/GLX, XKB, and
+`zenity` for file dialogs. Windows uses WGL. See [Packaging](docs/distribution.md)
+for source-based desktop bundles and platform details.
+
+## Quick start
+
+Open the current project:
 
 ```sh
-gem build canopus.gemspec
-gem install --local canopus-0.1.0.gem
 canopus --project .
 ```
 
-See [packaging](docs/distribution.md) for desktop bundles and platform
-requirements.
+Open files directly, use the terminal interface, or render a headless frame:
+
+```sh
+canopus README.md lib/canopus.rb
+canopus --tui --project .
+canopus --headless /tmp/canopus.png README.md
+```
+
+Run `canopus --help` for session, settings, replay, backend, profiling, and
+plugin options.
 
 ## Everyday controls
 
@@ -50,40 +88,20 @@ requirements.
 | Completion / definition | Ctrl-Space / F12 | Ctrl-Space / F12 |
 | Split / terminal | Cmd-Backslash / Ctrl-Backtick | Ctrl-Backslash / Ctrl-Backtick |
 
-The palette exposes Git diff/blame/hunk reversal/branch switching, language
-actions, project file operations, settings, themes, [Vim mode](docs/vim.md), and docks. Drag tabs
-to reorder or move them between panes; drag separators to resize panes and docks.
-Project deletion moves files into `.canopus/trash`. Dirty documents and disk
-save conflicts are preserved for an explicit decision.
+The command palette also exposes Git operations, language actions, project file
+operations, settings, themes, docks, and Vim mode. Project deletion moves files
+to `.canopus/trash` instead of deleting them immediately.
 
-The file finder keeps recent files first and previews text without opening tabs.
-Completion supports additional edits and [snippets](docs/snippets.md), including
-mirrors, transforms, choices, and Tab / Shift-Tab navigation. Hover cards render
-bounded Markdown; only explicitly clicked HTTP(S) links open externally.
-Notifications are dismissible and expire automatically.
+## Configuration
 
-Project-search results are editable; Save writes changes back to their source
-files. Replacement changes remain unsaved until then.
-
-Search palettes use Ctrl-Alt-R for regular expressions, Ctrl-Alt-C for case sensitivity,
-Ctrl-Alt-W for whole words and Ctrl-Alt-S for the selection captured when search opened.
-Replacements support Ruby backreferences, and stale selections are rejected.
-Resource-changing LSP actions show the affected paths before confirmation;
-PageUp / PageDown scroll the list. See [workspace edits](docs/workspace_edits.md).
-
-## Settings and extensions
-
-`settings.open` opens `.canopus/settings.jsonc`. User settings live at
-`$XDG_CONFIG_HOME/canopus/settings.jsonc` or
-`~/.config/canopus/settings.jsonc`. Layers are defaults, user, project, explicit
-`--settings`, then language overrides. Saved changes reload; invalid values
-preserve the previous valid settings. Ctrl-Space completes setting names.
+Run `settings.open` from the command palette to edit project settings. User
+settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
+`~/.config/canopus/settings.jsonc`.
 
 ```jsonc
 {
   "theme": "auto",
   "font_size": 14,
-  "icon_theme": null,
   "vim_mode": false,
   "use_tabs": false,
   "keymap": [
@@ -94,55 +112,57 @@ preserve the previous valid settings. Ctrl-Space completes setting names.
 }
 ```
 
-See [language servers](docs/lsp.md) for server-specific options and reload
-behavior.
+Settings are layered from defaults through user, project, explicit `--settings`,
+and language overrides. Invalid saved settings leave the previous valid values
+active. Keymap groups extend defaults; later matching bindings win, and `null`
+removes a default binding.
 
-Keymap groups extend the defaults; later matching bindings win. Space-separated
-keys form a chord with a one-second timeout, and `null` removes a default action
-binding. Contexts support `Editor`, `vim_mode`, comparisons and boolean operators,
-not Ruby evaluation. Language-specific `keymap` arrays replace the global array.
-Saved keymaps reload atomically, including palette labels; invalid expressions
-leave the previous settings intact. Limits are 128 groups and 1,024 bindings.
+Language servers are separate programs and are auto-detected or configured by
+argument array. See [Language servers](docs/lsp.md) for configuration and
+restart behavior.
 
-An icon theme is a JSONC file with `file`, `directory`, `expanded_directory`, and
-an `extensions` map (for example `".rb": "ruby.svg"`). SVG paths are relative to
-that theme file and must remain inside its directory. Only the supported static
-SVG subset is drawn; scripts, external references and entities are not executed.
-
-Plugins require explicit trust:
+Plugins require explicit trust and permissions:
 
 ```sh
-ruby exe/canopus --plugin examples/plugins/word_count.rb \
+canopus --plugin examples/plugins/word_count.rb \
   --trust-plugins --grant read_buffer
 ```
 
-The default separate process contains crashes and timeouts. It is **not an OS
-security sandbox**: trusted Ruby retains the invoking user's OS privileges.
-API grants restrict the editor bridge, not arbitrary Ruby filesystem/network
-access. `--plugins-in-process` opts into direct execution.
+The default separate process contains plugin crashes and timeouts, but it is not
+an OS sandbox. Trusted Ruby code retains the invoking user's filesystem and
+network privileges.
 
-## Development and limits
+## Documentation
+
+- [Language servers](docs/lsp.md)
+- [Vim mode](docs/vim.md)
+- [Snippets](docs/snippets.md)
+- [Workspace edits](docs/workspace_edits.md)
+- [Packaging](docs/distribution.md)
+- [Profiling and local crash reports](docs/performance.md)
+- [Architecture decisions](docs/adr)
+
+## Development
 
 ```sh
+git clone https://github.com/noxdea/canopus.git
+cd canopus
+bundle install
 bundle exec rake test
-bundle exec rake bench
-bundle exec ruby tools/check_dependencies.rb test/type/smoke.rb
 bundle exec rbs -I sig -r alhena -r antares -r denebola -r zaniah -r stringio -r strscan validate
+bundle exec ruby tools/check_dependencies.rb test/type/smoke.rb
 ```
 
-Components are Zaniah, Alhena, Denebola, Spica, Kochab and Antares.
-Rouge supplies lexers; REXML parses static SVG; unicode-display_width and
-unicode-emoji supply terminal-cell tables. They are installed from RubyGems.
+Run `bundle exec rake bench` for performance checks. Contributions can be
+submitted through [GitHub issues and pull requests](https://github.com/noxdea/canopus/issues).
 
-Files over 100MiB use a bounded-cache UTF-8 read-only path without wrapping or
-folding. Large-file UTF-16/legacy encodings are not supported there. Rouge
-lexers that cannot resume exactly use a documented bounded-window fallback,
-which can approximate long-distance syntax state. Git supports SHA-1 repositories,
-not every Git index/object extension. See the [architecture decisions](docs/adr).
+## Limits
 
-Opt-in [profiling and local crash reports](docs/performance.md) expose real
-frame times and allocations without uploading project data.
+- Files larger than 100 MiB use a read-only UTF-8 path without wrapping or folding.
+- Large-file UTF-16 and legacy encodings are unsupported.
+- Git support targets SHA-1 repositories and does not implement every index or object extension.
+- Desktop packages are unsigned and do not bundle Ruby or automatic updates.
 
 ## License
 
-MIT; see [LICENSE.txt](LICENSE.txt).
+Canopus is released under the [MIT License](LICENSE.txt).
