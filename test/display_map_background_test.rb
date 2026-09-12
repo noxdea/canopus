@@ -155,14 +155,12 @@ class DisplayMapBackgroundTest < Minitest::Test
   end
 
   def test_worker_errors_propagate_on_poll_and_shutdown_is_bounded
-    builder_class = Canopus::DisplayMap.const_get(:LineBuilder)
-    original = builder_class.instance_method(:line)
-    builder_class.define_method(:line) do |*arguments, **options|
-      raise "wrap test failure" if Thread.current.name == "canopus-wrap"
-      original.bind_call(self, *arguments, **options)
-    end
-    mapping = map(Canopus::Buffer.new("a\nb"), wrap_width: 1)
-    worker = mapping.instance_variable_get(:@worker)
+    mapping = map(Canopus::Buffer.new("a\nb"), wrap_width: 1, background_threshold: nil)
+    worker = Canopus::DisplayMap.const_get(:Worker).new
+    builder = Object.new
+    builder.define_singleton_method(:line) { |*| raise "wrap test failure" }
+    mapping.instance_variable_set(:@worker, worker)
+    worker.submit(mapping.instance_variable_get(:@generation), mapping.tree, builder, 0)
     wait_for_queue(mapping)
     error = assert_raises(RuntimeError) { mapping.poll }
     assert_equal "wrap test failure", error.message
@@ -172,7 +170,6 @@ class DisplayMapBackgroundTest < Minitest::Test
     assert_equal "a", mapping.row(0).text
   ensure
     mapping&.dispose
-    builder_class&.define_method(:line, original) if original
   end
 
   def test_cancel_repeated_settings_changes_uses_only_one_worker

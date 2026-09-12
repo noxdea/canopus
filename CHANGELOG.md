@@ -7,6 +7,7 @@
 - Delegate text diff calculation to Porrima without changing Git behavior.
 - Add closable editor tabs and multiple terminal tabs with session persistence.
 - Prevent duplicate `strscan` initialization in syntax workers.
+- Avoid cross-test method replacement in background layout error coverage.
 
 ## 0.1.0 — 2026-09-11
 
