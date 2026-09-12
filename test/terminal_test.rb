@@ -120,6 +120,7 @@ class TerminalTest < Minitest::Test
   end
 
   def test_pty_queue_applies_backpressure_without_losing_output
+    skip "uses the POSIX reader queue" if RUBY_PLATFORM.match?(/mswin|mingw/)
     size = 100_000
     terminal = Canopus::Terminal::PTY.new(command: [RbConfig.ruby, "-e", "STDOUT.write('x' * #{size})"],
       queue_limit_bytes: 65_536)
