@@ -18,11 +18,11 @@ RBS.logger_level = :error
 root = File.expand_path("../..", __dir__)
 loader = RBS::EnvironmentLoader.new
 loader.add(library: "strscan")
-%w[porrima alhena antares denebola zaniah].each { |library| loader.add(library: library) }
+%w[porrima thuban alhena antares denebola zaniah].each { |library| loader.add(library: library) }
 loader.add(path: Pathname(File.join(root, "sig")))
 environment = RBS::Environment.from_loader(loader).resolve_type_names
 tester = RBS::Test::Tester.new(env: environment)
-# Git::ObjectDatabase.hash computes Git object IDs and intentionally requires arguments.
+# Thuban::ObjectDatabase.hash computes Git object IDs and intentionally requires arguments.
 # Identity keys keep the checker from invoking domain-level .hash methods.
 tester.instance_testers.compare_by_identity
 tester.singleton_testers.compare_by_identity

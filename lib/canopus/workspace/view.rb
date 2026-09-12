@@ -244,7 +244,7 @@ module Canopus
       editor.viewport_rows = [(bounds.height / @line_height).floor, 1].max
       map, first = editor.display_map, editor.scroll_y.floor
       last = [first + editor.viewport_rows + 1, map.row_count].min
-      hunks = @workspace.git_hunks(editor.buffer)
+      marks = @workspace.git_gutter_marks(editor.buffer)
       cursor_offset = @workspace.settings["vim_mode"] && active ? @workspace.vim.cursor_position : editor.primary.head
       cursor = map.to_display(cursor_offset)
       if map.wrap_map.width && !editor.buffer.read_only
@@ -288,9 +288,12 @@ module Canopus
           y = bounds.y + (index - editor.scroll_y) * @line_height + 4
           fill(Zaniah::Bounds.new(bounds.x, y - 2, bounds.width, @line_height), :current_line) if cursor.row == index
           source_row = map.source_row(index)
-          change = hunks.find { |hunk| (source_row + 1).between?([hunk.new_start, 1].max, [hunk.new_start + hunk.new_count - 1, hunk.new_start].max) }
+          change = marks.find do |mark|
+            first = [mark.new_line, 1].max
+            mark.kind == :removed ? source_row + 1 == first : (source_row + 1).between?(first, first + mark.count - 1)
+          end
           if change
-            color = change.new_count.zero? ? @theme[:error] : change.old_count.zero? ? "#80b987" : @theme[:accent]
+            color = change.kind == :removed ? @theme[:error] : change.kind == :added ? "#80b987" : @theme[:accent]
             fill(Zaniah::Bounds.new(bounds.x + 2, y - 1, 3, @line_height), color)
             region(Zaniah::Bounds.new(bounds.x, y - 1, 10, @line_height), role: :button, label: "Toggle Git hunk", action: [:git_hunk, editor, source_row]) if row.kind == :text
           end
@@ -335,9 +338,9 @@ module Canopus
       previous_width = @line_widths[editor]
       measured_width = [measured_width, previous_width.last].max if previous_width && previous_width.first == editor.buffer.version
       @line_widths[editor] = [editor.buffer.version, measured_width]
-      paint_scrollbars(editor, bounds, measured_width, hunks)
+      paint_scrollbars(editor, bounds, measured_width, marks)
     end
-    def paint_scrollbars(editor, bounds, content_width, hunks)
+    def paint_scrollbars(editor, bounds, content_width, marks)
       track = Zaniah::Bounds.new(bounds.right - 9, bounds.y, 9, [bounds.height - 9, 0].max)
       total = editor.display_map.row_count
       maximum = [total - editor.viewport_rows, 0].max
@@ -345,8 +348,8 @@ module Canopus
         height = [24, track.height * editor.viewport_rows / total].max.clamp(0, track.height)
         thumb = Zaniah::Bounds.new(track.x + 2, track.y + (track.height - height) * editor.scroll_y / maximum, 5, height)
         fill(thumb, :muted)
-        hunks.first(500).each do |hunk|
-          y = track.y + track.height * [hunk.new_start - 1, 0].max / [editor.buffer.line_count, 1].max
+        marks.first(500).each do |mark|
+          y = track.y + track.height * [mark.new_line - 1, 0].max / [editor.buffer.line_count, 1].max
           fill(Zaniah::Bounds.new(track.x, y, 3, 2), :accent)
         end
         frame_diagnostics(editor.buffer).first(500).each do |diagnostic|

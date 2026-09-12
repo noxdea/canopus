@@ -92,7 +92,7 @@ Dir.mktmpdir("canopus-public-api-") do |root|
   FileUtils.mkdir_p(File.join(git_dir, "objects"))
   FileUtils.mkdir_p(File.join(git_dir, "refs/heads"))
   object = lambda do |type, data|
-    oid = Canopus::Git::ObjectDatabase.hash(type, data)
+    oid = Thuban::ObjectDatabase.hash(type, data)
     directory = File.join(git_dir, "objects", oid[0, 2])
     FileUtils.mkdir_p(directory)
     File.binwrite(File.join(directory, oid[2..]), Zlib::Deflate.deflate("#{type} #{data.bytesize}\0".b + data.b))
@@ -104,20 +104,22 @@ Dir.mktmpdir("canopus-public-api-") do |root|
   File.binwrite(File.join(git_dir, "HEAD"), "ref: refs/heads/main\n")
   File.binwrite(File.join(git_dir, "refs/heads/main"), "#{commit}\n")
   File.binwrite(File.join(root, "tracked.txt"), "after\n")
-  entry = Canopus::Git::Index::Entry.new(path: "tracked.txt", oid: blob, mode: 0o100644, size: 7,
+  entry = Thuban::Index::Entry.new(path: "tracked.txt", oid: blob, mode: 0o100644, size: 7,
     mtime: 0, mtime_nsec: 0, ctime: 0, ctime_nsec: 0, dev: 0, ino: 0, uid: 0, gid: 0, stage: 0)
-  File.binwrite(File.join(git_dir, "index"), Canopus::Git::Index.encode([entry]))
-  repository = Canopus::Git::Repository.new(root)
+  File.binwrite(File.join(git_dir, "index"), Thuban::Index.encode([entry]))
+  repository = Thuban::Repository.new(root)
   check(repository.head == commit && repository.branch == "main", "Git references")
   check(repository.commit.message == "Initial\n" && repository.tree.fetch("tracked.txt").oid == blob, "Git commit/tree")
   check(repository.blob("tracked.txt") == "before\n" && repository.object(blob) == ["blob", "before\n"], "Git loose objects")
   check(repository.index.to_a.first.path == "tracked.txt", "Git index enumerable")
   check(repository.status.any? { |item| item.path == "tracked.txt" && item.code == " M" }, "Git worktree status")
-  hunk = repository.diff("tracked.txt").first
+  check(repository.staged_blob("tracked.txt") == "before\n", "Git staged blob")
+  hunk = Porrima.diff(repository.staged_blob("tracked.txt"), repository.worktree_content("tracked.txt")).hunks.first
   check(hunk.old_text == "before\n" && hunk.new_text == "after\n", "Git diff")
-  check(repository.revert_hunk("tracked.txt", hunk) == "before\n", "Git hunk revert")
+  repository.write("tracked.txt", Porrima.revert(repository.worktree_content("tracked.txt"), hunk))
+  check(repository.worktree_content("tracked.txt") == "before\n", "Git hunk revert")
   check(repository.blame("tracked.txt").first.commit == commit, "Git blame")
-  check(Canopus::Git::Diff.unified("a\n", "b\n").include?("+b"), "unified diff")
+  check(Porrima.unified("a\n", "b\n").include?("+b"), "unified diff")
 
   grid = Canopus::Terminal::Grid.new(columns: 20, rows: 3, scrollback: 4)
   replies = []

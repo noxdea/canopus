@@ -4,7 +4,7 @@ module Canopus
   module Workspace::GitAware
     def git
       return @git if defined?(@git)
-      @git = Git::Repository.new(@root)
+      @git = Thuban::Repository.new(@root)
       @git = nil unless @git.root
     rescue ArgumentError
       @git = nil
@@ -29,7 +29,7 @@ module Canopus
     end
     def invalidate_git
       @git_generation = (@git_generation || 0) + 1
-      @git_status = @git_hunk_cache = nil
+      @git_status = @git_diff_cache = nil
       @panes.each do |pane|
         pane.editors.each do |current|
           current.display_map.block_map.blocks.values.each { |block| current.display_map.remove_block(block.id) if block.kind == :git_diff }
@@ -57,43 +57,48 @@ module Canopus
       raise Error, "Current document is not in a Git repository" unless git && buffer.path && buffer.path.start_with?(git.root + File::SEPARATOR)
       buffer.path.delete_prefix(git.root + File::SEPARATOR)
     end
-    def git_hunks(buffer = editor.buffer, async: true)
-      return [] unless git && buffer.path && buffer.path.start_with?(git.root + File::SEPARATOR) && buffer.rope.bytesize < 10 << 20
+    def git_diff(buffer = editor.buffer, async: true)
+      return unless git && buffer.path && buffer.path.start_with?(git.root + File::SEPARATOR) && buffer.rope.bytesize < 10 << 20
       path = git_relative_path(buffer)
-      @git_hunk_cache ||= {}
+      @git_diff_cache ||= {}
       key = [buffer.object_id, path, buffer.version, git.head]
-      @git_hunk_cache.clear if @git_hunk_cache.length > 20
-      return @git_hunk_cache[key] if @git_hunk_cache.key?(key)
+      @git_diff_cache.clear if @git_diff_cache.length > 20
+      return @git_diff_cache[key] if @git_diff_cache.key?(key)
       if @window && async
-        @git_hunk_jobs ||= {}
-        unless @git_hunk_jobs[buffer]&.alive?
+        @git_diff_jobs ||= {}
+        unless @git_diff_jobs[buffer]&.alive?
           snapshot = buffer.rope
-          @git_hunk_jobs[buffer] = Thread.new do
+          @git_diff_jobs[buffer] = Thread.new do
             before = Buffer.decode_bytes(git.blob(path, reference: key.last || "HEAD").to_s).first
-            hunks = Git::Diff.hunks(before, snapshot.to_s, context: 0)
-            post { (@git_hunk_cache ||= {})[key] = hunks } unless @closed
+            diff = Porrima.diff(before, snapshot.to_s, context: 0)
+            diff.hunks
+            diff.marks
+            post { (@git_diff_cache ||= {})[key] = diff } unless @closed
           rescue StandardError => error
             post { @message = "Git diff: #{error.message}" } unless @closed
           end
         end
-        []
+        nil
       else
         before = Buffer.decode_bytes(git.blob(path).to_s).first
-        @git_hunk_cache[key] = Git::Diff.hunks(before, buffer.text, context: 0)
+        diff = Porrima.diff(before, buffer.text, context: 0)
+        diff.hunks
+        diff.marks
+        @git_diff_cache[key] = diff
       end
     end
+    def git_hunks(buffer = editor.buffer, async: true) = git_diff(buffer, async: async)&.hunks || []
+    def git_gutter_marks(buffer = editor.buffer) = git_diff(buffer)&.marks || []
     def show_git_diff
       path = git_relative_path
       before = Buffer.decode_bytes(git.blob(path).to_s).first
-      buffer = Buffer.new(Git::Diff.unified(before, editor.buffer.text, old_name: "a/#{path}", new_name: "b/#{path}"), read_only: true)
+      buffer = Buffer.new(Porrima.unified(before, editor.buffer.text, old_name: "a/#{path}", new_name: "b/#{path}"), read_only: true)
       @buffers[buffer.object_id] = buffer
       @active_pane.open(buffer).language = Language::Definition.new("diff", "diff", [], "", /\A\z/, /\A\z/, [])
     end
     def toggle_git_hunk(current = editor, row: nil)
       row ||= current.buffer.rope.point_at(current.primary.head).row
-      hunk = git_hunks(current.buffer, async: false).find do |item|
-        (row + 1).between?([item.new_start, 1].max, [item.new_start + item.new_count - 1, item.new_start].max)
-      end
+      hunk = git_diff(current.buffer, async: false)&.hunk_at(new_line: row + 1)
       raise Error, "No change at the cursor" unless hunk
       id = [:git_hunk, current.buffer.path, current.buffer.version, git.head, hunk.old_start, hunk.new_start]
       map = current.display_map
@@ -122,9 +127,9 @@ module Canopus
     end
     def revert_current_hunk
       row = editor.buffer.rope.point_at(editor.primary.head).row + 1
-      hunk = git_hunks(async: false).find { |item| row.between?([item.new_start, 1].max, [item.new_start + item.new_count - 1, item.new_start].max) }
+      hunk = git_diff(async: false)&.hunk_at(new_line: row)
       raise Error, "No change at the cursor" unless hunk
-      replacement = Git::Diff.revert(editor.buffer.text, hunk)
+      replacement = Porrima.revert(editor.buffer.text, hunk)
       editor.buffer.edit([[0...editor.buffer.rope.bytesize, replacement]], kind: :revert_hunk)
     end
     def checkout_branch(name)

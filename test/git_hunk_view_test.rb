@@ -28,6 +28,8 @@ class GitHunkViewTest < Minitest::Test
 
   def test_toggle_preview_and_discard_after_edit_or_head_invalidation
     original = @editor.buffer.text
+    assert_instance_of Porrima::Diff, @workspace.git_diff(async: false)
+    assert_equal [{new_line: 2, kind: :modified, count: 1}], @workspace.git_gutter_marks.map(&:to_h)
     @workspace.call("git.toggle_hunk")
     map = @editor.display_map
     assert map.block_map.blocks.values.any? { |block| block.kind == :git_diff }, @workspace.message

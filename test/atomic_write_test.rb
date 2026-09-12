@@ -5,7 +5,7 @@ require "minitest/mock"
 require "tmpdir"
 
 class AtomicWriteTest < Minitest::Test
-  %i[buffer session settings git project].each do |writer|
+  %i[buffer session settings project].each do |writer|
     define_method("test_#{writer}_closes_temporary_file_before_replacing_destination") do
       with_destination(writer) do |path|
         with_closed_temporary_rename do
@@ -51,8 +51,6 @@ class AtomicWriteTest < Minitest::Test
       workspace.save_session(path)
     when :settings
       Canopus::Settings.new.set_file(path, "tab_size", 2)
-    when :git
-      Canopus::Git::Repository.allocate.send(:atomic_write, path, "blue\n", 0o644)
     when :project
       Canopus::Project.new(File.dirname(path)).replace("red", "blue", workers: 1)
     end
