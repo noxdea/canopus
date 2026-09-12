@@ -65,7 +65,7 @@ module Canopus
     def invalidate_git: () -> nil
     def poll_git_changes: (?now: Numeric) -> void
     def git_relative_path: (?Buffer buffer) -> String
-    def git_hunks: (?Buffer buffer, ?async: bool) -> Array[Git::Diff::Hunk]
+    def git_hunks: (?Buffer buffer, ?async: bool) -> Array[Porrima::Hunk]
     def show_git_diff: () -> Language::Document
     def toggle_git_hunk: (?Editor current, ?row: Integer?) -> bool
     def show_git_blame: () -> String

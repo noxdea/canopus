@@ -25,6 +25,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "antares", "~> 0.1.0"
   spec.add_dependency "denebola", "~> 0.1.0"
   spec.add_dependency "kochab", "~> 0.1.0"
+  spec.add_dependency "porrima", "~> 0.1.0"
   spec.add_dependency "prism", "~> 1.0"
   spec.add_dependency "rouge", "~> 5.0"
   spec.add_dependency "spica", "~> 0.1.0"

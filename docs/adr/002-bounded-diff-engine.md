@@ -16,7 +16,7 @@ switching algorithms by input size.
 
 ## Consequences
 
-Memory behavior and tie-breaking remain consistent across file sizes, but
-Canopus owns the implementation and its performance limits. Revisit this
-decision if a maintained implementation provides the same bounds and stable
-results with less maintenance.
+Memory behavior and tie-breaking remain consistent across file sizes. Porrima
+owns the implementation and its performance limits while Canopus retains
+display and scheduling policy. Revisit this decision if Porrima no longer
+provides the same bounds and stable results.

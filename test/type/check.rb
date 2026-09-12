@@ -18,7 +18,7 @@ RBS.logger_level = :error
 root = File.expand_path("../..", __dir__)
 loader = RBS::EnvironmentLoader.new
 loader.add(library: "strscan")
-%w[alhena antares denebola zaniah].each { |library| loader.add(library: library) }
+%w[porrima alhena antares denebola zaniah].each { |library| loader.add(library: library) }
 loader.add(path: Pathname(File.join(root, "sig")))
 environment = RBS::Environment.from_loader(loader).resolve_type_names
 tester = RBS::Test::Tester.new(env: environment)

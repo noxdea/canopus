@@ -37,10 +37,10 @@ module Canopus
       def blob: (String path, ?reference: String) -> String?
       def status: () -> Array[Status::Entry]
       def blame: (String path, ?reference: String) -> Array[Blame::Line]
-      def diff: (String path, ?staged: bool, ?context: Integer) -> Array[Diff::Hunk]
+      def diff: (String path, ?staged: bool, ?context: Integer) -> Array[Porrima::Hunk]
       def worktree_content: (String path) -> String?
       def worktree_path: (String path, ?replacing: Array[String]) -> String
-      def revert_hunk: (String path, Diff::Hunk hunk) -> String
+      def revert_hunk: (String path, Porrima::Hunk hunk) -> String
       def checkout: (String name) -> String
     end
     class ObjectDatabase
@@ -90,26 +90,11 @@ module Canopus
       def self.encode: (Array[Entry] entries) -> String
     end
     module Diff
-      class Edit < Struct[untyped]
-        attr_accessor kind: :equal | :insert | :delete
-        attr_accessor old_line: Integer
-        attr_accessor new_line: Integer
-        attr_accessor text: String
-        def self.new: (kind: :equal | :insert | :delete, old_line: Integer, new_line: Integer, text: String) -> instance
-      end
-      class Hunk < Struct[untyped]
-        attr_accessor old_start: Integer
-        attr_accessor old_count: Integer
-        attr_accessor new_start: Integer
-        attr_accessor new_count: Integer
-        attr_accessor edits: Array[Edit]
-        def self.new: (old_start: Integer, old_count: Integer, new_start: Integer, new_count: Integer, edits: Array[Edit]) -> instance
-        def old_text: () -> String
-        def new_text: () -> String
-      end
-      def self.edits: (lines before, lines after) -> Array[Edit]
-      def self.hunks: (lines before, lines after, ?context: Integer) -> Array[Hunk]
-      def self.revert: (String text, Hunk hunk) -> String
+      Edit: singleton(Porrima::Edit)
+      Hunk: singleton(Porrima::Hunk)
+      def self.edits: (lines before, lines after) -> Array[Porrima::Edit]
+      def self.hunks: (lines before, lines after, ?context: Integer) -> Array[Porrima::Hunk]
+      def self.revert: (String text, Porrima::Hunk hunk) -> String
       def self.unified: (lines before, lines after, ?old_name: String, ?new_name: String, ?context: Integer) -> String
     end
     class Status

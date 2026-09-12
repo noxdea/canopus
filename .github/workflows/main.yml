@@ -23,7 +23,7 @@ jobs:
           bundler: default
       - run: bundle install
       - run: bundle exec rake test
-      - run: bundle exec rbs -I sig -r alhena -r antares -r denebola -r zaniah -r stringio -r strscan validate
+      - run: bundle exec rbs -I sig -r porrima -r alhena -r antares -r denebola -r zaniah -r stringio -r strscan validate
       - run: bundle exec ruby test/type/check.rb
       - run: bundle exec ruby tools/check_dependencies.rb test/type/smoke.rb
       - name: Software full-frame allocation regression guard

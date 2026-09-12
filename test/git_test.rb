@@ -196,13 +196,4 @@ class GitTest < Minitest::Test
     end
   end
 
-  def test_completely_replaced_large_file_skips_myers_search
-    before = Array.new(20_000) { |index| "old #{index}\n" }
-    after = Array.new(20_000) { |index| "new #{index}\n" }
-    Canopus::Git::Diff.stub(:bisect, ->(*) { flunk "disjoint lines do not need Myers search" }) do
-      edits = Canopus::Git::Diff.edits(before, after)
-      assert_equal before, edits.select { |edit| edit.kind == :delete }.map(&:text)
-      assert_equal after, edits.select { |edit| edit.kind == :insert }.map(&:text)
-    end
-  end
 end

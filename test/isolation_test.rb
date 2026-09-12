@@ -7,6 +7,6 @@ class IsolationTest < Minitest::Test
     root = File.expand_path("..", __dir__)
     output, status = Open3.capture2e(Gem.ruby, "tools/check_dependencies.rb", "test/type/smoke.rb", chdir: root)
     assert status.success?, output
-    assert_includes output, "runtime dependencies: alhena, antares, denebola, kochab, prism, rouge, spica, unicode-display_width, zaniah"
+    assert_includes output, "runtime dependencies: alhena, antares, denebola, kochab, porrima, prism, rouge, spica, unicode-display_width, zaniah"
   end
 end
