@@ -125,10 +125,10 @@ class TerminalTest < Minitest::Test
       queue_limit_bytes: 65_536)
     total = 0
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
-    loop do
+    while total < size
       chunk = terminal.read(timeout: 0.05, max_bytes: 32_768, max_seconds: 0.004)
-      total += chunk.to_s.bytesize
       break unless chunk
+      total += chunk.to_s.bytesize
       raise "PTY output timed out" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
     end
     assert_equal size, total

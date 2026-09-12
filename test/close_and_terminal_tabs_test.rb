@@ -46,7 +46,7 @@ class CloseAndTerminalTabsTest < Minitest::Test
 
   def test_close_releases_shared_buffers_only_after_the_last_reference_and_reopens_state
     path = File.join(@root, "a.rb")
-    File.write(path, "one\ntwo\n")
+    File.binwrite(path, "one\ntwo\n")
     first = @workspace.open(path)
     first.select(4, 7)
     @workspace.split
