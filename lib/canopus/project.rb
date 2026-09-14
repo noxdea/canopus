@@ -3,6 +3,7 @@
 require "set"
 require "fileutils"
 require "tempfile"
+require "thuban"
 
 module Canopus
   class Project
@@ -26,7 +27,7 @@ module Canopus
         include_symlinks: include_symlinks, include_directories: include_directories, extensions: extensions, max_size: max_size) unless block_given?
       extensions = extensions&.map { |extension| extension.start_with?(".") ? extension : ".#{extension}" }&.to_set
       visited = Set.new
-      base_rules = IgnoreMatcher.new
+      base_rules = Thuban::IgnoreMatcher.new
       exclude = File.join(root, ".git", "info", "exclude")
       base_rules = base_rules.add(File.read(exclude), base: "") if File.file?(exclude)
       walk = lambda do |directory, rules|
@@ -72,7 +73,7 @@ module Canopus
 
     def ignored?(relative, directory: File.directory?(path(relative)))
       pieces = relative.sub(%r{\A\./}, "").split("/")
-      rules = IgnoreMatcher.new
+      rules = Thuban::IgnoreMatcher.new
       base = ""
       exclude = File.join(root, ".git", "info", "exclude")
       rules = rules.add(File.read(exclude), base: "") if File.file?(exclude)
@@ -122,6 +123,5 @@ module Canopus
   end
 end
 
-require_relative "project/ignore_matcher"
 require_relative "project/search"
 require_relative "project/watcher"

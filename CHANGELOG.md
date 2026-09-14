@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0 — 2026-09-14
+
+- Use the public `Thuban::IgnoreMatcher` and remove Canopus's duplicate implementation.
+
 ## 0.2.0 — 2026-09-12
 
 - Read repositories through Thuban and keep text comparison in Porrima data objects.

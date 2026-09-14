@@ -28,18 +28,6 @@ module Canopus
       def initialize: (Project project) -> void
       def call: (String | Regexp pattern, ?workers: Integer, ?max_size: Integer?, ?extensions: Array[String]?, ?limit: Integer?, ?case_sensitive: bool, ?cancelled: ^() -> bool, ?paths: Array[String]?) ?{ (Match) -> void } -> Array[Match]
     end
-    class IgnoreMatcher
-      class Rule < Struct[untyped]
-        attr_accessor base: String
-        attr_accessor expression: Regexp
-        attr_accessor negated: bool
-        attr_accessor directory: bool
-        def self.new: (base: String, expression: Regexp, negated: bool, directory: bool) -> instance
-      end
-      def initialize: (?Array[Rule] rules) -> void
-      def add: (String source, ?base: String) -> instance
-      def ignored?: (String path, ?directory: bool) -> bool
-    end
     class Watcher
       class Event < Struct[untyped]
         attr_accessor type: :created | :modified | :deleted

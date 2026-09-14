@@ -49,7 +49,7 @@ Dir.mktmpdir("canopus-public-api-") do |root|
   seen = []
   check(project.files { |name| seen << name }.equal?(project) && seen.include?("file.txt"), "project files block")
   check(project.search("日本", workers: 1).first.byte_offset == 0, "project Unicode search")
-  rules = Canopus::Project::IgnoreMatcher.new.add("*.tmp\n!keep.tmp\n")
+  rules = Thuban::IgnoreMatcher.new.add("*.tmp\n!keep.tmp\n")
   check(rules.ignored?("skip.tmp") && !rules.ignored?("keep.tmp"), "ignore negation")
   watcher = project.watcher
   File.binwrite(File.join(root, "watch.txt"), "found\n")
