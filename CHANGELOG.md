@@ -8,6 +8,7 @@
 - Show language-server diagnostics as severity-colored wave underlines and optional line-end messages.
 - Show cached, viewport-scoped language-server inlay hints inline with clickable label locations.
 - Show cached language-server code lenses above source lines and resolve them only when visible.
+- Color nested bracket pairs from Antares structure data and draw display-aware active indentation guides.
 
 ## 0.4.0 — 2026-09-15
 

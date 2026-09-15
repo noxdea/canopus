@@ -7,6 +7,7 @@ module Canopus
       3 => :"diagnostic.information", 4 => :"diagnostic.hint"}.freeze
     CODE_LENS_REQUEST_LIMIT = 64
     CODE_LENS_RESOLVE_LIMIT = 32
+    INDENT_GUIDE_LIMIT = 4096
 
     attr_reader :hover_card, :hover_markup, :semantic_styles
     def dismiss_hover = @hover_card = nil
@@ -898,7 +899,78 @@ module Canopus
       nil
     end
 
+    def bracket_decorations(buffer, rows, current)
+      return [] unless current.is_a?(Editor) && current.buffer.equal?(buffer)
+      return [] if buffer.rope.respond_to?(:lazy?) && buffer.rope.lazy?
+
+      values = @settings.for_language(current.language_document.definition.name)
+      colorize = values["bracket_colorization"]
+      guides = values["indent_guides"]
+      return [] unless colorize || guides["enabled"]
+
+      items = colorize ? current.language_document.brackets(rows).flat_map do |pair|
+        style = {color: :"bracket.#{pair.depth % 6 + 1}", foreground: true}.freeze
+        [pair.open_row, pair.close_row].zip([pair.open_range, pair.close_range]).filter_map do |row, range|
+          Decoration::Item.new(:highlight, range, row, nil, style, 15 + pair.depth, :bracket, nil) if rows.cover?(row)
+        end
+      end : []
+      return items.freeze unless guides["enabled"]
+
+      active = active_structure_guide(current, guides["active"])
+      first = rows.begin.clamp(0, buffer.line_count)
+      last = (rows.exclude_end? ? rows.end : rows.end + 1).clamp(first, buffer.line_count)
+      guide_count = 0
+      (first...last).each do |row|
+        start = buffer.rope.line_start(row)
+        indentation_offsets(buffer.line(row), current.tab_size, limit: INDENT_GUIDE_LIMIT - guide_count).each do |column, offset|
+          highlighted = active && row > active[:start_line] && row <= active[:end_line] && column == active[:column]
+          style = {guide: true, active: !!highlighted,
+            color: highlighted ? :"indent.guide.active" : :"indent.guide"}.freeze
+          items << Decoration::Item.new(:highlight, (start + offset...start + offset), row, nil,
+            style, highlighted ? 13 : 2, :bracket, nil)
+          guide_count += 1
+        end
+        # ponytail: one viewport never needs more than this; paginate if deeply indented generated files become common.
+        break if guide_count >= INDENT_GUIDE_LIMIT
+      end
+      items.freeze
+    end
+
+    def invalidate_brackets(buffer = nil)
+      @decorations.invalidate(:bracket, buffer: buffer)
+      @window&.request_frame unless @closed
+      nil
+    end
+
     private
+
+    def active_structure_guide(current, enabled)
+      return unless enabled
+      row = current.buffer.rope.point_at(current.primary.head).row
+      region = current.language_document.structure_regions.lazy
+        .select { |item| item[:kind] == :block && item[:start_line] <= row && row <= item[:end_line] }
+        .min_by { |item| [item[:end_line] - item[:start_line], -item[:start_line]] }
+      return unless region
+
+      indentation = indentation_offsets(current.buffer.line(region[:start_line]), current.tab_size).last&.first || 0
+      region.merge(column: indentation + current.tab_size)
+    end
+
+    def indentation_offsets(line, tab_size, limit: INDENT_GUIDE_LIMIT)
+      return [] unless limit.positive?
+      offsets, column, byte, target = [], 0, 0, tab_size
+      line.each_byte do |character|
+        break unless character == 32 || character == 9
+        column += character == 9 ? tab_size - column % tab_size : 1
+        byte += 1
+        while target <= column
+          offsets << [target, byte]
+          return offsets if offsets.length >= limit
+          target += tab_size
+        end
+      end
+      offsets
+    end
 
     def visible_language_ranges(current, display_rows, gap:)
       map = current.display_map

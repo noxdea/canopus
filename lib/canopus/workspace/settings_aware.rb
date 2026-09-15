@@ -56,6 +56,7 @@ module Canopus
       invalidate_diagnostics
       invalidate_inlay_hints
       invalidate_code_lenses
+      invalidate_brackets
       reload_language_servers(servers)
       @window&.request_frame
     end

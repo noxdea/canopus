@@ -39,7 +39,9 @@ module Canopus
         first, last = normalize_rows(row_range)
         state = [buffer.respond_to?(:version) ? buffer.version : nil,
           context&.object_id,
-          context&.respond_to?(:selections) ? context.selections : buffer.respond_to?(:selections) ? buffer.selections : nil]
+          context&.respond_to?(:selections) ? context.selections : buffer.respond_to?(:selections) ? buffer.selections : nil,
+          context&.respond_to?(:tab_size) ? context.tab_size : nil,
+          context&.respond_to?(:language_document) ? context.language_document.object_id : nil]
         suppliers = @lock.synchronize do
           @suppliers.map { |source, supplier| [source, supplier, @generations[source]] }
         end

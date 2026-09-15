@@ -35,6 +35,7 @@ installable.
 - Persistent buffers, tabs, splits, sessions, and explicit save-conflict handling
 - LSP completion, diagnostics, hover, symbols, formatting, rename, and code actions
 - Viewport-scoped LSP inlay hints with clickable label locations
+- Nested bracket colors and active indentation guides backed by Antares structure analysis
 - Resizable integrated terminal with multiple tabs, scrollback, selection, colors, and clickable links
 - Git diff, blame, hunk reversal, and branch switching
 - Editable project-wide search results and safe project file operations
@@ -113,6 +114,8 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
   "diagnostics": { "inline": true, "inline_max_length": 80, "severity": "warning" },
   "inlay_hints": { "enabled": true, "parameter_names": true, "types": true, "max_length": 30 },
   "code_lens": { "enabled": true },
+  "bracket_colorization": true,
+  "indent_guides": { "enabled": true, "active": true },
   "tabs": { "activate_on_close": "history", "reopen_history_limit": 20 },
   "terminal": { "working_directory": "project", "scrollback_lines": 10000 },
   "dock": {
@@ -176,7 +179,7 @@ bundle exec ruby tools/check_dependencies.rb test/type/smoke.rb
 ```
 
 Before component releases are available, use sibling checkouts with
-`SADR_PATH=../sadr TARAZED_PATH=../tarazed ALKAID_PATH=../alkaid bundle install`.
+`SADR_PATH=../sadr TARAZED_PATH=../tarazed ALKAID_PATH=../alkaid ANTARES_PATH=../antares bundle install`.
 
 Run `bundle exec rake bench` for performance checks. Contributions can be
 submitted through [GitHub issues and pull requests](https://github.com/noxdea/canopus/issues).

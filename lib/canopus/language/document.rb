@@ -29,14 +29,15 @@ module Canopus
         highlighter.tokens_for(row)
       end
       # Explicit synchronous escape hatch. Asynchronous UI paths never call this.
-      def highlighter(strategy: nil, window_context: nil)
+      def highlighter(strategy: nil, window_context: nil, max_seconds: nil)
         return @highlighter if @highlighter
-        require "antares"
+        require "antares" unless defined?(Antares::Highlighter)
         large = @buffer.rope.bytesize > 1 << 20
         @highlighter = Antares::Highlighter.new(lexer: Rouge::Lexer.find(@definition.lexer).new,
           lines: ->(row) { @buffer.rope.byteslice(@buffer.rope.line_start(row), (row + 1 < @buffer.line_count ? @buffer.rope.line_start(row + 1) : @buffer.rope.bytesize) - @buffer.rope.line_start(row)).to_s },
           line_count: -> { @buffer.line_count }, strategy: strategy || (large ? :window : :auto),
-          window_context: window_context || (@buffer.rope.bytesize > 10 << 20 ? 0 : 500))
+          window_context: window_context || (@buffer.rope.bytesize > 10 << 20 ? 0 : 500),
+          max_seconds: max_seconds || 0.25)
       end
       def invalidate(patch)
         @background&.invalidate(patch)
@@ -101,42 +102,58 @@ module Canopus
         return @background.bracket_at(offset) if @background
         bracket_ranges[offset]
       end
+      def brackets(rows = nil)
+        rows = bracket_rows(rows) if rows
+        return @background.brackets(rows) if @background
+        values = structure_brackets
+        rows ? values.select { |pair| pair.close_row >= rows.begin && pair.open_row < rows.end } : values.dup
+      end
+      def structure_regions
+        return @background.structure_regions if @background
+        highlighter.structure.fold_regions.map do |region|
+          {start_line: region.start_line, end_line: region.end_line, kind: region.kind}.freeze
+        end.freeze
+      end
 
       private
+      def bracket_rows(rows)
+        unless rows.is_a?(Range) && rows.begin.is_a?(Integer) && rows.end.is_a?(Integer) && rows.begin >= 0
+          raise ArgumentError, "bracket rows must be a nonnegative integer range"
+        end
+        last = rows.exclude_end? ? rows.end : rows.end + 1
+        raise RangeError, "bracket rows outside document" if last < rows.begin || last > @buffer.line_count
+        rows.begin...last
+      end
+
       def bracket_ranges
-        return @brackets if @brackets_version == @buffer.version
-        pairs = {"(" => ")", "[" => "]", "{" => "}"}
-        tokens = if @definition.name == "ruby"
-          require "prism"
-          Prism.lex(@buffer.text).value.filter_map do |token, _state|
-            next unless %w[PARENTHESIS_LEFT PARENTHESIS_RIGHT BRACKET_LEFT BRACKET_RIGHT BRACE_LEFT BRACE_RIGHT].include?(token.type.to_s)
-            [token.location.start_offset, token.value]
-          end
-        else
-          require "rouge"
-          collected, byte = [], 0
-          Rouge::Lexer.find(@definition.lexer).new.lex(@buffer.text).each do |token, value|
-            unless token.qualname.start_with?("Literal.String", "Comment")
-              value.b.scan(/[()\[\]{}]/n) { |character| collected << [byte + Regexp.last_match.begin(0), character] }
-            end
-            byte += value.bytesize
-          end
-          collected
+        return @bracket_ranges if @bracket_ranges_version == @buffer.version
+
+        @bracket_ranges = structure_brackets.each_with_object({}) do |pair, ranges|
+          range = (pair.open_range.begin...pair.close_range.end).freeze
+          ranges[pair.open_range.begin] = ranges[pair.close_range.begin] = range
         end
-        stack, @brackets = [], {}
-        tokens.each do |position, character|
-          if pairs.key?(character)
-            stack << [position, character]
-          elsif stack.last && pairs[stack.last[1]] == character
-            opening = stack.pop[0]
-            range = (opening...position + character.bytesize).freeze
-            @brackets[opening] = @brackets[position] = range
-          else
-            stack.clear
+        @bracket_ranges_version = @buffer.version
+        @bracket_ranges
+      end
+
+      def structure_brackets
+        return @structure_brackets if @structure_brackets_version == @buffer.version
+
+        boundaries = {}
+        byte_offset = lambda do |row, column|
+          positions = boundaries[row] ||= @buffer.line(row).each_char.each_with_object([0]) do |character, values|
+            values << values.last + character.bytesize
           end
+          @buffer.rope.line_start(row) + positions.fetch(column)
         end
-        @brackets_version = @buffer.version
-        @brackets
+        @structure_brackets = highlighter.structure.brackets.map do |pair|
+          opening = byte_offset.call(pair.open_line, pair.open_column)
+          closing = byte_offset.call(pair.close_line, pair.close_column)
+          Bracket.new((opening...opening + 1).freeze, (closing...closing + 1).freeze,
+            pair.open_line, pair.close_line, pair.depth).freeze
+        end.freeze
+        @structure_brackets_version = @buffer.version
+        @structure_brackets
       end
     end
   end

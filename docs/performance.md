@@ -38,3 +38,7 @@ ruby --yjit tools/native_check.rb --idle /tmp/native-check.png
 Compare results only when the platform, renderer, viewport, Ruby/JIT mode,
 warmup, and diagnostic options match. Headless software rendering is a regression
 check, not a hardware-GPU performance result.
+
+Bracket colors and indentation guides are requested and cached by visible source
+rows. Structural analysis stays in the bounded language worker; files on the
+large read-only path skip these decorations instead of scanning on the UI thread.

@@ -13,6 +13,8 @@ module Canopus
       "diagnostics" => {"inline" => true, "inline_max_length" => 80, "severity" => "warning"}.freeze,
       "inlay_hints" => {"enabled" => true, "parameter_names" => true, "types" => true, "max_length" => 30}.freeze,
       "code_lens" => {"enabled" => true}.freeze,
+      "bracket_colorization" => true,
+      "indent_guides" => {"enabled" => true, "active" => true}.freeze,
       "dock" => {"left" => {"size" => 220, "visible" => true}.freeze,
         "right" => {"size" => 260, "visible" => false}.freeze,
         "bottom" => {"size" => 280, "visible" => false}.freeze,
@@ -44,6 +46,9 @@ module Canopus
         "max_length" => {"type" => "integer", "minimum" => 1, "maximum" => 10_000}}},
       "code_lens" => {"type" => "object", "required" => ["enabled"], "properties" => {
         "enabled" => {"type" => "boolean"}}},
+      "bracket_colorization" => {"type" => "boolean"},
+      "indent_guides" => {"type" => "object", "required" => %w[enabled active], "properties" => {
+        "enabled" => {"type" => "boolean"}, "active" => {"type" => "boolean"}}},
       "dock" => {"type" => "object", "properties" => {
         "left" => {"$ref" => "#/$defs/dock"}, "right" => {"$ref" => "#/$defs/dock"},
         "bottom" => {"$ref" => "#/$defs/dock"}, "panels" => {"type" => "object", "maxProperties" => 1000,
@@ -123,6 +128,7 @@ module Canopus
       validate_diagnostics!
       validate_inlay_hints!
       validate_code_lens!
+      validate_structural_guides!
       validate_dock!
       @values["languages"] = @values["languages"].to_h do |name, layer|
         raise Error, "language settings must be objects" unless name.is_a?(String) && layer.is_a?(Hash)
@@ -213,6 +219,17 @@ module Canopus
       lens = @values["code_lens"]
       raise Error, "code_lens must be an object" unless lens.is_a?(Hash)
       raise Error, "code_lens.enabled must be true or false" unless [true, false].include?(lens["enabled"])
+    end
+
+    def validate_structural_guides!
+      unless [true, false].include?(@values["bracket_colorization"])
+        raise Error, "bracket_colorization must be true or false"
+      end
+      guides = @values["indent_guides"]
+      raise Error, "indent_guides must be an object" unless guides.is_a?(Hash)
+      %w[enabled active].each do |key|
+        raise Error, "indent_guides.#{key} must be true or false" unless [true, false].include?(guides[key])
+      end
     end
 
     def validate_dock!

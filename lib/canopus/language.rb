@@ -5,6 +5,8 @@ require_relative "language/symbol"
 
 module Canopus
   module Language
+    Bracket = Data.define(:open_range, :close_range, :open_row, :close_row, :depth)
+
     DEFINITIONS = [
       ["ruby", "ruby", %w[.rb .rake .gemspec Gemfile Rakefile], "#", /(?:^\s*(?:class|module|def|if|unless|case|while|until|for|begin)\b.*|(?:\bdo|[\[{(])(?:\s*\|[^|]*\|)?\s*)$/, /^\s*(?:end\b|else\b|elsif\b|rescue\b|ensure\b|[\]})])/, [["ruby-lsp"]]],
       ["javascript", "javascript", %w[.js .jsx .mjs .cjs], "//", /[\[{(]\s*$/, /^\s*[\]})]/, [["typescript-language-server", "--stdio"]]],

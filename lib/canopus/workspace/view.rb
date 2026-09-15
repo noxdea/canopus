@@ -275,7 +275,8 @@ module Canopus
       end
       decorations = decorations_for_display_rows(editor, map, first, last)
       if map.set_overlays(decorations.select { |item| %i[inline block].include?(item.kind) },
-        font: @cx.text_system&.font, font_size: @font_size, line_height: @line_height)
+        font: @cx.text_system.respond_to?(:font) ? @cx.text_system.font : nil,
+        font_size: @font_size, line_height: @line_height)
         last = [first + editor.viewport_rows + 1, map.row_count].min
         cursor = map.to_display(cursor_offset)
         decorations = decorations_for_display_rows(editor, map, first, last)
@@ -283,6 +284,15 @@ module Canopus
       gutter_items = decorations.select { |item| item.kind == :gutter }
       highlight_items = decorations.select { |item| item.kind == :highlight }
       line_items = decorations.select { |item| item.kind == :line }
+      foreground_items, guide_items = highlight_items.partition do |item|
+        item.style.is_a?(Hash) && item.style[:foreground]
+      end
+      guide_items, highlight_items = guide_items.partition do |item|
+        item.style.is_a?(Hash) && item.style[:guide]
+      end
+      foreground_by_row = foreground_items.group_by { |item| map.to_display(item.range.begin).row }
+      guides_by_row = guide_items.map { |item| [item, map.to_display(item.range.begin)] }
+        .group_by { |_item, point| point.row }
       cursor_row = map.row(cursor.row)
       cursor_line = @cx.text_system&.layout_line(cursor_row.text, size: @font_size)
       brackets = []
@@ -338,7 +348,7 @@ module Canopus
             fill(Zaniah::Bounds.new(left + x, y + @line_height - 2, width, 2), :accent)
           end
           if row.kind == :text && line && @cx.text_system
-            spans = code_spans(editor, source_row, row)
+            spans = code_spans(editor, source_row, row, foreground_by_row[index] || [])
             @cx.text_system.paint_line(@scene, line, x: left, y: y + line.ascent, color: @theme[:foreground], spans: spans)
             @cx.window.text_runs << [left, y, row.text, @theme[:foreground]]
           elsif row.kind == :overlay_block
@@ -352,6 +362,7 @@ module Canopus
             text(row.text, left, y, color: color)
           end
           paint_overlays&.call
+          paint_indent_guides(row, line, left, y, guides_by_row[index] || [])
           if cursor.row == index && active
             x = left + column_x(row.text, line, cursor.column)
             width = @workspace.settings["vim_mode"] && @workspace.vim.mode != :insert ? @font_size * 0.6 : 1.5
@@ -367,7 +378,7 @@ module Canopus
       previous_width = @line_widths[editor]
       measured_width = [measured_width, previous_width.last].max if previous_width && previous_width.first == editor.buffer.version
       @line_widths[editor] = [editor.buffer.version, measured_width]
-      overview = @workspace.decorations.items_for(editor.buffer, 0...editor.buffer.line_count, context: editor)
+      overview = @workspace.decorations.items_for(editor.buffer, 0...editor.buffer.line_count)
       paint_scrollbars(editor, bounds, measured_width, overview)
     end
     def paint_scrollbars(editor, bounds, content_width, decorations)
@@ -494,14 +505,22 @@ module Canopus
       region(bounds, role: :button, label: item.content.to_s,
         action: [:decoration, item.on_click, editor, offset])
     end
-    def code_spans(editor, source_row, row)
+    def code_spans(editor, source_row, row, highlight_items = [])
       return [] if editor.buffer.rope.respond_to?(:lazy?) && editor.buffer.rope.lazy?
       raw = editor.language_document.tokens_for(source_row)
       semantic_state = @workspace.semantic_styles&.[](editor.buffer)
       semantic_state = nil unless semantic_state && semantic_state.first == editor.buffer.version
+      base = editor.buffer.rope.line_start(source_row)
+      foreground = highlight_items.each_with_object({}) do |item, colors|
+        style = item.style.is_a?(Hash) ? item.style : nil
+        next unless item.range && style&.[](:foreground)
+        next unless item.range.begin.between?(base + row.offsets.first, base + row.offsets.last)
+        colors[item.range.begin - base] = @theme[style.fetch(:color)]
+      end
       cache = @code_caches[editor] ||= {}
       cached = cache[row.object_id]
-      return cached[3] if cached && cached[4].equal?(row) && cached[0] == raw && cached[1].equal?(@theme) && cached[2].equal?(semantic_state)
+      return cached[4] if cached && cached[5].equal?(row) && cached[0] == raw && cached[1].equal?(@theme) &&
+        cached[2].equal?(semantic_state) && cached[3] == foreground
       offset = 0
       tokens = raw.map do |token, value|
         start = offset
@@ -517,6 +536,7 @@ module Canopus
         color = tokens[index] && original >= tokens[index][0] ? tokens[index][2] : @theme[:foreground]
         overlay = semantic.find { |first, last, _| original >= first && original < last }
         color = overlay[2] if overlay
+        color = foreground[original] if foreground.key?(original)
         if spans.last && spans.last[2] == color
           spans.last[1] += length
         else
@@ -526,7 +546,7 @@ module Canopus
       end
       cache.shift if cache.length >= 512
       spans.each(&:freeze).freeze
-      cache[row.object_id] = [raw, @theme, semantic_state, spans, row]
+      cache[row.object_id] = [raw, @theme, semantic_state, foreground, spans, row]
       spans
     end
     def paint_highlights(editor, index, row, line, left, y, items)
@@ -556,6 +576,20 @@ module Canopus
           after && right > after[0] && right <= after[1] ? 0 : 3,
           after && x >= after[0] && x < after[1] ? 0 : 3]
         paint_highlight(item, left + x, y, right - x, radii: radii)
+      end
+    end
+    def paint_indent_guides(row, line, left, y, items)
+      items.each do |item, point|
+        style = item.style
+        x = column_x(row.text, line, point.column)
+        color = style.fetch(:color, :muted)
+        color = @theme[color] if color.is_a?(Symbol)
+        if @cx.window.is_a?(Zaniah::Platform::TUI::Window)
+          column = [point.column - 1, 0].max
+          text("│", left + column_x(row.text, line, column), y, color: color)
+        else
+          @scene.quad(left + x, y - 1, style[:active] ? 2 : 1, @line_height, color: color)
+        end
       end
     end
     def paint_highlight(item, x, y, width, radii: 0)
@@ -599,7 +633,7 @@ module Canopus
       branch = @workspace.git&.branch
       left = "#{branch}    #{left}" if branch
       left = ":#{@workspace.vim.command_line}" if @workspace.settings["vim_mode"] && @workspace.vim.command_line
-      diagnostics = @workspace.decorations.items_for(editor.buffer, 0...editor.buffer.line_count, context: editor)
+      diagnostics = @workspace.decorations.items_for(editor.buffer, 0...editor.buffer.line_count)
         .count { |item| item.source == :diagnostics && item.kind == :highlight }
       language = editor.language_document.definition.name
       lsp = @workspace.clients[language]

@@ -233,6 +233,13 @@ module Canopus
       attr_reader selection: Range[Integer]
       attr_reader depth: Integer
     end
+    class Bracket < Data
+      attr_reader open_range: Range[Integer]
+      attr_reader close_range: Range[Integer]
+      attr_reader open_row: Integer
+      attr_reader close_row: Integer
+      attr_reader depth: Integer
+    end
     DEFINITIONS: Array[Definition]
     PLAIN: Definition
     def self.for_path: (String? path) -> Definition
@@ -251,12 +258,14 @@ module Canopus
       def syntax_complete?: () -> bool
       def tokens_current?: (Integer row) -> bool
       def tokens_for: (Integer row) -> Array[[String | Class, String]]
-      def highlighter: (?strategy: (:auto | :incremental | :window | :full)?, ?window_context: Integer?) -> Antares::Highlighter
+      def highlighter: (?strategy: (:auto | :incremental | :window | :full)?, ?window_context: Integer?, ?max_seconds: Numeric?) -> Antares::Highlighter
       def outline: () -> Array[Symbol]
       def diagnostics: () -> Array[{range: Range[Integer], message: String, severity: Integer}]
       def fold_ranges: () -> Array[Range[Integer]]
       def indent_for: (Integer offset, ?tab_size: Integer, ?use_tabs: bool) -> String
       def bracket_at: (Integer offset) -> Range[Integer]?
+      def brackets: (?Range[Integer]? rows) -> Array[Bracket]
+      def structure_regions: () -> Array[{start_line: Integer, end_line: Integer, kind: ::Symbol}]
     end
   end
   class Settings
@@ -378,6 +387,8 @@ module Canopus
     def resource_workspace_edit?: (Sadr::object edit) -> bool
     def confirm_workspace_edit: (Sadr::object edit, ?label: String, ?response: Sadr::Future?, ?on_applied: ^() -> void) -> untyped
     def post: () { () -> void } -> void
+    def bracket_decorations: (Buffer buffer, Range[Integer] rows, Editor? current) -> Array[Decoration::Item]
+    def invalidate_brackets: (?Buffer? buffer) -> nil
     def drain: () -> void
     def close: () -> void
     def plugins: () -> Plugins::Registry

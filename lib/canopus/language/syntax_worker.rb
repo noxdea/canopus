@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
-require "antares"
+antares_path = ENV["ANTARES_PATH"]
+canopus_root = File.expand_path("../../..", __dir__)
+antares_path ? require(File.expand_path("lib/antares", File.expand_path(antares_path, canopus_root))) : require("antares")
 require_relative "../../canopus"
 
 module Canopus
@@ -41,7 +43,8 @@ module Canopus
         first = request.fetch("first") - request.fetch("base_line")
         last = [request.fetch("last") - request.fetch("base_line"), buffer.line_count - 1].min
         highlighter = document.highlighter(strategy: request.fetch("complete") ? nil : :window,
-          window_context: request.fetch("complete") ? nil : request.fetch("context"))
+          window_context: request.fetch("complete") ? nil : request.fetch("context"),
+          max_seconds: request.fetch("complete") ? 2 : nil)
         rows = first <= last ? highlighter.tokens_in(first..last) : []
         budget = 65_536
         tokens = (request.fetch("first")..request.fetch("last")).map.with_index do |row, index|
@@ -56,7 +59,7 @@ module Canopus
           budget -= values.length
           [row, values]
         end
-        syntax = analyze(document, request.fetch("base"), request.fetch("complete")) if request.fetch("syntax")
+        syntax = analyze(document, request.fetch("base"), request.fetch("base_line"), request.fetch("complete")) if request.fetch("syntax")
         complete = request.fetch("complete") && (!syntax || !syntax.delete("truncated"))
         {"tokens" => tokens, "syntax" => syntax, "complete" => complete}
       end
@@ -74,18 +77,27 @@ module Canopus
         buffer.history.clear
       end
 
-      def self.analyze(document, base, complete)
+      def self.analyze(document, base, base_line, complete)
         all_symbols = document.outline
         outline = all_symbols.first(MAX_SYMBOLS).map do |symbol|
           [symbol.name, symbol.kind.to_s, base + symbol.range.begin, base + symbol.range.end,
             base + symbol.selection.begin, base + symbol.selection.end, symbol.depth]
         end
         diagnostics = complete ? document.diagnostics.first(1000).map { |item| [base + item[:range].begin, base + item[:range].end, item[:message]] } : []
-        all_brackets = document.__send__(:bracket_ranges).values.uniq
-        brackets = all_brackets.first(MAX_BRACKETS).map { |range| [base + range.begin, base + range.end] }
+        all_brackets = document.brackets
+        brackets = all_brackets.first(MAX_BRACKETS).map do |pair|
+          [base + pair.open_range.begin, base + pair.open_range.end, base_line + pair.open_row,
+            base + pair.close_range.begin, base + pair.close_range.end, base_line + pair.close_row, pair.depth]
+        end
+        all_regions = document.structure_regions
+        structure_regions = all_regions.first(MAX_SYMBOLS).map do |region|
+          [base_line + region[:start_line], base_line + region[:end_line], region[:kind].to_s]
+        end
         folds = document.fold_ranges.first(MAX_SYMBOLS).map { |range| [base + range.begin, base + range.end] }
-        {"outline" => outline, "diagnostics" => diagnostics, "brackets" => brackets, "folds" => folds,
-          "truncated" => all_symbols.length > MAX_SYMBOLS || all_brackets.length > MAX_BRACKETS || (complete && document.diagnostics.length > 1000)}
+        {"outline" => outline, "diagnostics" => diagnostics, "brackets" => brackets,
+          "structure_regions" => structure_regions, "folds" => folds,
+          "truncated" => all_symbols.length > MAX_SYMBOLS || all_brackets.length > MAX_BRACKETS ||
+            all_regions.length > MAX_SYMBOLS || (complete && document.diagnostics.length > 1000)}
       end
     end
   end

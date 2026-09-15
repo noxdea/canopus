@@ -83,6 +83,12 @@ module Canopus
       def diagnostics = (request(syntax: true); @syntax ? @syntax[:diagnostics] : EMPTY)
       def fold_ranges = (request(syntax: true); @syntax ? @syntax[:folds] : EMPTY)
       def bracket_at(offset) = (request(syntax: true); @syntax && @syntax[:brackets][offset])
+      def brackets(rows = nil)
+        request(syntax: true)
+        values = @syntax ? @syntax[:bracket_pairs] : EMPTY
+        rows ? values.select { |pair| pair.close_row >= rows.begin && pair.open_row < rows.end } : values
+      end
+      def structure_regions = (request(syntax: true); @syntax ? @syntax[:structure_regions] : EMPTY)
 
       def invalidate(patch)
         @job&.cancel
@@ -220,14 +226,19 @@ module Canopus
           outline = raw.fetch("outline").map do |name, kind, first, last, start, finish, depth|
             Language::Symbol.new(name.freeze, kind.to_sym, (first...last).freeze, (start...finish).freeze, depth)
           end.freeze
-          brackets = {}
-          raw.fetch("brackets").each do |first, last|
-            range = (first...last).freeze
-            brackets[first] = brackets[last - 1] = range
+          bracket_pairs = raw.fetch("brackets").map do |open_first, open_last, open_row, close_first, close_last, close_row, depth|
+            Language::Bracket.new((open_first...open_last).freeze, (close_first...close_last).freeze,
+              open_row, close_row, depth).freeze
+          end.freeze
+          brackets = bracket_pairs.each_with_object({}) do |pair, result|
+            range = (pair.open_range.begin...pair.close_range.end).freeze
+            result[pair.open_range.begin] = result[pair.close_range.begin] = range
           end
           {outline: outline, diagnostics: raw.fetch("diagnostics").map { |first, last, message| {range: (first...last).freeze, message: message.freeze, severity: 1}.freeze }.freeze,
             folds: raw.fetch("folds").map { |first, last| (first...last).freeze }.freeze,
-            brackets: brackets.freeze, complete: response.fetch("complete")}.freeze
+            brackets: brackets.freeze, bracket_pairs: bracket_pairs,
+            structure_regions: raw.fetch("structure_regions").map { |first, last, kind| {start_line: first, end_line: last, kind: kind.to_sym}.freeze }.freeze,
+            complete: response.fetch("complete")}.freeze
         end
         syntax = merge_syntax(prior_syntax, syntax) if prior_syntax && syntax && !syntax[:complete]
         {tokens: tokens, syntax: syntax}.freeze
@@ -238,11 +249,19 @@ module Canopus
       def self.merge_syntax(previous, current)
         return previous if previous[:complete]
         outlines = (previous[:outline] + current[:outline]).uniq { |item| [item.name, item.kind, item.range, item.selection] }
-        brackets = (previous[:brackets].values + current[:brackets].values).uniq.first(8192)
+        bracket_pairs = (previous.fetch(:bracket_pairs, []) + current.fetch(:bracket_pairs, []))
+          .uniq { |pair| [pair.open_range, pair.close_range] }.first(8192)
+        brackets = bracket_pairs.each_with_object({}) do |pair, result|
+          range = (pair.open_range.begin...pair.close_range.end).freeze
+          result[pair.open_range.begin] = result[pair.close_range.begin] = range
+        end
+        structure_regions = (previous.fetch(:structure_regions, []) + current.fetch(:structure_regions, []))
+          .uniq { |region| [region[:start_line], region[:end_line], region[:kind]] }.first(10_000)
         {outline: outlines.sort_by { |item| item.selection.begin }.first(10_000).freeze,
           diagnostics: (previous[:diagnostics] + current[:diagnostics]).uniq.first(1000).freeze,
           folds: (previous[:folds] + current[:folds]).uniq.sort_by(&:begin).first(10_000).freeze,
-          brackets: brackets.each_with_object({}) { |range, result| result[range.begin] = result[range.end - 1] = range }.freeze,
+          brackets: brackets.freeze, bracket_pairs: bracket_pairs.freeze,
+          structure_regions: structure_regions.freeze,
           complete: false}.freeze
       end
 

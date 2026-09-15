@@ -59,6 +59,7 @@ module Canopus
       @decorations.register(:diagnostics) { |buffer, rows| diagnostic_decorations(buffer, rows) }
       @decorations.register(:inlay_hint) { |buffer, rows| inlay_hint_decorations(buffer, rows) }
       @decorations.register(:code_lens) { |buffer, rows| code_lens_decorations(buffer, rows) }
+      @decorations.register(:bracket) { |buffer, rows, current| bracket_decorations(buffer, rows, current) }
       @languages, @terminals = {}, []
       @active_terminal_index = 0
       @closed_tabs, @terminal_names = [], {}
@@ -249,6 +250,7 @@ module Canopus
       end
       sources = current.buffer.is_a?(MultiBuffer) ? current.buffer.excerpts.map(&:buffer).uniq : []
       @vim_states.delete(current)&.dispose
+      invalidate_brackets(current.buffer)
       pane.close(current, discard: discard, activate: @settings["tabs"]["activate_on_close"].to_sym)
       release_buffer(current.buffer, discard: discard)
       sources.each { |source| release_buffer(source, discard: discard) }

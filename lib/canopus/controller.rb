@@ -248,6 +248,7 @@ module Canopus
           end
         end
         changed = document.poll
+        @workspace.invalidate_brackets(editor.buffer) if changed
         @workspace.language_ready(editor, document)
         @window.request_frame if changed
       rescue StandardError => error
