@@ -59,6 +59,7 @@ module Canopus
       end
       @decorations.register(:git) { |buffer, rows| git_decorations(buffer, rows) }
       @decorations.register(:diagnostics) { |buffer, rows| diagnostic_decorations(buffer, rows) }
+      @decorations.register(:document_highlight) { |buffer, rows, current| document_highlight_decorations(buffer, rows, current) }
       @decorations.register(:inlay_hint) { |buffer, rows| inlay_hint_decorations(buffer, rows) }
       @decorations.register(:code_lens) { |buffer, rows| code_lens_decorations(buffer, rows) }
       @decorations.register(:bracket) { |buffer, rows, current| bracket_decorations(buffer, rows, current) }
@@ -257,6 +258,7 @@ module Canopus
       @vim_states.delete(current)&.dispose
       @sticky_fallback_cache&.delete(current)
       @sticky_context_cache&.clear
+      invalidate_document_highlights(editor: current)
       invalidate_brackets(current.buffer)
       pane.close(current, discard: discard, activate: @settings["tabs"]["activate_on_close"].to_sym)
       release_buffer(current.buffer, discard: discard)
@@ -701,6 +703,7 @@ module Canopus
       @closed = true
       cancel_completion_requests
       cancel_project_search
+      invalidate_document_highlights
       invalidate_inlay_hints
       @inlay_hint_requests&.clear
       invalidate_code_lenses

@@ -42,6 +42,11 @@ line. Unresolved lenses are resolved only as they enter the viewport; click a
 lens to execute its server command. Set `code_lens.enabled` to `false` to
 disable requests and hide cached lenses.
 
+When supported, `textDocument/documentHighlight` automatically marks reads,
+writes, and textual occurrences at each visible editor's caret. Results are
+kept per split and caret, and are discarded when the caret or document changes,
+the tab closes, or the language server is replaced.
+
 Sticky scroll prefers `textDocument/documentSymbol` when the server advertises
 it and uses cached Antares structure regions otherwise. Requests and normalized
 symbol trees are tied to the current buffer version and discarded after edits,

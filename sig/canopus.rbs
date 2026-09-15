@@ -393,6 +393,9 @@ module Canopus
     def language_client: (?Buffer buffer) -> Sadr::Client
     def language_request: (Symbol kind, **json options) -> void
     def diagnostics_for: (Buffer buffer) -> Array[Sadr::object]
+    def document_highlight_decorations: (Buffer buffer, Range[Integer] rows, Editor? current) -> Array[Decoration::Item]
+    def request_document_highlights: (Editor current) -> bool
+    def invalidate_document_highlights: (?Buffer? buffer, ?client: Sadr::Client?, ?editor: Editor?) -> nil
     def apply_workspace_edit: (Sadr::object edit, ?confirmed: bool) -> Sadr::object
     def resource_workspace_edit?: (Sadr::object edit) -> bool
     def confirm_workspace_edit: (Sadr::object edit, ?label: String, ?response: Sadr::Future?, ?on_applied: ^() -> void) -> untyped

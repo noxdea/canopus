@@ -34,6 +34,7 @@ installable.
 - Native GPU windows on macOS, Linux, and Windows, plus TUI and headless modes
 - Persistent buffers, tabs, splits, sessions, and explicit save-conflict handling
 - LSP completion, diagnostics, hover, symbols, formatting, rename, and code actions
+- Automatic read, write, and text highlights for the symbol at each visible editor's caret
 - Ranked, extensible completion and inline-completion provider registry
 - Viewport-scoped LSP inlay hints with clickable label locations
 - Nested bracket colors and active indentation guides backed by Antares structure analysis

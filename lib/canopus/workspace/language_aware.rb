@@ -6,6 +6,13 @@ module Canopus
     DIAGNOSTIC_COLORS = {1 => :"diagnostic.error", 2 => :"diagnostic.warning",
       3 => :"diagnostic.information", 4 => :"diagnostic.hint"}.freeze
     CODE_LENS_REQUEST_LIMIT = 64
+    DOCUMENT_HIGHLIGHT_LIMIT = 10_000
+    DOCUMENT_HIGHLIGHT_REQUEST_LIMIT = 64
+    DOCUMENT_HIGHLIGHT_STYLES = {
+      1 => {color: :selection}.freeze,
+      2 => {color: :accent, underline: true, thickness: 2}.freeze,
+      3 => {color: :muted, underline: true}.freeze
+    }.freeze
     CODE_LENS_RESOLVE_LIMIT = 32
     INDENT_GUIDE_LIMIT = 4096
     STICKY_SYMBOL_LIMIT = 10_000
@@ -195,6 +202,103 @@ module Canopus
 
         client.diagnostics.fetch(uri, [])
       end
+    end
+
+    def document_highlight_decorations(buffer, rows, current)
+      return [] unless current.is_a?(Editor) && current.buffer.equal?(buffer)
+
+      client = @clients[current.language_document.definition.name]
+      key = document_highlight_key(client, current, buffer)
+      value = (@document_highlight_cache || {})[key]
+      value.is_a?(Array) ? value.select { |item| diagnostic_item_visible?(buffer, item, rows) } : []
+    end
+
+    def request_document_highlights(current)
+      requests = @document_highlight_requests ||= {}
+      requests.delete_if do |editor, entry|
+        hidden = @panes.none? { |pane| pane.active.equal?(editor) }
+        entry[:future]&.cancel if hidden
+        hidden
+      end
+      buffer = current.buffer
+      return false unless buffer.path && !buffer.read_only && @panes.any? { |pane| pane.active.equal?(current) }
+
+      language = current.language_document.definition.name
+      client = @clients[language]
+      key = document_highlight_key(client, current, buffer)
+      cache = @document_highlight_cache ||= {}
+      return false if cache.key?(key)
+
+      pending = requests[current]
+      if pending && pending[:buffer].equal?(buffer) && pending[:version] == buffer.version &&
+          pending[:head] == current.primary.head && (!client || !pending[:client] || pending[:client].equal?(client))
+        return false
+      end
+      invalidate_document_highlights(editor: current) if pending || cache.keys.any? { |entry| entry[1].equal?(current) }
+      unless client || language_server_options(language)
+        cache_document_highlights(key, false)
+        return false
+      end
+      return false if requests.length >= DOCUMENT_HIGHLIGHT_REQUEST_LIMIT
+
+      request = {client: client, editor: current, buffer: buffer, version: buffer.version,
+        head: current.primary.head, rope: buffer.rope, uri: Sadr::Protocol.uri(buffer.path)}
+      requests[current] = request
+      @decorations.invalidate(:document_highlight, buffer: buffer)
+      @window&.request_frame
+      job = Thread.new do
+        begin
+          owner = language_client(buffer)
+          request[:client] = owner
+          supported = document_highlight_supported?(owner)
+          valid = document_highlight_request_valid?(request, owner)
+          future = owner.document_highlight(request[:uri], Sadr::Protocol.position(request[:rope], request[:head])) if supported && valid
+          request[:future] = future
+          result = future.await(timeout: 10) if future && document_highlight_request_valid?(request, owner)
+          future&.cancel unless document_highlight_request_valid?(request, owner)
+          highlights = supported && valid ? normalize_document_highlights(request[:rope], result) : false
+          post do
+            next unless @document_highlight_requests&.[](current).equal?(request)
+            @document_highlight_requests.delete(current)
+            next unless document_highlight_result_valid?(request, owner)
+
+            cache_document_highlights(document_highlight_key(owner, current, buffer,
+              request[:version], request[:head], supported), highlights)
+          end
+        rescue StandardError => error
+          post do
+            next unless @document_highlight_requests&.[](current).equal?(request)
+            @document_highlight_requests.delete(current)
+            next unless owner ? document_highlight_result_valid?(request, owner) : document_highlight_editor_valid?(request)
+
+            cache_document_highlights(document_highlight_key(owner, current, buffer,
+              request[:version], request[:head]), false)
+            @message = error.message unless owner && @retired_language_clients&.[](owner)
+          end
+        ensure
+          worker = Thread.current
+          post { @language_jobs&.delete(worker) }
+        end
+      end
+      (@language_jobs ||= []) << job
+      @language_jobs.reject! { |thread| !thread.alive? }
+      true
+    end
+
+    def invalidate_document_highlights(buffer = nil, client: nil, editor: nil)
+      buffer ||= editor&.buffer
+      @document_highlight_cache&.delete_if do |key, _value|
+        (!buffer || key[2].equal?(buffer)) && (!client || key[0]&.equal?(client)) && (!editor || key[1].equal?(editor))
+      end
+      @document_highlight_requests&.delete_if do |current, entry|
+        matches = (!buffer || entry[:buffer].equal?(buffer)) && (!client || entry[:client]&.equal?(client)) &&
+          (!editor || current.equal?(editor))
+        entry[:future]&.cancel if matches
+        matches
+      end
+      @decorations.invalidate(:document_highlight, buffer: buffer)
+      @window&.request_frame unless @closed
+      nil
     end
 
     def diagnostic_decorations(buffer, rows)
@@ -1525,14 +1629,70 @@ module Canopus
     end
 
     def strict_symbol_range(rope, value)
+      strict_language_range(rope, value, "document symbol")
+    end
+
+    def strict_language_range(rope, value, label, allow_empty: true)
       range = Sadr::Protocol.range_value(value)
       first = Sadr::Protocol.offset(rope, range.start)
       last = Sadr::Protocol.offset(rope, range.end)
-      unless last >= first && Sadr::Protocol.position(rope, first) == range.start &&
+      unless last >= first && (allow_empty || last > first) && Sadr::Protocol.position(rope, first) == range.start &&
           Sadr::Protocol.position(rope, last) == range.end
-        raise Error, "invalid document symbol range"
+        raise Error, "invalid #{label} range"
       end
       (first...last).freeze
+    end
+
+    def normalize_document_highlights(rope, result)
+      raise Error, "invalid document highlights" unless result.nil? || result.is_a?(Array)
+      raise Error, "too many document highlights" if result && result.length > DOCUMENT_HIGHLIGHT_LIMIT
+
+      Array(result).map do |item|
+        raise Error, "invalid document highlight" unless item.is_a?(Hash)
+        kind = item.fetch("kind", 1)
+        raise Error, "invalid document highlight kind" unless DOCUMENT_HIGHLIGHT_STYLES.key?(kind)
+        range = strict_language_range(rope, item.fetch("range"), "document highlight", allow_empty: false)
+        Decoration::Item.new(:highlight, range, nil, nil, DOCUMENT_HIGHLIGHT_STYLES.fetch(kind), 20, :document_highlight, nil)
+      end.freeze
+    rescue KeyError, RangeError, TypeError, ArgumentError, Sadr::Error => error
+      raise Error, "invalid document highlights: #{error.message}"
+    end
+
+    def document_highlight_supported?(client)
+      provider = client.capabilities["documentHighlightProvider"] if client&.respond_to?(:capabilities)
+      provider == true || provider.is_a?(Hash)
+    end
+
+    def document_highlight_key(client, current, buffer, version = buffer.version,
+      head = current.primary.head, supported = document_highlight_supported?(client))
+      [client, current, buffer, version, head, supported]
+    end
+
+    def document_highlight_result_valid?(request, owner)
+      buffer = request[:buffer]
+      document_highlight_editor_valid?(request) && @clients.value?(owner) &&
+        @opened_lsp_documents&.key?([owner, buffer])
+    end
+
+    def document_highlight_editor_valid?(request)
+      current, buffer = request.values_at(:editor, :buffer)
+      !@closed && current.buffer.equal?(buffer) && buffer.version == request[:version] &&
+        current.primary.head == request[:head] && buffer.path && Sadr::Protocol.uri(buffer.path) == request[:uri] &&
+        @panes.any? { |pane| pane.active.equal?(current) }
+    end
+
+    def document_highlight_request_valid?(request, owner)
+      @document_highlight_requests&.[](request[:editor]).equal?(request) && document_highlight_result_valid?(request, owner)
+    end
+
+    def cache_document_highlights(key, highlights)
+      cache = @document_highlight_cache ||= {}
+      cache.delete_if { |entry, _value| entry[1].equal?(key[1]) }
+      cache.shift while cache.length >= DOCUMENT_HIGHLIGHT_REQUEST_LIMIT
+      cache[key] = highlights
+      @decorations.invalidate(:document_highlight, buffer: key[2])
+      @window&.request_frame unless @closed
+      highlights
     end
 
     def cache_sticky_symbols(client, buffer, version, symbols)
@@ -1600,6 +1760,7 @@ module Canopus
       key = [client, buffer]
       @language_document_subscriptions&.delete(key)&.detach
       (@language_document_subscriptions ||= {})[key] = buffer.on_edit do |patch|
+        invalidate_document_highlights(buffer)
         invalidate_inlay_hints(buffer)
         invalidate_code_lenses(buffer)
         invalidate_sticky_symbols(buffer)
@@ -1623,6 +1784,7 @@ module Canopus
         @diagnostic_versions.delete(client) if versions.empty?
       end
       invalidate_diagnostics(buffer)
+      invalidate_document_highlights(buffer, client: client)
       invalidate_inlay_hints(buffer)
       invalidate_code_lenses(buffer)
       invalidate_sticky_symbols(buffer, client: client)

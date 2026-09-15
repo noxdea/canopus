@@ -54,6 +54,7 @@ module Canopus
       @applied_font_family = @settings["font_family"]
       @applied_icon_theme = @settings["icon_theme"]
       invalidate_diagnostics
+      invalidate_document_highlights
       invalidate_inlay_hints
       invalidate_code_lenses
       invalidate_brackets
