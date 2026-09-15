@@ -9,13 +9,14 @@ require_relative "lsp"
 require_relative "pane"
 require_relative "project/tree"
 require_relative "command"
+require_relative "panel"
 
 module Canopus
   class Workspace
     ClosedTab = Data.define(:path, :selections, :scroll_x, :scroll_y, :pane_id, :index)
     attr_reader :panes, :active_pane, :buffers, :actions, :commands, :settings, :theme, :project, :clients, :root, :docks, :panels
     attr_reader :terminals, :active_terminal_index
-    attr_accessor :window, :show_project, :terminal_visible, :terminal_composition, :selected_project_path, :performance
+    attr_accessor :window, :terminal_composition, :selected_project_path, :performance
     attr_reader :message, :palette
 
     def initialize(root: Dir.pwd, settings: nil)
@@ -27,17 +28,32 @@ module Canopus
       @theme = Theme.new(name: @settings["theme"])
       @actions = @commands = Command::Registry.new
       @clients, @vim_states = {}, {}
-      @show_project, @message = true, ""
+      @message = ""
       @project = Project.new(@root) if defined?(Project)
-      bottom = @settings["dock"]["bottom"]
-      @docks = {left: {visible: true, size: 220}, right: {visible: false, size: 260},
-        bottom: {visible: bottom["visible"], size: bottom["size"]}}
-      @panels, @languages, @terminals = {}, {}, []
+      dock = @settings["dock"]
+      @docks = %i[left right bottom].to_h do |side|
+        value = dock.fetch(side.to_s)
+        [side, {visible: value["visible"], size: value["size"]}]
+      end
+      @panels = Panel::Registry.new(@docks)
+      @panels.restore(dock.fetch("panels"))
+      @panels.register(Panel::Definition.new("terminal", "Terminal", nil, :bottom, -> { terminal }, nil))
+      @panels.register(Panel::Definition.new("search", "Search", nil, :left, -> { palette_open(:project_search) }, nil))
+      @panels.register(Panel::Definition.new("explorer", "Explorer", nil, :left, -> { project_tree }, nil))
+      @languages, @terminals = {}, []
       @active_terminal_index = 0
       @closed_tabs, @terminal_names = [], {}
       register_actions
     end
     def editor = @active_pane.active
+    def show_project = @panels.visible?("explorer")
+    def show_project=(visible)
+      visible ? @panels.show("explorer") : @panels.hide("explorer")
+    end
+    def terminal_visible = @panels.visible?("terminal") && @docks[:bottom][:visible]
+    def terminal_visible=(visible)
+      visible ? @panels.show("terminal") : @panels.hide("terminal")
+    end
     def terminal = @terminals[@active_terminal_index]
     def terminal=(value)
       @terminals.each { |item| item.close if !item.equal?(value) && item.respond_to?(:close) }
@@ -308,7 +324,7 @@ module Canopus
         queue_limit_bytes: options["queue_limit_bytes"])
       @terminals << created
       @active_terminal_index = @terminals.length - 1
-      @terminal_visible = true
+      self.terminal_visible = true
       resize_terminal(*@terminal_dimensions, final: true) if @terminal_dimensions
       @window&.request_frame
       created
@@ -354,7 +370,7 @@ module Canopus
       else
         @terminals.index(active) || 0
       end
-      @terminal_visible = false if @terminals.empty? && @settings["terminal"]["hide_when_empty"]
+      self.terminal_visible = false if @terminals.empty? && @settings["terminal"]["hide_when_empty"]
       @window&.request_frame
       current
     end
@@ -434,9 +450,9 @@ module Canopus
       dock[:visible] = !dock[:visible]
     end
     def register_panel(name, side: :left, &render)
-      raise ArgumentError, "invalid dock side" unless @docks.key?(side)
-      @panels[name] = [side, render]
-      register_action("panel.#{name}") { @docks[side][:visible] = true }
+      definition = @panels.register(Panel::Definition.new(name, name.to_s, nil, side, render, nil))
+      register_action("panel.#{name}") { @panels.show(definition.id) }
+      definition
     end
     def register_action(name, description: name, category: name.to_s.split(".", 2).first, condition: "", keybinding: Command::DEFAULT_KEYBINDINGS[name.to_s], &block)
       @commands.register(Command::Definition.new(name.to_s, description, category, condition, block, keybinding))
@@ -702,12 +718,15 @@ module Canopus
       register_action("edit.indent") { editor.indent }
       register_action("edit.outdent") { editor.indent(outdent: true) }
       register_action("search.buffer") { palette_open(:search) }
-      register_action("search.project") { palette_open(:project_search) }
+      register_action("search.project") { @panels.fetch("search").build.call }
       register_action("search.replace") { palette_open(:replace_query) }
       register_action("settings.open") { open_settings }
       register_action("settings.complete") { settings_completions }
       register_action("language.diagnostics") { show_diagnostics }
-      register_action("view.project") { @show_project = !@show_project }
+      register_action("view.project") { @panels.toggle("explorer") }
+      register_action("panel.explorer") { @panels.toggle("explorer") }
+      register_action("panel.search") { @panels.fetch("search").build.call }
+      register_action("panel.terminal") { @terminals.empty? ? new_terminal : @panels.toggle("terminal") }
       [:left, :right, :bottom].each { |side| register_action("view.dock_#{side}") { toggle_dock(side) } }
       register_action("view.wrap") { editor.display_map.wrap_width = editor.display_map.wrap_map.width ? nil : 100 }
       register_action("view.theme") { self.theme = @theme.name.include?("Dark") ? "Canopus Light" : "Canopus Dark" }
@@ -716,7 +735,7 @@ module Canopus
         clear_vim_states unless @settings["vim_mode"]
       end
       register_action("view.terminal") do
-        @terminals.empty? ? new_terminal : @terminal_visible = !@terminal_visible
+        @terminals.empty? ? new_terminal : @panels.toggle("terminal")
       end
       register_action("terminal.toggle") { call("view.terminal") }
       register_action("terminal.new") { new_terminal }

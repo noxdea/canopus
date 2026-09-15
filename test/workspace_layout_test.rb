@@ -42,6 +42,30 @@ class WorkspaceLayoutTest < Minitest::Test
     @workspace.restore_session(session)
     assert_equal ratio, @workspace.layout[:ratio]
   end
+  def test_session_restores_panel_visibility_and_size_and_ignores_future_panels
+    @workspace.panels.hide(:explorer)
+    @workspace.panels.show(:search)
+    @workspace.panels.resize(:left, 333)
+    session = File.join(@root, "session.json")
+    @workspace.save_session(session)
+    data = JSON.parse(File.read(session))
+    data["panels"]["future-panel"] = {"visible" => true, "size" => 111}
+    File.write(session, JSON.generate(data))
+
+    @workspace.panels.show(:explorer)
+    @workspace.panels.hide(:search)
+    @workspace.panels.resize(:left, 120)
+    @workspace.restore_session(session)
+
+    refute @workspace.panels.visible?(:explorer)
+    assert @workspace.panels.visible?(:search)
+    assert_equal 333, @workspace.docks[:left][:size]
+    refute @workspace.panels.key?("future-panel")
+    assert_equal({"visible" => true, "size" => 111}, @workspace.panels.state["future-panel"])
+    @workspace.register_panel("future-panel", side: :right) { "future" }
+    @workspace.call("panel.future-panel")
+    assert_equal 111, @workspace.docks[:right][:size]
+  end
   def test_native_drop_opens_existing_files_only
     path = File.join(@root, "dropped.rb")
     File.write(path, "puts :drop")

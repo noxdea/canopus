@@ -42,16 +42,21 @@ module Canopus
       @line_widths.delete_if { |editor, _| !visible_editors.include?(editor) }
       @code_caches.delete_if { |editor, _| !visible_editors.include?(editor) }
       fill(bounds, :background)
-      bottom_panel = @workspace.docks[:bottom][:visible] && @workspace.panels.values.any? { |side, _| side == :bottom }
-      bottom = @workspace.terminal_visible || bottom_panel ? [bounds.height * 0.7, @workspace.docks[:bottom][:size]].min : 0
-      sidebar = @workspace.show_project && @workspace.docks[:left][:visible] && bounds.width >= 620 ? [@workspace.docks[:left][:size], bounds.width * 0.4].min : 0
-      right = @workspace.docks[:right][:visible] && bounds.width >= 620 ? [@workspace.docks[:right][:size], bounds.width * 0.4].min : 0
+      left_panels = drawable_panels(:left)
+      bottom_panels = drawable_panels(:bottom)
+      bottom_visible = @workspace.docks[:bottom][:visible] && (@workspace.terminal_visible || !bottom_panels.empty?)
+      bottom = bottom_visible ? [bounds.height * 0.7, @workspace.docks[:bottom][:size]].min : 0
+      left_visible = @workspace.docks[:left][:visible] && (@workspace.show_project || !left_panels.empty?)
+      sidebar = left_visible && bounds.width >= 620 ? [@workspace.docks[:left][:size], bounds.width * 0.4].min : 0
+      right = @workspace.docks[:right][:visible] && !drawable_panels(:right).empty? && bounds.width >= 620 ? [@workspace.docks[:right][:size], bounds.width * 0.4].min : 0
       body = Zaniah::Bounds.new(sidebar, 0, bounds.width - sidebar - right, [bounds.height - 26 - bottom, 0].max)
       if sidebar.positive?
-        left_panels = @workspace.panels.values.any? { |side, _| side == :left }
-        project_height = left_panels ? (bounds.height - 26) * 0.6 : bounds.height - 26
-        paint_project(Zaniah::Bounds.new(0, 0, sidebar, project_height))
-        paint_panels(:left, Zaniah::Bounds.new(0, project_height, sidebar, bounds.height - 26 - project_height)) if left_panels
+        project_height = if @workspace.show_project
+          left_panels.empty? ? bounds.height - 26 : (bounds.height - 26) * 0.6
+        else 0
+        end
+        paint_project(Zaniah::Bounds.new(0, 0, sidebar, project_height)) if project_height.positive?
+        paint_panels(:left, Zaniah::Bounds.new(0, project_height, sidebar, bounds.height - 26 - project_height)) unless left_panels.empty?
       end
       paint_layout(@workspace.layout, body)
       if bottom.positive?
@@ -164,16 +169,16 @@ module Canopus
     end
     def paint_panels(side, bounds)
       fill(bounds, :panel)
-      panels = @workspace.panels.select { |_, (position, _)| position == side }.to_a
+      panels = drawable_panels(side)
       return if panels.empty?
-      panels.each_with_index do |(name, (_, render)), index|
+      panels.each_with_index do |definition, index|
         height = bounds.height / panels.length
         area = Zaniah::Bounds.new(bounds.x + 8, bounds.y + height * index, [bounds.width - 16, 0].max, height)
-        text(name, area.x + 4, area.y + 10, color: :muted, size: 12)
-        key = [name, @workspace.editor&.buffer&.object_id, @workspace.editor&.buffer&.version, @theme.object_id]
+        text(definition.title, area.x + 4, area.y + 10, color: :muted, size: 12)
+        key = [definition.id, @workspace.editor&.buffer&.object_id, @workspace.editor&.buffer&.version, @theme.object_id]
         @panel_cache ||= {}
         @panel_cache.clear if @panel_cache.length > 50
-        element = @panel_cache[key] ||= render.call
+        element = @panel_cache[key] ||= definition.build.call
         element = Zaniah::Text.new(element.to_s, color: @theme[:foreground]) unless element.is_a?(Zaniah::Element)
         root = element.request_layout(@cx)
         Zaniah::Layout::Engine.new.compute(root, x: area.x, y: area.y + 34, width: area.width, height: [area.height - 34, 0].max)
@@ -184,6 +189,9 @@ module Canopus
       rescue StandardError => error
         text(error.message, area.x, area.y + 34, color: :error, size: 12)
       end
+    end
+    def drawable_panels(side)
+      @workspace.panels.active(side).reject { |definition| %w[terminal explorer search].include?(definition.id) }
     end
     def paint_layout(node, bounds)
       return paint_pane(node[:pane], bounds) if node[:pane]

@@ -79,4 +79,23 @@ class ProjectUITest < Minitest::Test
       window.close
     end
   end
+
+  def test_builtin_panels_register_existing_entry_points
+    with_workspace do |workspace, _|
+      assert_equal %w[terminal search explorer].sort,
+        %w[terminal search explorer].select { |id| workspace.panels.key?(id) }.sort
+      assert workspace.show_project
+      workspace.call("panel.explorer")
+      refute workspace.show_project
+      workspace.call("panel.search")
+      assert_equal :project_search, workspace.palette[:kind]
+
+      workspace.palette = nil
+      workspace.terminal = Object.new
+      workspace.call("panel.terminal")
+      assert workspace.terminal_visible
+      workspace.call("panel.terminal")
+      refute workspace.terminal_visible
+    end
+  end
 end

@@ -19,9 +19,9 @@ module Canopus
         id
       end
       state = {version: 2, root: @root, layout: encode_layout(@layout), recent_files: @recent_files || [],
-        active_pane: @panes.index(@active_pane), docks: @docks,
+        active_pane: @panes.index(@active_pane), docks: @docks, panels: @panels.state,
         terminals: @terminals.map { |current| {cwd: current.vt.cwd || (current.respond_to?(:initial_cwd) ? current.initial_cwd : @root), title: @terminal_names[current]} },
-        active_terminal: @active_terminal_index, terminal_visible: !!@terminal_visible,
+        active_terminal: @active_terminal_index, terminal_visible: terminal_visible,
         panes: @panes.map do |pane|
           {active: pane.active_index, tabs: pane.editors.map do |current|
             {buffer_id: record.call(current.buffer), cursor: current.primary.head, pinned: pane.pinned.include?(current),
@@ -133,6 +133,14 @@ module Canopus
         raise Error, "invalid session dock" unless value.is_a?(Hash) && [true, false].include?(value["visible"]) && value["size"].is_a?(Numeric) && value["size"].finite? && value["size"].positive?
         restored_docks[side.to_sym] = {visible: value["visible"], size: value["size"].clamp(40, 4000)}
       end
+      restored_panels = data.fetch("panels", {})
+      raise Error, "invalid session panels" unless restored_panels.is_a?(Hash) && restored_panels.length <= 1_000
+      restored_panels.each do |id, value|
+        next unless @panels.key?(id)
+        valid = value.is_a?(Hash) && [true, false].include?(value["visible"]) &&
+          value["size"].is_a?(Numeric) && value["size"].finite? && value["size"].positive?
+        raise Error, "invalid session panel" unless valid
+      end
       active = data.fetch("active_pane", 0)
       raise Error, "invalid active pane" unless active.is_a?(Integer) && active.between?(0, restored_panes.length - 1)
       terminal_records = validate_session_terminals(data) if @settings["terminal"]["restore_on_startup"]
@@ -140,7 +148,8 @@ module Canopus
       close_language_documents
       @panes.each { |pane| pane.editors.each(&:dispose) }
       @buffers.each_value(&:close)
-      @panes, @buffers, @layout, @docks = restored_panes, restored_buffers, restored_layout, restored_docks
+      @panels.restore(restored_panels, docks: restored_docks)
+      @panes, @buffers, @layout = restored_panes, restored_buffers, restored_layout
       @active_pane = @panes[active]
       @recent_files = Array(data["recent_files"]).select { |item| item.is_a?(String) && File.file?(item) }.first(100)
       restore_terminals(data, terminal_records) if terminal_records
@@ -164,7 +173,7 @@ module Canopus
     end
 
     def restore_terminals(data, records)
-      old, old_index, old_visible = @terminals, @active_terminal_index, @terminal_visible
+      old, old_index, old_visible = @terminals, @active_terminal_index, terminal_visible
       @terminals = []
       records.each do |record|
         cwd = File.directory?(record["cwd"]) ? record["cwd"] : @root
@@ -172,12 +181,13 @@ module Canopus
         rename_terminal(record["title"], created) if record["title"].is_a?(String)
       end
       @active_terminal_index = @terminals.empty? ? 0 : data.fetch("active_terminal", 0)
-      @terminal_visible = !!data["terminal_visible"] && !@terminals.empty?
+      self.terminal_visible = !!data["terminal_visible"] && !@terminals.empty?
       old.each { |current| current.close if current.respond_to?(:close) }
     rescue StandardError
       @terminals.each { |current| current.close if current.respond_to?(:close) }
       @terminals = old
-      @active_terminal_index, @terminal_visible = old_index, old_visible
+      @active_terminal_index = old_index
+      self.terminal_visible = old_visible
       @message = "Session restored; terminals could not start"
     end
   end

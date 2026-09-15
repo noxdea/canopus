@@ -567,7 +567,7 @@ module Canopus
         when :right then bounds.right - point.x
         when :bottom then bounds.bottom - 26 - point.y
         end
-        @workspace.docks[target][:size] = size.clamp(80, target == :bottom ? bounds.height * 0.7 : bounds.width * 0.4)
+        @workspace.panels.resize(target, size.clamp(80, target == :bottom ? bounds.height * 0.7 : bounds.width * 0.4))
       end
     end
   end

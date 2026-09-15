@@ -1,0 +1,35 @@
+module Canopus
+  module Panel
+    type dock = :left | :right | :bottom
+    type dock_state = { visible: bool, size: Numeric }
+    type saved_state = Hash[String, Hash[String, bool | Numeric]]
+
+    class Definition < Data
+      attr_reader id: String
+      attr_reader title: String
+      attr_reader icon: untyped
+      attr_reader dock: dock
+      attr_reader build: ^() -> untyped
+      attr_reader badge: untyped
+      def self.new: (String | Symbol id, String title, untyped icon, dock dock, ^() -> untyped build, untyped badge) -> instance
+    end
+
+    class Registry
+      DOCKS: Array[dock]
+      attr_reader docks: Hash[dock, dock_state]
+      def initialize: (Hash[dock, dock_state] docks) -> void
+      def register: (Definition definition, ?visible: bool, ?size: Numeric?) -> Definition
+      def fetch: (String | Symbol id) -> Definition
+      def key?: (String | Symbol id) -> bool
+      def visible?: (String | Symbol id) -> bool
+      def show: (String | Symbol id) -> Definition
+      def hide: (String | Symbol id) -> Definition
+      def toggle: (String | Symbol id) -> Definition
+      def active: (dock dock) -> Array[Definition]
+      def badge: (String | Symbol id, untyped value) -> Definition
+      def resize: (dock dock, Numeric size) -> Numeric
+      def state: () -> saved_state
+      def restore: (saved_state state, ?docks: Hash[dock, dock_state]?) -> self
+    end
+  end
+end

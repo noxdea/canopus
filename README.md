@@ -109,7 +109,10 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
   "use_tabs": false,
   "tabs": { "activate_on_close": "history", "reopen_history_limit": 20 },
   "terminal": { "working_directory": "project", "scrollback_lines": 10000 },
-  "dock": { "bottom": { "size": 280, "visible": false } },
+  "dock": {
+    "bottom": { "size": 280, "visible": false },
+    "panels": { "terminal": { "size": 280, "visible": false } }
+  },
   "keymap": [
     { "context": "Editor && !vim_mode", "bindings": { "ctrl-k ctrl-s": "file.save" } }
   ],
@@ -120,7 +123,8 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
 
 Closing a dirty tab asks whether to save, discard, or cancel. Reopening restores
 the file, selections, position, and pane while Canopus is running; discarded
-unsaved changes are never restored. Terminal session restoration, when enabled,
+unsaved changes are never restored. Dock and panel visibility and sizes are also
+restored. Terminal session restoration, when enabled,
 starts fresh shells with the saved tab count and working directories and does
 not restore processes or scrollback.
 

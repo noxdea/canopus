@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Register the explorer, project search, terminal, and plugin panels through one stateful panel registry.
+
 ## 0.3.0 — 2026-09-14
 
 - Use the public `Thuban::IgnoreMatcher` and remove Canopus's duplicate implementation.

@@ -10,6 +10,7 @@ end
 
 Dir.mktmpdir("canopus-public-api-") do |root|
   workspace = Canopus::Workspace.new(root: root, settings: Canopus::Settings.new)
+  check(workspace.panels.active(:left).map(&:id) == ["explorer"], "panel registry")
   editor = workspace.new_buffer
   editor.insert_text("日本 😀\nhello")
   check(editor.buffer.text == "日本 😀\nhello", "Unicode edit")

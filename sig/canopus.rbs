@@ -321,7 +321,7 @@ module Canopus
     def dismiss_notification: (Integer id) -> void
     def expire_notifications: (?Numeric now) -> bool
     attr_accessor show_project: bool
-    attr_accessor terminal_visible: bool?
+    attr_accessor terminal_visible: bool
     attr_accessor terminal_composition: Zaniah::Input::Composition?
     attr_reader terminals: Array[Terminal::PTY]
     attr_reader active_terminal_index: Integer
@@ -356,7 +356,7 @@ module Canopus
     def resize_terminal: (Integer columns, Integer rows, ?final: bool, ?now: Numeric) -> void
     def flush_terminal_resize: () -> void
     def toggle_dock: (Symbol side) -> bool
-    def register_panel: (String name, ?side: Symbol) { () -> (Zaniah::Element | String) } -> untyped
+    def register_panel: (String name, ?side: Panel::dock) { () -> (Zaniah::Element | String) } -> Panel::Definition
     def register_action: (String name, ?description: String, ?category: String, ?condition: String, ?keybinding: Command::keybinding) { (*untyped) -> untyped } -> Command::Definition
     def definition_for: (String? path) -> Language::Definition
     def register_language: (String name, extensions: Array[String], ?lexer: String, ?comment: String, ?indent_open: String, ?indent_close: String, ?servers: Array[Array[String]]) -> untyped

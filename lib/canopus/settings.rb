@@ -10,7 +10,12 @@ module Canopus
       "theme" => "Canopus Dark", "font_family" => nil, "icon_theme" => nil, "languages" => {}, "language_servers" => {},
       "tabs" => {"activate_on_close" => "history", "close_on_middle_click" => true, "close_empty_pane" => true,
         "reopen_history_limit" => 20, "confirm_on_close_dirty" => true}.freeze,
-      "dock" => {"bottom" => {"size" => 280, "visible" => false}.freeze}.freeze,
+      "dock" => {"left" => {"size" => 220, "visible" => true}.freeze,
+        "right" => {"size" => 260, "visible" => false}.freeze,
+        "bottom" => {"size" => 280, "visible" => false}.freeze,
+        "panels" => {"explorer" => {"size" => 220, "visible" => true}.freeze,
+          "search" => {"size" => 220, "visible" => false}.freeze,
+          "terminal" => {"size" => 280, "visible" => false}.freeze}.freeze}.freeze,
       "terminal" => {"shell" => nil, "working_directory" => "project", "env" => {}.freeze, "scrollback_lines" => 10_000,
         "font_size" => nil, "line_height" => 1.2, "copy_on_select" => false, "blinking" => "terminal_controlled", "cursor_shape" => "block",
         "close_on_exit" => "clean", "confirm_close_running" => true, "confirm_multiline_paste" => true,
@@ -27,9 +32,17 @@ module Canopus
         "bindings" => {"type" => "object", "maxProperties" => 1024, "additionalProperties" => {"type" => ["string", "null"]}}}}},
       "theme" => {"type" => "string"}, "font_family" => {"type" => ["string", "null"]},
       "icon_theme" => {"type" => ["string", "null"]},
-      "tabs" => {"type" => "object"}, "terminal" => {"type" => "object"}, "dock" => {"type" => "object"},
+      "tabs" => {"type" => "object"}, "terminal" => {"type" => "object"},
+      "dock" => {"type" => "object", "properties" => {
+        "left" => {"$ref" => "#/$defs/dock"}, "right" => {"$ref" => "#/$defs/dock"},
+        "bottom" => {"$ref" => "#/$defs/dock"}, "panels" => {"type" => "object", "maxProperties" => 1000,
+          "additionalProperties" => {"$ref" => "#/$defs/panel"}}}},
       "languages" => {"type" => "object", "additionalProperties" => {"$ref" => "#"}},
-      "language_servers" => {"type" => "object"}}}.freeze
+      "language_servers" => {"type" => "object"}}, "$defs" => {
+        "dock" => {"type" => "object", "required" => %w[size visible], "properties" => {
+          "size" => {"type" => "number", "exclusiveMinimum" => 0}, "visible" => {"type" => "boolean"}}},
+        "panel" => {"type" => "object", "required" => %w[size visible], "properties" => {
+          "size" => {"type" => "number", "exclusiveMinimum" => 0}, "visible" => {"type" => "boolean"}}}}}.freeze
     attr_reader :values, :errors, :layers
     def self.schema = SCHEMA
     def self.user_path
@@ -163,8 +176,19 @@ module Canopus
 
     def validate_dock!
       dock = @values["dock"]
-      bottom = dock["bottom"] if dock.is_a?(Hash)
-      raise Error, "invalid dock.bottom" unless bottom.is_a?(Hash) && bottom["size"].is_a?(Numeric) && bottom["size"].positive? && [true, false].include?(bottom["visible"])
+      raise Error, "dock must be an object" unless dock.is_a?(Hash)
+      %w[left right bottom].each { |side| validate_dock_state!(dock[side], "dock.#{side}") }
+      panels = dock["panels"]
+      raise Error, "dock.panels must be an object" unless panels.is_a?(Hash) && panels.length <= 1_000
+      panels.each do |id, state|
+        raise Error, "invalid panel id" unless id.is_a?(String) && id.bytesize.between?(1, 256)
+        validate_dock_state!(state, "dock.panels.#{id}")
+      end
+    end
+
+    def validate_dock_state!(state, name)
+      valid_size = state.is_a?(Hash) && state["size"].is_a?(Numeric) && state["size"].finite? && state["size"].positive?
+      raise Error, "invalid #{name}" unless valid_size && [true, false].include?(state["visible"])
     end
   end
 end

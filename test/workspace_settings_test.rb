@@ -53,4 +53,28 @@ class WorkspaceSettingsTest < Minitest::Test
     assert_raises(Canopus::Error) { settings.merge!("keymap" => Array.new(129) { {"bindings" => {}} }) }
     assert_equal "file.save", settings["keymap"].first["bindings"]["ctrl-k ctrl-s"]
   end
+
+  def test_legacy_bottom_dock_settings_remain_valid
+    legacy = {"dock" => {"bottom" => {"size" => 280, "visible" => false}}}
+    settings = Canopus::Settings.new(JSON.parse(JSON.generate(legacy)))
+    assert_equal legacy["dock"]["bottom"], settings["dock"]["bottom"]
+    assert_equal({"size" => 220, "visible" => true}, settings["dock"]["left"])
+    assert settings["dock"]["panels"]["explorer"]["visible"]
+    assert_raises(Canopus::Error) { Canopus::Settings.new("dock" => {"panels" => {"terminal" => {"size" => 0}}}) }
+
+    configured = Canopus::Settings.new("dock" => {"panels" => {
+      "explorer" => {"size" => 310, "visible" => false},
+      "future-panel" => {"size" => 200, "visible" => true}
+    }})
+    workspace = Canopus::Workspace.new(root: @root, settings: configured)
+    begin
+      refute workspace.show_project
+      workspace.panels.show(:explorer)
+      assert_equal 310, workspace.docks[:left][:size]
+      refute workspace.panels.key?("future-panel")
+      assert_equal({"visible" => true, "size" => 200}, workspace.panels.state["future-panel"])
+    ensure
+      workspace.close
+    end
+  end
 end
