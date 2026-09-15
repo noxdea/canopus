@@ -1,0 +1,30 @@
+module Canopus
+  module Command
+    type context = Hash[String | Symbol, untyped]
+    type keybinding = String | Hash[String, String] | nil
+
+    DEFAULT_KEYBINDINGS: Hash[String, Hash[String, String]]
+
+    class Definition < Data
+      attr_reader id: String
+      attr_reader title: String
+      attr_reader category: String
+      attr_reader when: String
+      attr_reader run: ^(*untyped) -> untyped
+      attr_reader keybinding: keybinding
+      def self.new: (String id, String title, String category, String when, ^(*untyped) -> untyped run, keybinding keybinding) -> instance
+    end
+
+    class Registry
+      attr_reader version: Integer
+      def initialize: () -> void
+      def register: (Definition definition) -> Definition
+                  | (String id, ?description: String, ?category: String, ?condition: String, ?keybinding: keybinding) { (*untyped) -> untyped } -> Definition
+      def resolve: (String | Symbol id, ?context: context) -> Definition?
+      def call: (String | Symbol id, *untyped arguments, ?context: context) -> untyped
+      def each: (?context: context?) { (Definition) -> untyped } -> self
+              | (?context: context?) -> Enumerator[Definition, self]
+      def entries: (?context: context?) -> Hash[String, String]
+    end
+  end
+end

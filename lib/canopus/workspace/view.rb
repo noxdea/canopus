@@ -587,8 +587,7 @@ module Canopus
     end
     def shortcut_labels
       return {} unless @keymap
-      context = {"Editor" => !!@workspace.editor,
-        "vim_mode" => @workspace.settings["vim_mode"] && @workspace.editor ? @workspace.vim.mode.to_s : false}
+      context = @workspace.palette&.dig(:command_context) || @workspace.command_context
       seen, labels = {}, {}
       @keymap.bindings.reverse_each do |binding|
         next unless binding.predicate.call(context)
@@ -627,7 +626,8 @@ module Canopus
           fill(row, :active_tab) if index == palette[:index]
           @scene.clip(row) { text(match, row.x + 10, row.y + 5, size: 13) }
           if palette[:kind] == :commands
-            shortcut = shortcuts[match]
+            command_index = palette[:indices] ? palette[:indices][index] : index
+            shortcut = shortcuts[palette[:command_definitions][command_index].id]
             if shortcut
               label = shortcut.tr("-", " ")
               x = row.right - label.length * 6.5 - 10

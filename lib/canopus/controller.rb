@@ -4,29 +4,14 @@ require_relative "workspace/view"
 
 module Canopus
   class Controller
-    SHORTCUTS = {"cmd-s" => "file.save", "ctrl-s" => "file.save", "cmd-n" => "file.new", "ctrl-n" => "file.new",
-      "cmd-w" => "tab.close", "ctrl-w" => "tab.close", "cmd-alt-w" => "tab.close_all", "ctrl-alt-w" => "tab.close_all",
-      "cmd-shift-t" => "tab.reopen_closed", "ctrl-shift-t" => "tab.reopen_closed", "cmd-p" => "file.find", "ctrl-p" => "file.find",
-      "cmd-shift-p" => "command.palette", "ctrl-shift-p" => "command.palette", "cmd-z" => "edit.undo", "ctrl-z" => "edit.undo",
-      "cmd-shift-z" => "edit.redo", "ctrl-shift-z" => "edit.redo", "cmd-a" => "edit.select_all", "ctrl-a" => "edit.select_all",
-      "cmd-d" => "edit.select_next", "ctrl-d" => "edit.select_next", "cmd-f" => "search.buffer", "ctrl-f" => "search.buffer",
-      "cmd-shift-l" => "edit.select_all_occurrences", "ctrl-shift-l" => "edit.select_all_occurrences",
-      "alt-up" => "edit.move_line_up", "alt-down" => "edit.move_line_down",
-      "cmd-shift-f" => "search.project", "ctrl-shift-f" => "search.project", "cmd-alt-f" => "search.replace", "ctrl-h" => "search.replace",
-      "cmd-/" => "edit.toggle_comment", "ctrl-/" => "edit.toggle_comment", "cmd-b" => "view.project", "ctrl-b" => "view.project",
-      "ctrl-`" => "view.terminal", "ctrl-shift-`" => "terminal.new", "cmd-\\" => "pane.split_right", "ctrl-\\" => "pane.split_right",
-      "ctrl-space" => "language.completion", "f12" => "language.definition", "shift-f12" => "language.references",
-      "f2" => "language.rename", "alt-enter" => "language.codeAction", "cmd-shift-o" => "language.outline",
-      "ctrl-shift-o" => "language.outline", "cmd-k" => "language.hover", "ctrl-k" => "language.hover"}.freeze
-    TERMINAL_SHORTCUTS = {"ctrl-`" => "terminal.toggle", "ctrl-shift-`" => "terminal.new", "cmd-w" => "terminal.close",
-      "ctrl-w" => "terminal.close", "cmd-c" => "terminal.copy", "ctrl-shift-c" => "terminal.copy",
-      "cmd-v" => "terminal.paste", "ctrl-shift-v" => "terminal.paste", "cmd-shift-p" => "command.palette",
-      "ctrl-shift-p" => "command.palette", "ctrl-shift-]" => "terminal.next", "ctrl-shift-[" => "terminal.prev",
-      "cmd-k" => "terminal.clear"}.merge((1..9).to_h { |index| ["cmd-#{index}", "terminal.select_#{index}"] }).freeze
     attr_reader :workspace, :view, :window, :keymap
     def initialize(workspace, window)
       @workspace, @window, @view = workspace, window, Workspace::View.new(workspace)
       workspace.window = window
+      workspace.register_action("terminal.copy", condition: "Terminal") { terminal_copy }
+      workspace.register_action("terminal.paste", condition: "Terminal") do
+        terminal_paste(@window.respond_to?(:clipboard) ? @window.clipboard.to_s : @clipboard)
+      end
       reload_keymap
       window.draw { workspace.drain; @view }
       window.on_input { |event| input(event) }
@@ -167,23 +152,15 @@ module Canopus
           return @workspace.restart_terminal
         end
         mode = @workspace.settings["vim_mode"] && @workspace.editor ? @workspace.vim.mode.to_s : false
-        action = @keymap.dispatch(stroke, context: {"Terminal" => true, "Editor" => false, "vim_mode" => mode})
+        context = @workspace.command_context(terminal: true).merge("Editor" => false, "vim_mode" => mode)
+        action = @keymap.dispatch(stroke, context: context)
         if action && action != :pending
-          if action == "terminal.paste"
-            return terminal_paste(@window.respond_to?(:clipboard) ? @window.clipboard.to_s : @clipboard)
-          elsif action == "terminal.copy"
-            @clipboard = @view.terminal_selected_text
-            @window.clipboard = @clipboard if @window.respond_to?(:clipboard=)
-            return
-          end
           @drag_terminal_tab = nil if action == "terminal.close"
-          return @workspace.call(action)
+          return @workspace.call(action, context: context)
         elsif action == :pending
           return
         elsif ["cmd-c", "ctrl-shift-c"].include?(stroke)
-          @clipboard = @view.terminal_selected_text
-          @window.clipboard = @clipboard if @window.respond_to?(:clipboard=)
-          return
+          return terminal_copy
         end
         parts = stroke.split("-")
         name = parts.pop
@@ -193,13 +170,14 @@ module Canopus
       end
       return @workspace.settings_completions if stroke == "ctrl-space" && @workspace.editor && @workspace.settings_document?(@workspace.editor.buffer)
       mode = @workspace.settings["vim_mode"] && @workspace.editor ? @workspace.vim.mode.to_s : false
-      action = @keymap.dispatch(stroke, context: {"Editor" => !!@workspace.editor, "vim_mode" => mode})
+      context = @workspace.command_context.merge("vim_mode" => mode)
+      action = @keymap.dispatch(stroke, context: context)
       if action
         # Native adapters deliver text separately after printable key down.
         # Cocoa also sends an empty Composition before that ordinary commit.
         @suppress_key_text = stroke.match?(/\A(?:(?:alt|shift)-)*(?:space|[^\x00-\x1f\x7f])\z/)
         @drag_tab = nil if action.to_s.start_with?("tab.close") || action == "pane.close"
-        return action == :pending ? nil : @workspace.call(action)
+        return action == :pending ? nil : @workspace.call(action, context: context)
       end
       if ["cmd-c", "ctrl-c", "cmd-x", "ctrl-x", "cmd-v", "ctrl-v"].include?(stroke) && !(@workspace.settings["vim_mode"] && stroke == "ctrl-v")
         return clipboard(stroke.split("-").last)
@@ -325,11 +303,16 @@ module Canopus
     def reload_keymap
       language = @workspace.editor&.language_document&.definition&.name
       groups = @workspace.settings["languages"].dig(language, "keymap") || @workspace.settings["keymap"]
-      return if @keymap_groups.equal?(groups)
-      unless @keymap_groups == groups
+      return if @keymap_groups.equal?(groups) && @command_version == @workspace.commands.version
+      unless @keymap_groups == groups && @command_version == @workspace.commands.version
         replacement = Zaniah::Input::Keymap.new
-        SHORTCUTS.each { |keys, action| replacement.bind(keys, action) }
-        TERMINAL_SHORTCUTS.each { |keys, action| replacement.bind(keys, action, context: "Terminal") }
+        @workspace.commands.each do |definition|
+          bindings = definition.keybinding.is_a?(String) ? {definition.keybinding => ""} : definition.keybinding || {}
+          bindings.each do |keys, binding_context|
+            condition = [definition.when, binding_context].reject(&:empty?).map { |value| "(#{value})" }.join(" && ")
+            replacement.bind(keys, definition.id, context: condition)
+          end
+        end
         groups.each do |group|
           group.fetch("bindings").each { |keys, action| replacement.bind(keys, action, context: group.fetch("context")) }
         end
@@ -337,6 +320,7 @@ module Canopus
         @view.keymap = replacement
       end
       @keymap_groups = groups
+      @command_version = @workspace.commands.version
     end
     def palette_input(event)
       return false unless @workspace.palette
@@ -445,7 +429,8 @@ module Canopus
         @workspace.selected_project_path = args.first
         @drag_file = [args.first, event.position] if event.button == :left
         if event.button == :right
-          @workspace.palette = {kind: :commands, query: +"", index: 0, matches: %w[project.new_file project.new_folder project.rename project.trash]}
+          @workspace.palette_open(:commands, command_ids: %w[project.new_file project.new_folder project.rename project.trash],
+            context: @workspace.command_context)
           return
         end
       end
@@ -566,6 +551,10 @@ module Canopus
       else
         @workspace.terminal.paste(text)
       end
+    end
+    def terminal_copy
+      @clipboard = @view.terminal_selected_text
+      @window.clipboard = @clipboard if @window.respond_to?(:clipboard=)
     end
     def resize_drag(point)
       kind, target, bounds = @resize_drag

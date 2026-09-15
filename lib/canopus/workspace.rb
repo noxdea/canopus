@@ -8,11 +8,12 @@ require_relative "vim"
 require_relative "lsp"
 require_relative "pane"
 require_relative "project/tree"
+require_relative "command"
 
 module Canopus
   class Workspace
     ClosedTab = Data.define(:path, :selections, :scroll_x, :scroll_y, :pane_id, :index)
-    attr_reader :panes, :active_pane, :buffers, :actions, :settings, :theme, :project, :clients, :root, :docks, :panels
+    attr_reader :panes, :active_pane, :buffers, :actions, :commands, :settings, :theme, :project, :clients, :root, :docks, :panels
     attr_reader :terminals, :active_terminal_index
     attr_accessor :window, :show_project, :terminal_visible, :terminal_composition, :selected_project_path, :performance
     attr_reader :message, :palette
@@ -24,7 +25,8 @@ module Canopus
       @active_pane = @panes.first
       @layout = {pane: @active_pane}
       @theme = Theme.new(name: @settings["theme"])
-      @actions, @clients, @vim_states = Zaniah::Input::ActionRegistry.new, {}, {}
+      @actions = @commands = Command::Registry.new
+      @clients, @vim_states = {}, {}
       @show_project, @message = true, ""
       @project = Project.new(@root) if defined?(Project)
       bottom = @settings["dock"]["bottom"]
@@ -436,7 +438,9 @@ module Canopus
       @panels[name] = [side, render]
       register_action("panel.#{name}") { @docks[side][:visible] = true }
     end
-    def register_action(name, description: name, &block) = @actions.register(name, description: description, &block)
+    def register_action(name, description: name, category: name.to_s.split(".", 2).first, condition: "", keybinding: Command::DEFAULT_KEYBINDINGS[name.to_s], &block)
+      @commands.register(Command::Definition.new(name.to_s, description, category, condition, block, keybinding))
+    end
     def definition_for(path)
       @languages.values.find { |definition| definition.extensions.include?(File.extname(path.to_s)) || definition.extensions.include?(File.basename(path.to_s)) } || Language.for_path(path)
     end
@@ -450,20 +454,32 @@ module Canopus
         end
       end
     end
-    def call(name, *args)
-      @actions.call(name, *args)
+    def command_context(terminal: false)
+      {"Terminal" => terminal, "Editor" => !!editor,
+       "vim_mode" => @settings["vim_mode"] && editor ? vim.mode.to_s : false}
+    end
+    def call(name, *args, context: nil)
+      context ||= @active_command_context || command_context
+      previous, @active_command_context = @active_command_context, context
+      @commands.call(name, *args, context: context)
       @window&.request_frame
     rescue StandardError => error
       @message = error.message
       @window&.request_frame
+    ensure
+      @active_command_context = previous
     end
 
     def theme=(theme)
       @theme = theme.is_a?(Theme) ? theme : Theme.new(name: theme)
       @window&.request_frame
     end
-    def palette_open(kind)
+    def palette_open(kind, command_ids: nil, context: nil)
       self.palette = {kind: kind, query: +"", index: 0, matches: []}
+      if kind == :commands
+        @palette[:command_context] = context || @active_command_context || command_context
+        @palette[:command_ids] = command_ids if command_ids
+      end
       if [:search, :replace_query, :project_search].include?(kind)
         @palette[:search_options] = {regexp: false, case_sensitive: true, whole_word: false, selection_only: false}
         @palette[:selection] = editor.primary.range unless editor.primary.empty?
@@ -478,6 +494,20 @@ module Canopus
     end
     def update_palette
       return unless @palette
+      if @palette[:kind] == :commands
+        context = @palette.fetch(:command_context)
+        definitions = @commands.each(context: context).to_a
+        ids = @palette[:command_ids]
+        definitions = definitions.select { |definition| ids.include?(definition.id) } if ids
+        @palette[:command_definitions] = definitions
+        session = @palette[:search] ||= Spica::Index.new(definitions.map(&:title)).session
+        session.query = @palette[:query]
+        matches = session.matches(12)
+        @palette[:indices] = matches.map(&:index)
+        @palette[:matches] = matches.map(&:candidate)
+        @palette[:index] = @palette[:index].clamp(0, [@palette[:matches].length - 1, 0].max)
+        return
+      end
       if [:completion, :locations, :symbols, :code_actions, :outline, :branches, :settings_keys, :snippet_choices].include?(@palette[:kind])
         labels = @palette[:all_matches] ||= @palette[:matches].dup
         session = @palette[:search] ||= Spica::Index.new(labels).session
@@ -489,7 +519,6 @@ module Canopus
         return
       end
       @palette[:search] ||= case @palette[:kind]
-      when :commands then Spica::Index.new(@actions.entries.keys).session
       when :files
         @finder_index ||= Spica::Index.new(((@recent_files || []).select { |path| File.file?(path) }.map { |path| path.delete_prefix(@root + File::SEPARATOR) } + files).uniq, tie_break: :index)
         @finder_index.session
@@ -525,12 +554,17 @@ module Canopus
         return
       end
       selected = @palette[:matches][@palette[:index]]
+      selected_command = if @palette[:kind] == :commands && selected
+        index = @palette[:indices] ? @palette[:indices][@palette[:index]] : @palette[:index]
+        @palette[:command_definitions][index]
+      end
+      command_context = @palette[:command_context]
       kind, query, pattern = @palette.values_at(:kind, :query, :pattern)
       self.palette = nil
       if kind == :files && selected
         open(selected)
-      elsif kind == :commands && selected
-        call(selected)
+      elsif kind == :commands && selected_command
+        call(selected_command.id, context: command_context)
       elsif kind == :search
         pattern, options = search_query(query, search_state)
         matches = editor.search(pattern, **options)

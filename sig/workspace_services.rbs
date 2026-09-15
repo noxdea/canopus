@@ -25,7 +25,8 @@ module Canopus
     type palette_state = Hash[Symbol, untyped]
     type search_options = { ?case_sensitive: bool, ?whole_word: bool, ?range: Range[Integer] }
     type semantic_style = {line: Integer, character: Integer, length: Integer, type: Integer, modifiers: Integer, name: String?}
-    attr_reader actions: Zaniah::Input::ActionRegistry
+    attr_reader actions: Command::Registry
+    attr_reader commands: Command::Registry
     attr_reader project: Project?
     attr_reader docks: Hash[Symbol, {visible: bool, size: Numeric}]
     attr_reader panels: Hash[String, [Symbol, ^() -> (Zaniah::Element | String)]]

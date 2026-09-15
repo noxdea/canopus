@@ -357,14 +357,15 @@ module Canopus
     def flush_terminal_resize: () -> void
     def toggle_dock: (Symbol side) -> bool
     def register_panel: (String name, ?side: Symbol) { () -> (Zaniah::Element | String) } -> untyped
-    def register_action: (String name, ?description: String) { (*untyped) -> untyped } -> untyped
+    def register_action: (String name, ?description: String, ?category: String, ?condition: String, ?keybinding: Command::keybinding) { (*untyped) -> untyped } -> Command::Definition
     def definition_for: (String? path) -> Language::Definition
     def register_language: (String name, extensions: Array[String], ?lexer: String, ?comment: String, ?indent_open: String, ?indent_close: String, ?servers: Array[Array[String]]) -> untyped
-    def call: (String name, *untyped arguments) -> untyped
+    def command_context: (?terminal: bool) -> Command::context
+    def call: (String name, *untyped arguments, ?context: Command::context?) -> untyped
     def save_session: (String path) -> void
     def restore_session: (String path) -> self
     def theme=: (Theme | String theme) -> void
-    def palette_open: (Symbol kind) -> void
+    def palette_open: (Symbol kind, ?command_ids: Array[String]?, ?context: Command::context?) -> void
     def show_snippet_choices: (?Editor current) -> untyped
     def update_palette: () -> void
     def palette_accept: () -> void
