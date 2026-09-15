@@ -46,6 +46,7 @@ module Canopus
         raise Error, "missing semantic token legend" if semantic && (!semantic.is_a?(Hash) || !semantic["legend"].is_a?(Hash))
         Protocol.semantic_tokens([], legend: semantic["legend"]) if semantic.is_a?(Hash)
         notify("initialized", {})
+        reopen_documents if @reopening_documents
         @state = :running
         self
       rescue StandardError => error
@@ -279,20 +280,27 @@ module Canopus
         return if @restart_thread&.alive?
         previous = @transport
         @restart_thread = Thread.new do
-          previous.close
-          until @closing || @restarts >= 3
-            @restarts += 1
-            sleep(0.2 * @restarts)
-            break if @closing
-            begin
-              start
-              @documents.values.dup.each { |buffer, language, _| open_document(buffer, language_id: language) }
-              break
-            rescue StandardError => failure
-              report_error(failure)
+          @reopening_documents = true
+          begin
+            previous.close
+            until @closing || @restarts >= 3
+              @restarts += 1
+              sleep(0.2 * @restarts)
+              break if @closing
+              begin
+                start
+                break
+              rescue StandardError => failure
+                report_error(failure)
+              end
             end
+          ensure
+            @reopening_documents = false
           end
         end
+      end
+      def reopen_documents
+        @documents.values.dup.each { |buffer, language, _| open_document(buffer, language_id: language) }
       end
     end
   end
