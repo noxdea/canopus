@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 — 2026-09-15
 
 - Route commands and keybindings through one context-aware command registry.
 - Register the explorer, project search, terminal, and plugin panels through one stateful panel registry.
