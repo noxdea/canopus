@@ -42,6 +42,11 @@ line. Unresolved lenses are resolved only as they enter the viewport; click a
 lens to execute its server command. Set `code_lens.enabled` to `false` to
 disable requests and hide cached lenses.
 
+Sticky scroll prefers `textDocument/documentSymbol` when the server advertises
+it and uses cached Antares structure regions otherwise. Requests and normalized
+symbol trees are tied to the current buffer version and discarded after edits,
+document close, or server retirement; painting never waits for either source.
+
 Editor positions use UTF-8 byte offsets internally and are converted to LSP
 UTF-16 positions. Servers selecting another position encoding are rejected.
 Messages are limited to 32 MiB, crashes fail pending requests, and a connection

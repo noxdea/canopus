@@ -10,6 +10,7 @@
 - Show cached language-server code lenses above source lines and resolve them only when visible.
 - Color nested bracket pairs from Antares structure data and draw display-aware active indentation guides.
 - Render configurable space, tab, and ideographic-space markers without changing display coordinates.
+- Keep the active declaration chain visible with cached LSP symbols and an Antares fallback.
 - Route LSP, snippet, and extension completion through a bounded provider registry with stable fuzzy ranking.
 
 ## 0.4.0 — 2026-09-15

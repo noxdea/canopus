@@ -253,6 +253,8 @@ module Canopus
       end
       sources = current.buffer.is_a?(MultiBuffer) ? current.buffer.excerpts.map(&:buffer).uniq : []
       @vim_states.delete(current)&.dispose
+      @sticky_fallback_cache&.delete(current)
+      @sticky_context_cache&.clear
       invalidate_brackets(current.buffer)
       pane.close(current, discard: discard, activate: @settings["tabs"]["activate_on_close"].to_sym)
       release_buffer(current.buffer, discard: discard)
@@ -694,6 +696,8 @@ module Canopus
       invalidate_inlay_hints
       @inlay_hint_requests&.clear
       invalidate_code_lenses
+      invalidate_sticky_symbols
+      @sticky_symbol_requests&.clear
       @palette&.dig(:response)&.fulfill({"applied" => false, "failureReason" => "Workspace closed"})
       self.palette = nil
       @plugins&.close
@@ -841,6 +845,7 @@ module Canopus
     def release_buffer(buffer, discard: false)
       return unless buffer_refs(buffer).empty?
       return if buffer.dirty? && !discard
+      invalidate_sticky_symbols(buffer)
       close_language_documents(buffer)
       @buffers.delete_if { |_, current| current.equal?(buffer) }
       buffer.close

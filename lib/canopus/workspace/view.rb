@@ -245,19 +245,19 @@ module Canopus
         return
       end
       area = Zaniah::Bounds.new(bounds.x, bounds.y + 34, bounds.width, [bounds.height - 34, 0].max)
-      @editor_bounds[editor] = area
-      region(area, role: :textbox, label: editor.buffer.path || "Untitled document", action: [:editor, pane, editor])
-      paint_editor(editor, area, pane == @workspace.active_pane)
+      decorations = prepare_editor_map(editor, area)
+      sticky = prepare_sticky_scroll(editor, area)
+      sticky_height = sticky.length * @line_height
+      body = Zaniah::Bounds.new(area.x, area.y + sticky_height, area.width, [area.height - sticky_height, 0].max)
+      @editor_bounds[editor] = body
+      region(body, role: :textbox, label: editor.buffer.path || "Untitled document", action: [:editor, pane, editor])
+      paint_editor(editor, body, pane == @workspace.active_pane, decorations)
+      paint_sticky_scroll(editor, pane, Zaniah::Bounds.new(area.x, area.y, area.width, sticky_height), sticky) unless sticky.empty?
       fill(Zaniah::Bounds.new(bounds.right - 1, bounds.y, 1, bounds.height), :border)
     end
     def gutter(editor) = [editor.buffer.line_count.to_s.length * @font_size * 0.6 + 24, 52].max
-    def paint_editor(editor, bounds, active)
-      @selection_spans = {}
-      editor.viewport_rows = [(bounds.height / @line_height).floor, 1].max
-      map, first = editor.display_map, editor.scroll_y.floor
-      last = [first + editor.viewport_rows + 1, map.row_count].min
-      cursor_offset = @workspace.settings["vim_mode"] && active ? @workspace.vim.cursor_position : editor.primary.head
-      cursor = map.to_display(cursor_offset)
+    def prepare_editor_map(editor, bounds)
+      map = editor.display_map
       if map.wrap_map.width && !editor.buffer.read_only
         width = [bounds.width - gutter(editor) - 16, 1].max
         if @cx.window.is_a?(Zaniah::Platform::TUI::Window)
@@ -270,16 +270,59 @@ module Canopus
             @workspace.message = "Soft wrap disabled: #{error.message}"
           end
         end
-        last = [first + editor.viewport_rows + 1, map.row_count].min
-        cursor = map.to_display(cursor_offset)
       end
+      prepare_editor_decorations(editor, bounds)
+    end
+    def prepare_editor_decorations(editor, bounds)
+      map = editor.display_map
+      rows = [(bounds.height / @line_height).floor, 1].max
+      first = editor.scroll_y.clamp(0, [map.row_count - rows, 0].max).floor
+      last = [first + rows + 1, map.row_count].min
       decorations = decorations_for_display_rows(editor, map, first, last)
+      overlays = decorations.select { |item| %i[inline block].include?(item.kind) }
+      if map.set_overlays(overlays, font: @cx.text_system.respond_to?(:font) ? @cx.text_system.font : nil,
+        font_size: @font_size, line_height: @line_height)
+        first = editor.scroll_y.clamp(0, [map.row_count - rows, 0].max).floor
+        last = [first + rows + 1, map.row_count].min
+        decorations = (decorations + decorations_for_display_rows(editor, map, first, last)).uniq.sort_by(&:priority).freeze
+        overlays = decorations.select { |item| %i[inline block].include?(item.kind) }
+        map.set_overlays(overlays, font: @cx.text_system.respond_to?(:font) ? @cx.text_system.font : nil,
+          font_size: @font_size, line_height: @line_height)
+      end
+      decorations
+    end
+    def prepare_sticky_scroll(editor, bounds)
+      rows = [(bounds.height / @line_height).floor, 1].max
+      sticky, scroll = [], editor.scroll_y
+      loop do
+        candidate = @workspace.sticky_context(editor, scroll.floor)
+        candidate = candidate.last([[rows - 1, 0].max, candidate.length].min)
+        viewport = [rows - candidate.length, 1].max
+        clamped = scroll.clamp(0, [editor.display_map.row_count - viewport, 0].max)
+        break sticky = candidate if candidate == sticky && clamped == scroll
+        sticky, scroll = candidate, clamped
+      end
+      editor.viewport_rows = [rows - sticky.length, 1].max
+      editor.scroll(dy: scroll - editor.scroll_y)
+      sticky
+    end
+    def paint_editor(editor, bounds, active, decorations = nil)
+      @selection_spans = {}
+      editor.viewport_rows = [(bounds.height / @line_height).floor, 1].max
+      editor.scroll
+      map, first = editor.display_map, editor.scroll_y.floor
+      last = [first + editor.viewport_rows + 1, map.row_count].min
+      cursor_offset = @workspace.settings["vim_mode"] && active ? @workspace.vim.cursor_position : editor.primary.head
+      cursor = map.to_display(cursor_offset)
+      decorations ||= decorations_for_display_rows(editor, map, first, last)
       if map.set_overlays(decorations.select { |item| %i[inline block].include?(item.kind) },
         font: @cx.text_system.respond_to?(:font) ? @cx.text_system.font : nil,
         font_size: @font_size, line_height: @line_height)
+        editor.scroll
+        first = editor.scroll_y.floor
         last = [first + editor.viewport_rows + 1, map.row_count].min
         cursor = map.to_display(cursor_offset)
-        decorations = decorations_for_display_rows(editor, map, first, last)
+        decorations = (decorations + decorations_for_display_rows(editor, map, first, last)).uniq.sort_by(&:priority).freeze
       end
       gutter_items = decorations.select { |item| item.kind == :gutter }
       highlight_items = decorations.select { |item| item.kind == :highlight }
@@ -381,6 +424,23 @@ module Canopus
       @line_widths[editor] = [editor.buffer.version, measured_width]
       overview = @workspace.decorations.items_for(editor.buffer, 0...editor.buffer.line_count)
       paint_scrollbars(editor, bounds, measured_width, overview)
+    end
+    def paint_sticky_scroll(editor, pane, bounds, symbols)
+      fill(bounds, :panel)
+      left = bounds.x + gutter(editor) - editor.scroll_x
+      generation = @workspace.document_symbol_generation(editor)
+      @scene.clip(bounds) do
+        symbols.each_with_index do |symbol, index|
+          y = bounds.y + index * @line_height
+          row = editor.buffer.rope.point_at(symbol.selection.begin).row
+          text(row + 1, bounds.x + 12, y + 4, color: :muted, size: @font_size - 1)
+          text(symbol.name, left, y + 4, color: :foreground)
+          area = Zaniah::Bounds.new(bounds.x, y, bounds.width, @line_height)
+          region(area, role: :button, label: "Go to #{symbol.name}",
+            action: [:sticky, pane, editor, symbol.selection.begin, editor.buffer.version, generation])
+        end
+      end
+      fill(Zaniah::Bounds.new(bounds.x, bounds.bottom - 1, bounds.width, 1), :border)
     end
     def paint_scrollbars(editor, bounds, content_width, decorations)
       track = Zaniah::Bounds.new(bounds.right - 9, bounds.y, 9, [bounds.height - 9, 0].max)

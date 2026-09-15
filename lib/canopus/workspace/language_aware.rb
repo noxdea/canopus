@@ -8,6 +8,9 @@ module Canopus
     CODE_LENS_REQUEST_LIMIT = 64
     CODE_LENS_RESOLVE_LIMIT = 32
     INDENT_GUIDE_LIMIT = 4096
+    STICKY_SYMBOL_LIMIT = 10_000
+    STICKY_DEPTH_LIMIT = 64
+    STICKY_REQUEST_LIMIT = 16
 
     attr_reader :hover_card, :hover_markup, :semantic_styles
     def dismiss_hover = @hover_card = nil
@@ -1068,7 +1071,349 @@ module Canopus
       nil
     end
 
+    def sticky_scroll_enabled?(current)
+      sticky_setting(current, "enabled")
+    end
+
+    def sticky_context(current, display_row)
+      return [] unless sticky_scroll_enabled?(current)
+
+      map = current.display_map
+      first = display_row.clamp(0, map.row_count - 1)
+      entry = document_symbol_entry(current)
+      return [] unless entry
+      top = map.to_buffer(DisplayPoint.new(first, 0))
+      maximum = sticky_setting(current, "max_lines")
+      context_key = [entry[:generation], map.tree.object_id, first, top, maximum]
+      contexts = @sticky_context_cache ||= {}
+      return contexts[context_key] if contexts.key?(context_key)
+
+      result = document_symbol_chain(current, top)
+        .select { |symbol| map.to_display(symbol.selection.begin).row < first }
+        .last(maximum).freeze
+      contexts.shift while contexts.length >= 256
+      contexts[context_key] = result
+    end
+
+    # Returns cached symbols containing the byte offset, outermost first. This
+    # never asks a language server or parser to do work and is safe during paint.
+    def document_symbol_chain(current, offset)
+      entry = document_symbol_entry(current)
+      return [] unless entry && offset.is_a?(Integer) && offset.between?(0, current.buffer.rope.bytesize)
+
+      result = []
+      siblings = entry[:children][nil] || []
+      while (symbol = siblings
+          .select { |candidate| candidate.range.begin <= offset && offset < candidate.range.end }
+          .min_by { |candidate| [candidate.range.end - candidate.range.begin, -candidate.range.begin, candidate.id] })
+        result << symbol
+        siblings = entry[:children][symbol.id] || []
+      end
+      result.freeze
+    end
+
+    # Breadcrumb navigation consumes the already-indexed sibling list.
+    # Generation invalidates navigation as soon as its cache is replaced.
+    def document_symbol_siblings(current, symbol, generation:)
+      entry = document_symbol_entry(current)
+      return [] unless entry && entry[:generation] == generation && entry[:by_id][symbol.id].equal?(symbol)
+
+      entry[:children][symbol.parent_id] || []
+    end
+
+    def document_symbol_generation(current)
+      document_symbol_entry(current)&.dig(:generation)
+    end
+
+    def refresh_sticky_fallback(current, document = current.language_document)
+      return [] unless sticky_scroll_enabled?(current) && document.equal?(current.language_document) && document.syntax_ready?
+
+      buffer = current.buffer
+      regions = document.structure_regions
+      cached = @sticky_fallback_cache&.[](current)
+      return cached.last[:symbols] if cached && cached[0] == buffer.version && cached[1].equal?(document) && cached[2].equal?(regions)
+
+      rope = buffer.rope
+      drafts = regions.first(STICKY_SYMBOL_LIMIT).filter_map do |region|
+        first, last, kind = region.values_at(:start_line, :end_line, :kind)
+        next unless %i[block region].include?(kind) && first.is_a?(Integer) && last.is_a?(Integer) &&
+          first >= 0 && last > first && last < buffer.line_count
+
+        start = rope.line_start(first)
+        finish = last + 1 < buffer.line_count ? rope.line_start(last + 1) : rope.bytesize
+        label = sticky_source_label(rope, first)
+        label = "Line #{first + 1}" if label.empty?
+        [truncate_diagnostic_message(label, 256).freeze, (start...finish).freeze, (start...start).freeze]
+      end.uniq { |_name, range, _selection| [range.begin, range.end] }
+        .sort_by { |_name, range, _selection| [range.begin, -range.end] }
+      parents = []
+      values = drafts.each_with_index.map do |(name, range, selection), id|
+        parents.pop until parents.empty? || strictly_contains?(parents.last.range, range)
+        parent = parents.last
+        symbol = Language::DocumentSymbol.new(id, name, :structure, range, selection,
+          parent ? parent.depth + 1 : 0, parent&.id)
+        parents << symbol
+        symbol
+      end.freeze
+      entry = sticky_cache_entry(buffer, buffer.version, nil, values)
+      @sticky_fallback_cache ||= {}
+      @sticky_fallback_cache[current] = [buffer.version, document, regions, entry]
+      @sticky_context_cache&.clear
+      values
+    end
+
+    def request_sticky_symbols(current)
+      return false unless sticky_scroll_enabled?(current)
+
+      buffer = current.buffer
+      return false unless buffer.path && !buffer.read_only
+      language = current.language_document.definition.name
+      client = @clients[language]
+      cache = @sticky_symbol_cache || {}
+      return false if client && cache.key?([client, buffer, buffer.version])
+      return false if client && !client.capabilities["documentSymbolProvider"]
+
+      requests = @sticky_symbol_requests ||= {}
+      return false if requests.values.any? { |entry| entry[:buffer].equal?(buffer) && entry[:version] == buffer.version }
+      return false if requests.length >= STICKY_REQUEST_LIMIT
+      unless client
+        options = language_server_options(language)
+        attempts = @sticky_symbol_start_attempts ||= {}
+        return false if attempts.key?(language) && attempts[language] == options
+        attempts[language] = options
+        return false unless options
+      end
+
+      id = @sticky_symbol_request_id = @sticky_symbol_request_id.to_i + 1
+      request = {client: client, buffer: buffer, version: buffer.version,
+        rope: buffer.rope, uri: Sadr::Protocol.uri(buffer.path)}
+      requests[id] = request
+      job = Thread.new do
+        begin
+          owner = language_client(buffer)
+          request[:client] = owner
+          supported = !!owner.capabilities["documentSymbolProvider"]
+          active = @sticky_symbol_requests&.[](id).equal?(request) && buffer.version == request[:version] && @clients.value?(owner)
+          future = owner.document_symbol(request[:uri]) if supported && active
+          request[:future] = future
+          if future && @sticky_symbol_requests&.[](id).equal?(request)
+            symbols = normalize_document_symbols(request[:rope], future.await(timeout: 10), request[:uri])
+          else
+            future&.cancel
+            symbols = false
+          end
+          post do
+            pending = @sticky_symbol_requests&.delete(id)
+            next unless pending.equal?(request) && buffer.version == request[:version] && @clients.value?(owner) &&
+              buffer.path && Sadr::Protocol.uri(buffer.path) == request[:uri] &&
+              @opened_lsp_documents&.key?([owner, buffer]) &&
+              @panes.any? { |pane| pane.editors.any? { |editor| editor.buffer.equal?(buffer) } }
+
+            cache_sticky_symbols(owner, buffer, request[:version], symbols)
+          end
+        rescue StandardError => error
+          post do
+            pending = @sticky_symbol_requests&.delete(id)
+            if pending.equal?(request) && owner && buffer.version == request[:version] && @clients.value?(owner) &&
+                buffer.path && Sadr::Protocol.uri(buffer.path) == request[:uri] && @opened_lsp_documents&.key?([owner, buffer])
+              cache_sticky_symbols(owner, buffer, request[:version], false)
+              @message = error.message unless @retired_language_clients&.[](owner)
+            end
+          end
+        ensure
+          worker = Thread.current
+          post { @language_jobs&.delete(worker) }
+        end
+      end
+      (@language_jobs ||= []) << job
+      @language_jobs.reject! { |thread| !thread.alive? }
+      true
+    end
+
+    def invalidate_sticky_symbols(buffer = nil, client: nil)
+      @sticky_symbol_cache&.delete_if do |key, _|
+        (!buffer || key[1].equal?(buffer)) && (!client || key[0].equal?(client))
+      end
+      @sticky_symbol_requests&.delete_if do |_id, entry|
+        matches = (!buffer || entry[:buffer].equal?(buffer)) && (!client || entry[:client]&.equal?(client))
+        entry[:future]&.cancel if matches
+        matches
+      end
+      @sticky_fallback_cache&.delete_if { |editor, _| editor.buffer.equal?(buffer) } if buffer
+      @sticky_fallback_cache&.clear unless buffer || client
+      @sticky_context_cache&.clear
+      @sticky_symbol_start_attempts&.clear unless buffer || client
+      @window&.request_frame unless @closed
+      nil
+    end
+
     private
+
+    def document_symbol_entry(current)
+      buffer = current.buffer
+      client = @clients[current.language_document.definition.name]
+      key = [client, buffer, buffer.version]
+      cache = @sticky_symbol_cache || {}
+      return cache[key] if client && cache.key?(key) && cache[key]
+
+      fallback = @sticky_fallback_cache&.[](current)
+      fallback.last if fallback && fallback[0] == buffer.version && fallback[1].equal?(current.language_document)
+    end
+
+    def sticky_setting(current, key)
+      defaults = @settings["sticky_scroll"]
+      override = @settings["languages"].fetch(current.language_document.definition.name, {}).fetch("sticky_scroll", {})
+      override.fetch(key, defaults.fetch(key))
+    end
+
+    def sticky_source_label(rope, row)
+      first = rope.line_start(row)
+      last = row + 1 < rope.line_count ? rope.line_start(row + 1) : rope.bytesize
+      ending = [last, first + 4_096].min
+      begin
+        rope.point_at(ending)
+      rescue RangeError
+        ending -= 1
+        retry
+      end
+      rope.byteslice(first, ending - first).to_s
+        .sub(/(?:\r\n|[\r\n\u2028\u2029])\z/, "").strip
+    end
+
+    def normalize_document_symbols(rope, result, uri)
+      raise Error, "invalid document symbols" unless result.nil? || result.is_a?(Array)
+      raise Error, "too many document symbols" if result && result.length > STICKY_SYMBOL_LIMIT
+      items = Array(result)
+      raise Error, "invalid document symbol" if items.any? { |item| !item.is_a?(Hash) }
+      flat = items.first&.key?("location")
+      if items.any? { |item| item.key?("location") != flat }
+        raise Error, "invalid mixed document symbols"
+      end
+      return normalize_flat_document_symbols(rope, items, uri) if flat
+
+      stack = items.reverse.map { |item| [item, 0, nil] }
+      symbols, seen = [], {}.compare_by_identity
+      until stack.empty?
+        item, depth, parent_id = stack.pop
+        raise Error, "too many document symbols" if symbols.length >= STICKY_SYMBOL_LIMIT
+        raise Error, "document symbol nesting exceeds #{STICKY_DEPTH_LIMIT}" if depth > STICKY_DEPTH_LIMIT
+        raise Error, "invalid document symbol" unless item.is_a?(Hash)
+        raise Error, "cyclic document symbols" if seen.key?(item)
+        seen[item] = true
+
+        name = bounded_sticky_string(item["name"], "name")
+        kind = sticky_symbol_kind(item["kind"])
+        bounded_sticky_string(item["detail"], "detail", optional: true)
+        range = strict_symbol_range(rope, item["range"])
+        selection = strict_symbol_range(rope, item["selectionRange"])
+        unless range.begin <= selection.begin && selection.end <= range.end
+          raise Error, "document symbol selection is outside its range"
+        end
+        parent = symbols[parent_id] if parent_id
+        unless !parent || parent.range.begin <= range.begin && range.end <= parent.range.end
+          raise Error, "document symbol is outside its parent"
+        end
+        id = symbols.length
+        symbols << Language::DocumentSymbol.new(id, name, kind, range, selection, depth, parent_id)
+        children = item.fetch("children", [])
+        raise Error, "invalid document symbol children" unless children.is_a?(Array)
+        raise Error, "too many document symbols" if symbols.length + stack.length + children.length > STICKY_SYMBOL_LIMIT
+        children.reverse_each { |child| stack << [child, depth + 1, id] }
+      end
+      symbols.freeze
+    rescue KeyError, RangeError, TypeError, ArgumentError, Sadr::Error => error
+      raise Error, "invalid document symbols: #{error.message}"
+    end
+
+    def normalize_flat_document_symbols(rope, items, uri)
+      drafts = items.each_with_index.map do |item, index|
+        lookup_name = bounded_sticky_string(item["name"], "name", truncate: false)
+        name = truncate_diagnostic_message(lookup_name, 256).freeze
+        kind = sticky_symbol_kind(item["kind"])
+        container = bounded_sticky_string(item["containerName"], "container name", optional: true, truncate: false)
+        location = item["location"]
+        raise Error, "invalid document symbol location" unless location.is_a?(Hash)
+        bounded_sticky_string(location["uri"], "URI", maximum: 16_384)
+        raise Error, "document symbol belongs to another document" unless location["uri"] == uri
+        range = strict_symbol_range(rope, location["range"])
+        {name: name, lookup_name: lookup_name, kind: kind, selection: range, container: container, index: index}
+      end.sort_by { |draft| [draft[:selection].begin, -draft[:selection].end, draft[:index]] }
+
+      parents, seen = [], Hash.new { |hash, name| hash[name] = [] }
+      drafts.each_with_index do |draft, id|
+        parents.pop until parents.empty? || strictly_contains?(drafts[parents.last][:selection], draft[:selection])
+        parent_id = draft[:container] && seen[draft[:container]].last
+        parent_id ||= parents.last
+        draft[:id], draft[:parent_id] = id, parent_id
+        draft[:depth] = parent_id ? drafts[parent_id][:depth] + 1 : 0
+        raise Error, "document symbol nesting exceeds #{STICKY_DEPTH_LIMIT}" if draft[:depth] > STICKY_DEPTH_LIMIT
+        parents << id
+        seen[draft[:lookup_name]] << id
+      end
+
+      following = []
+      scopes = Array.new(drafts.length)
+      (drafts.length - 1).downto(0) do |id|
+        draft = drafts[id]
+        following.pop while following.any? && drafts[following.last][:depth] > draft[:depth]
+        finish = following.empty? ? rope.bytesize : drafts[following.last][:selection].begin
+        finish = draft[:selection].end unless finish > draft[:selection].begin
+        scopes[id] = (draft[:selection].begin...finish).freeze
+        following << id
+      end
+      drafts.map do |draft|
+        Language::DocumentSymbol.new(draft[:id], draft[:name], draft[:kind], scopes[draft[:id]], draft[:selection],
+          draft[:depth], draft[:parent_id])
+      end.freeze
+    end
+
+    def sticky_symbol_kind(value)
+      raise Error, "invalid document symbol kind" unless value.is_a?(Integer) && value.between?(1, 26)
+
+      value
+    end
+
+    def strictly_contains?(outer, inner)
+      outer.begin <= inner.begin && inner.end <= outer.end && outer != inner
+    end
+
+    def bounded_sticky_string(value, name, optional: false, maximum: 4_096, truncate: true)
+      return if optional && value.nil?
+      unless value.is_a?(String) && value.valid_encoding? && value.bytesize.between?(1, maximum) && !value.include?("\0")
+        raise Error, "invalid document symbol #{name}"
+      end
+      value = value.dup.freeze
+      truncate ? truncate_diagnostic_message(value, 256).freeze : value
+    end
+
+    def strict_symbol_range(rope, value)
+      range = Sadr::Protocol.range_value(value)
+      first = Sadr::Protocol.offset(rope, range.start)
+      last = Sadr::Protocol.offset(rope, range.end)
+      unless last >= first && Sadr::Protocol.position(rope, first) == range.start &&
+          Sadr::Protocol.position(rope, last) == range.end
+        raise Error, "invalid document symbol range"
+      end
+      (first...last).freeze
+    end
+
+    def cache_sticky_symbols(client, buffer, version, symbols)
+      cache = @sticky_symbol_cache ||= {}
+      cache.delete_if { |key, _| key[0].equal?(client) && key[1].equal?(buffer) }
+      cache.shift while cache.length >= 64
+      cache[[client, buffer, version]] = symbols == false ? false : sticky_cache_entry(buffer, version, client, symbols)
+      @sticky_context_cache&.clear
+      @window&.request_frame unless @closed
+      symbols
+    end
+
+    def sticky_cache_entry(buffer, version, client, symbols)
+      generation = @sticky_symbol_generation = @sticky_symbol_generation.to_i + 1
+      by_id = symbols.to_h { |symbol| [symbol.id, symbol] }.freeze
+      children = symbols.group_by(&:parent_id).transform_values(&:freeze).freeze
+      {buffer: buffer, version: version, client: client, generation: generation,
+       symbols: symbols.freeze, by_id: by_id, children: children}.freeze
+    end
 
     def active_structure_guide(current, enabled)
       return unless enabled
@@ -1117,6 +1462,7 @@ module Canopus
       (@language_document_subscriptions ||= {})[key] = buffer.on_edit do |patch|
         invalidate_inlay_hints(buffer)
         invalidate_code_lenses(buffer)
+        invalidate_sticky_symbols(buffer)
         sync_language_document(client, uri, buffer, patch)
       end
       (@opened_lsp_documents ||= {})[key] = true
@@ -1139,6 +1485,7 @@ module Canopus
       invalidate_diagnostics(buffer)
       invalidate_inlay_hints(buffer)
       invalidate_code_lenses(buffer)
+      invalidate_sticky_symbols(buffer, client: client)
     end
 
     def sync_language_document(client, uri, buffer, patch)

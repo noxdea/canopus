@@ -233,6 +233,15 @@ module Canopus
       attr_reader selection: Range[Integer]
       attr_reader depth: Integer
     end
+    class DocumentSymbol < Data
+      attr_reader id: Integer
+      attr_reader name: String
+      attr_reader kind: Integer | ::Symbol
+      attr_reader range: Range[Integer]
+      attr_reader selection: Range[Integer]
+      attr_reader depth: Integer
+      attr_reader parent_id: Integer?
+    end
     class Bracket < Data
       attr_reader open_range: Range[Integer]
       attr_reader close_range: Range[Integer]
@@ -389,6 +398,14 @@ module Canopus
     def post: () { () -> void } -> void
     def bracket_decorations: (Buffer buffer, Range[Integer] rows, Editor? current) -> Array[Decoration::Item]
     def invalidate_brackets: (?Buffer? buffer) -> nil
+    def sticky_scroll_enabled?: (Editor current) -> bool
+    def sticky_context: (Editor current, Integer display_row) -> Array[Language::DocumentSymbol]
+    def document_symbol_chain: (Editor current, Integer offset) -> Array[Language::DocumentSymbol]
+    def document_symbol_siblings: (Editor current, Language::DocumentSymbol symbol, generation: Integer) -> Array[Language::DocumentSymbol]
+    def document_symbol_generation: (Editor current) -> Integer?
+    def refresh_sticky_fallback: (Editor current, ?Language::Document document) -> Array[Language::DocumentSymbol]
+    def request_sticky_symbols: (Editor current) -> bool
+    def invalidate_sticky_symbols: (?Buffer? buffer, ?client: Sadr::Client?) -> nil
     def drain: () -> void
     def close: () -> void
     def plugins: () -> Plugins::Registry

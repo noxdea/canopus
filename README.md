@@ -119,6 +119,7 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
   "indent_guides": { "enabled": true, "active": true },
   "render_whitespace": "boundary",
   "render_ideographic_space": true,
+  "sticky_scroll": { "enabled": true, "max_lines": 5 },
   "tabs": { "activate_on_close": "history", "reopen_history_limit": 20 },
   "terminal": { "working_directory": "project", "scrollback_lines": 10000 },
   "dock": {
@@ -137,6 +138,11 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
 `boundary` hides only single spaces between non-whitespace characters. Tabs use
 `→`, spaces use `·`, and ideographic spaces use `□`; the last remains visible
 independently when `render_ideographic_space` is enabled.
+
+Sticky scroll keeps the declarations containing the first visible source byte
+above the editor body. It prefers cached LSP document symbols and falls back to
+cached Antares structure regions; `sticky_scroll.enabled` and
+`sticky_scroll.max_lines` can also be overridden per language.
 
 Closing a dirty tab asks whether to save, discard, or cancel. Reopening restores
 the file, selections, position, and pane while Canopus is running; discarded
