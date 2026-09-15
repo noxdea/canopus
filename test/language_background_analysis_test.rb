@@ -298,4 +298,16 @@ class LanguageBackgroundAnalysisTest < Minitest::Test
       buffer&.close
     end
   end
+
+  def test_selection_range_decode_rejects_duplicate_reversed_and_unbounded_results
+    response = {"tokens" => [], "syntax" => nil, "complete" => true}
+    invalid = [
+      [[0, [[0, 1]]], [0, [[0, 1]]]],
+      [[0, [[2, 1]]]],
+      [[0, Array.new(BackgroundAnalysis::SELECTION_RANGE_LIMIT + 1, [0, 1])]]
+    ]
+    invalid.each do |selections|
+      assert_raises(Canopus::Error) { BackgroundAnalysis.decode(response.merge("selections" => selections)) }
+    end
+  end
 end

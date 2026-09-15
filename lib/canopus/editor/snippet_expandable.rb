@@ -47,12 +47,13 @@ module Canopus
     def insert_snippet(source, variables: {}, workspace_root: nil, clipboard: nil)
       raise Error, "snippet variables must be a Hash" unless variables.is_a?(Hash)
       # Parse every cursor expansion before changing text or disposing a live session.
-      snippets = @selections.each_with_index.map do |selection, index|
+      selections = merged_selections(@selections, touching: false)
+      snippets = selections.each_with_index.map do |selection, index|
         builtins = snippet_variables(workspace_root: workspace_root, clipboard: clipboard, selection: selection, cursor_index: index)
         Snippet.new(source, variables: builtins.merge(variables.transform_keys(&:to_s)))
       end
       starts, delta = [], 0
-      @selections.zip(snippets).each do |selection, snippet|
+      selections.zip(snippets).each do |selection, snippet|
         starts << selection.start + delta
         delta += snippet.text.bytesize - selection.range.size
       end

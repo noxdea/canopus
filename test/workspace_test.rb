@@ -52,7 +52,7 @@ class WorkspaceTest < Minitest::Test
     @workspace.editor.select(0, 3)
     key("cmd-shift-l")
     assert_equal [0...3, 4...7], @workspace.editor.selections.map(&:range)
-    key("alt-down")
+    key("alt-shift-down")
     assert_equal "two\none one", @workspace.editor.buffer.text
     assert_equal [4...7, 8...11], @workspace.editor.selections.map(&:range)
     key("cmd-z")

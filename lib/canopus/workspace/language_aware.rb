@@ -10,6 +10,10 @@ module Canopus
     DOCUMENT_HIGHLIGHT_REQUEST_LIMIT = 64
     FOLDING_RANGE_LIMIT = 10_000
     FOLDING_RANGE_REQUEST_LIMIT = 64
+    SELECTION_RANGE_LIMIT = 10_000
+    SELECTION_RANGE_POSITION_LIMIT = 256
+    SELECTION_RANGE_DEPTH_LIMIT = 256
+    SELECTION_RANGE_REQUEST_LIMIT = 64
     DOCUMENT_HIGHLIGHT_STYLES = {
       1 => {color: :selection}.freeze,
       2 => {color: :accent, underline: true, thickness: 2}.freeze,
@@ -543,6 +547,58 @@ module Canopus
         language_request(:documentSymbol)
       end
     end
+    def expand_selection(current = editor)
+      state = @selection_range_states&.[](current)
+      if state && selection_range_state_valid?(current, state)
+        return apply_selection_expansion(current, state)
+      end
+      invalidate_selection_ranges(editor: current) if state || @pending_selection_ranges&.key?(current)
+
+      selections = current.selections.dup.freeze
+      unless selections.length.between?(1, SELECTION_RANGE_POSITION_LIMIT)
+        @message = "Too many selections to expand"
+        return false
+      end
+      document, buffer, version = current.language_document, current.buffer, current.buffer.version
+      heads = selections.map(&:head).freeze
+      language = document.definition.name
+      client = @clients[language]
+      pending = {document: document, buffer: buffer, version: version, selections: selections,
+        heads: heads, source: :lsp, client: client, supported: selection_range_supported?(client)}
+      unless buffer.path && !buffer.read_only && (client || language_server_options(language))
+        return selection_with_antares(current, pending)
+      end
+      unless selection_range_supported?(client) || !client
+        return selection_with_antares(current, pending)
+      end
+
+      (@pending_selection_ranges ||= {})[current] = pending
+      unless request_selection_ranges(buffer, version, client, heads)
+        @pending_selection_ranges.delete(current)
+        return selection_with_antares(current, pending)
+      end
+      @message = "Loading selection ranges…"
+      nil
+    end
+
+    def shrink_selection(current = editor)
+      state = @selection_range_states&.[](current)
+      unless state && selection_range_state_valid?(current, state) && !state[:history].empty?
+        invalidate_selection_ranges(editor: current)
+        @message = "No smaller selection"
+        return false
+      end
+
+      previous, chains = state[:history].pop
+      current.set_selections(previous, merge: false)
+      state[:current] = previous
+      state[:chains] = chains
+      current.reveal_cursor
+      @message = "Selection shrunk"
+      @window&.request_frame
+      true
+    end
+
     def fold_current
       current, document = editor, editor.language_document
       buffer, version, cursor = current.buffer, current.buffer.version, current.primary.head
@@ -594,17 +650,34 @@ module Canopus
         end
       end
       pending = @pending_folds&.[](current)
+      if pending && pending[:source] == :antares
+        unless pending_fold_valid?(current, pending, document)
+          @pending_folds.delete(current)
+        else
+          return if !document.syntax_ready? && document.pending?
+          @pending_folds.delete(current)
+          if document.syntax_ready?
+            apply_fold(current, document.fold_ranges, pending[:cursor])
+          else
+            @message = "Fold analysis unavailable"
+          end
+        end
+      end
+
+      pending = @pending_selection_ranges&.[](current)
       return unless pending && pending[:source] == :antares
-      unless pending_fold_valid?(current, pending, document)
-        @pending_folds.delete(current)
+      unless pending_selection_range_valid?(current, pending, document)
+        @pending_selection_ranges.delete(current)
         return
       end
-      return if !document.syntax_ready? && document.pending?
-      @pending_folds.delete(current)
-      if document.syntax_ready?
-        apply_fold(current, document.fold_ranges, pending[:cursor])
+      chains = document.selection_ranges(pending[:heads])
+      return if !chains && document.pending?
+      @pending_selection_ranges.delete(current)
+      if chains
+        apply_selection_ranges(current, pending,
+          normalize_antares_selection_ranges(pending[:buffer].rope, pending[:heads], chains))
       else
-        @message = "Fold analysis unavailable"
+        @message = "Selection analysis unavailable"
       end
     end
 
@@ -632,7 +705,215 @@ module Canopus
       nil
     end
 
+    def invalidate_selection_ranges(buffer = nil, client: nil, editor: nil)
+      affected = []
+      unless editor && !buffer && !client
+        @selection_range_requests&.delete_if do |_id, request|
+          matches = (!buffer || request[:buffer].equal?(buffer)) && (!client || request[:client]&.equal?(client))
+          if matches
+            affected << request[:buffer]
+            request[:future]&.cancel
+          end
+          matches
+        end
+      end
+      @pending_selection_ranges&.delete_if do |current, pending|
+        (!buffer || pending[:buffer].equal?(buffer)) && (!editor || current.equal?(editor)) &&
+          (!client || pending[:client]&.equal?(client) || affected.any? { |item| item.equal?(pending[:buffer]) })
+      end
+      @selection_range_states&.delete_if do |current, state|
+        (!buffer || state[:buffer].equal?(buffer)) && (!editor || current.equal?(editor)) &&
+          (!client || state[:client]&.equal?(client) || affected.any? { |item| item.equal?(state[:buffer]) })
+      end
+      cancel_unused_selection_range_requests
+      nil
+    end
+
+    def invalidate_hidden_selection_ranges
+      visible = @panes.filter_map(&:active)
+      @pending_selection_ranges&.delete_if do |current, _pending|
+        !visible.include?(current)
+      end
+      cancel_unused_selection_range_requests
+      nil
+    end
+    private :invalidate_hidden_selection_ranges
+
     private
+
+    def cancel_unused_selection_range_requests
+      @selection_range_requests&.delete_if do |_id, request|
+        used = (@pending_selection_ranges || {}).values.any? do |pending|
+          pending[:source] == :lsp && pending[:buffer].equal?(request[:buffer]) &&
+            pending[:version] == request[:version] && pending[:heads] == request[:heads] &&
+            (!pending[:client] || !request[:client] || pending[:client].equal?(request[:client]))
+        end
+        request[:future]&.cancel unless used
+        !used
+      end
+      nil
+    end
+
+    def request_selection_ranges(buffer, version, client, heads)
+      requests = @selection_range_requests ||= {}
+      pending = requests.values.any? do |request|
+        request[:buffer].equal?(buffer) && request[:version] == version && request[:heads] == heads &&
+          (!client || !request[:client] || request[:client].equal?(client))
+      end
+      return true if pending
+      return false if requests.length >= SELECTION_RANGE_REQUEST_LIMIT
+
+      @selection_range_request_id = @selection_range_request_id.to_i + 1
+      id = @selection_range_request_id
+      request = {client: client, buffer: buffer, version: version, rope: buffer.rope,
+        heads: heads, uri: Sadr::Protocol.uri(buffer.path)}
+      requests[id] = request
+      job = Thread.new do
+        begin
+          owner = language_client(buffer)
+          request[:client] = owner
+          supported = selection_range_supported?(owner)
+          valid = selection_range_request_valid?(id, request, owner)
+          positions = request[:heads].map { |offset| Sadr::Protocol.position(request[:rope], offset) }
+          future = owner.selection_range(request[:uri], positions) if supported && valid
+          request[:future] = future
+          result = future.await(timeout: 10) if future && selection_range_request_valid?(id, request, owner)
+          future&.cancel unless selection_range_request_valid?(id, request, owner)
+          chains = supported && valid ? normalize_selection_ranges(request[:rope], request[:heads], result) : false
+          chains = false if chains.nil?
+          post do
+            next unless @selection_range_requests&.delete(id).equal?(request)
+            accepted = selection_range_result_valid?(request, owner) &&
+              selection_range_supported?(owner) == supported
+            finish_pending_selection_ranges(buffer, version, heads, accepted ? chains : false, owner)
+          end
+        rescue StandardError
+          post do
+            next unless @selection_range_requests&.delete(id).equal?(request)
+            finish_pending_selection_ranges(buffer, version, heads, false, owner)
+          end
+        ensure
+          worker = Thread.current
+          post { @language_jobs&.delete(worker) }
+        end
+      end
+      (@language_jobs ||= []) << job
+      @language_jobs.reject! { |thread| !thread.alive? }
+      true
+    end
+
+    def finish_pending_selection_ranges(buffer, version, heads, chains, owner)
+      (@pending_selection_ranges || {}).dup.each do |current, pending|
+        next unless pending[:buffer].equal?(buffer) && pending[:version] == version &&
+          pending[:heads] == heads && pending[:source] == :lsp
+        @pending_selection_ranges.delete(current)
+        next unless pending_selection_range_valid?(current, pending)
+
+        pending[:client] = owner
+        pending[:supported] = selection_range_supported?(owner)
+        if chains == false
+          selection_with_antares(current, pending)
+        else
+          apply_selection_ranges(current, pending, chains)
+        end
+      end
+    end
+
+    def selection_with_antares(current, pending)
+      document = pending[:document]
+      chains = document.selection_ranges(pending[:heads])
+      if chains
+        return apply_selection_ranges(current, pending,
+          normalize_antares_selection_ranges(pending[:buffer].rope, pending[:heads], chains))
+      end
+
+      client = @clients[document.definition.name]
+      pending = pending.merge(source: :antares, client: client,
+        supported: selection_range_supported?(client))
+      (@pending_selection_ranges ||= {})[current] = pending
+      @message = "Analyzing selection ranges…"
+      nil
+    rescue StandardError
+      @pending_selection_ranges&.delete(current)
+      @message = "Selection analysis unavailable"
+      false
+    end
+
+    def apply_selection_ranges(current, pending, chains)
+      return false unless pending_selection_range_valid?(current, pending)
+
+      state = {document: pending[:document], buffer: pending[:buffer], version: pending[:version],
+        client: pending[:client], supported: pending[:supported], chains: chains,
+        current: pending[:selections], history: []}
+      (@selection_range_states ||= {})[current] = state
+      apply_selection_expansion(current, state)
+    end
+
+    def apply_selection_expansion(current, state)
+      pairs = state[:current].zip(state[:chains]).map do |selection, chain|
+        range = chain.find do |candidate|
+          candidate.begin <= selection.start && selection.end <= candidate.end &&
+            (candidate.begin < selection.start || selection.end < candidate.end)
+        end
+        expanded = if !range
+          selection
+        elsif selection.reversed?
+          Selection.new(selection.id, range.end, range.begin, nil)
+        else
+          Selection.new(selection.id, range.begin, range.end, nil)
+        end
+        [expanded, chain]
+      end.sort_by { |selection, _chain| selection.start }
+      expanded = pairs.map(&:first).freeze
+      if expanded == state[:current]
+        @message = "No larger selection"
+        return false
+      end
+
+      state[:history] << [state[:current], state[:chains]].freeze
+      state[:current] = expanded
+      state[:chains] = pairs.map(&:last).freeze
+      current.set_selections(expanded, merge: false)
+      current.reveal_cursor
+      @message = "Selection expanded"
+      @window&.request_frame
+      true
+    end
+
+    def pending_selection_range_valid?(current, pending, document = pending[:document])
+      !@closed && current.language_document.equal?(document) && current.buffer.equal?(pending[:buffer]) &&
+        current.buffer.version == pending[:version] && current.selections == pending[:selections] &&
+        @panes.any? { |pane| pane.active.equal?(current) }
+    end
+
+    def selection_range_state_valid?(current, state)
+      client = @clients[current.language_document.definition.name]
+      !@closed && client.equal?(state[:client]) && selection_range_supported?(client) == state[:supported] &&
+        current.language_document.equal?(state[:document]) && current.buffer.equal?(state[:buffer]) &&
+        current.buffer.version == state[:version] && current.selections == state[:current] &&
+        @panes.any? { |pane| pane.active.equal?(current) }
+    end
+
+    def selection_range_supported?(client)
+      provider = client.capabilities["selectionRangeProvider"] if client&.respond_to?(:capabilities)
+      provider == true || provider.is_a?(Hash)
+    end
+
+    def selection_range_result_valid?(request, owner)
+      selection_range_context_valid?(request) && @clients.value?(owner) &&
+        @opened_lsp_documents&.key?([owner, request[:buffer]])
+    end
+
+    def selection_range_request_valid?(id, request, owner)
+      @selection_range_requests&.[](id).equal?(request) && selection_range_result_valid?(request, owner)
+    end
+
+    def selection_range_context_valid?(request)
+      buffer = request[:buffer]
+      !@closed && buffer.version == request[:version] && buffer.path &&
+        Sadr::Protocol.uri(buffer.path) == request[:uri] &&
+        @panes.any? { |pane| pane.editors.any? { |current| current.buffer.equal?(buffer) } }
+    end
 
     def request_folding_ranges(buffer, version, client)
       requests = @folding_range_requests ||= {}
@@ -1846,6 +2127,67 @@ module Canopus
       raise Error, "invalid folding ranges: #{error.message}"
     end
 
+    def normalize_selection_ranges(rope, positions, result)
+      return nil if result.nil?
+      unless result.is_a?(Array) && result.length == positions.length
+        raise Error, "invalid selection ranges"
+      end
+
+      total = 0
+      result.zip(positions).map do |root, position|
+        node, child, depth, ranges = root, nil, 0, []
+        loop do
+          unless node.is_a?(Hash) && depth < SELECTION_RANGE_DEPTH_LIMIT
+            raise Error, "invalid selection range chain"
+          end
+          range = strict_language_range(rope, node.fetch("range"), "selection")
+          unless range.begin <= position && position <= range.end &&
+              (!child || range.begin <= child.begin && child.end <= range.end)
+            raise Error, "invalid selection range nesting"
+          end
+          ranges << range unless ranges.last == range
+          total += 1
+          raise Error, "too many selection ranges" if total > SELECTION_RANGE_LIMIT
+          break unless node.key?("parent")
+          node, child, depth = node["parent"], range, depth + 1
+        end
+        ranges.freeze
+      end.freeze
+    rescue KeyError, RangeError, TypeError, ArgumentError, Sadr::Error => error
+      raise Error, "invalid selection ranges: #{error.message}"
+    end
+
+    def normalize_antares_selection_ranges(rope, positions, result)
+      unless result.is_a?(Array) && result.length == positions.length
+        raise Error, "invalid Antares selection ranges"
+      end
+      total = 0
+      result.zip(positions).map do |ranges, position|
+        child = nil
+        unless ranges.is_a?(Array) && ranges.length <= SELECTION_RANGE_DEPTH_LIMIT
+          raise Error, "invalid Antares selection range chain"
+        end
+        ranges.map do |range|
+          unless range.is_a?(Range) && range.exclude_end? && range.begin.is_a?(Integer) && range.end.is_a?(Integer) &&
+              range.begin >= 0 && range.end >= range.begin
+            raise Error, "invalid Antares selection range"
+          end
+          rope.point_at(range.begin)
+          rope.point_at(range.end)
+          unless range.begin <= position && position <= range.end &&
+              (!child || range.begin <= child.begin && child.end <= range.end)
+            raise Error, "invalid Antares selection range nesting"
+          end
+          child = range
+          total += 1
+          raise Error, "too many Antares selection ranges" if total > SELECTION_RANGE_LIMIT
+          range.freeze
+        end.uniq.freeze
+      end.freeze
+    rescue RangeError, TypeError, ArgumentError => error
+      raise Error, "invalid Antares selection ranges: #{error.message}"
+    end
+
     def folding_position(rope, row, character, present)
       point = if !present
         Sadr::Protocol.position(rope, rope.line_start(row) + rope.line(row).bytesize)
@@ -1962,6 +2304,7 @@ module Canopus
       (@language_document_subscriptions ||= {})[key] = buffer.on_edit do |patch|
         invalidate_document_highlights(buffer)
         invalidate_folding_ranges(buffer)
+        invalidate_selection_ranges(buffer)
         invalidate_inlay_hints(buffer)
         invalidate_code_lenses(buffer)
         invalidate_sticky_symbols(buffer)
@@ -1987,6 +2330,7 @@ module Canopus
       invalidate_diagnostics(buffer)
       invalidate_document_highlights(buffer, client: client)
       invalidate_folding_ranges(buffer, client: client)
+      invalidate_selection_ranges(buffer, client: client)
       invalidate_inlay_hints(buffer)
       invalidate_code_lenses(buffer)
       invalidate_sticky_symbols(buffer, client: client)

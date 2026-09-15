@@ -8,6 +8,8 @@ module Canopus
       LINE_LIMIT = 16 << 10
       ROW_LIMIT = 256
       CACHE_ROWS = 512
+      SELECTION_LIMIT = 256
+      SELECTION_RANGE_LIMIT = 10_000
       Snapshot = Data.define(:rope, :version, :id, :name, :lexer, :first, :last, :syntax)
       attr_reader :analysis_error
 
@@ -89,10 +91,32 @@ module Canopus
         rows ? values.select { |pair| pair.close_row >= rows.begin && pair.open_row < rows.end } : values
       end
       def structure_regions = (request(syntax: true); @syntax ? @syntax[:structure_regions] : EMPTY)
+      def selection_ranges(offsets)
+        unless offsets.is_a?(Array) && offsets.length.between?(1, SELECTION_LIMIT)
+          raise ArgumentError, "selection offsets must contain 1..#{SELECTION_LIMIT} entries"
+        end
+        positions = offsets.each_with_index.map do |offset, index|
+          point = @buffer.rope.point_at(offset)
+          [index, point.row, point.column, offset].freeze
+        end.freeze
+        unless @selection_positions&.map(&:last) == offsets
+          @job&.cancel
+          @job = nil
+          @selection_positions, @selection_results = positions, {}
+          @generation += 1
+          @failed = false
+          @analysis_error = nil
+          @dirty = missing_work?
+        end
+        return unless @selection_results.length == positions.length
+
+        positions.map { |index,| @selection_results.fetch(index) }.freeze
+      end
 
       def invalidate(patch)
         @job&.cancel
         @job = @syntax = nil
+        @selection_positions = @selection_results = nil
         @syntax_rows.clear
         if patch.is_a?(Patch::Reload)
           @tokens.clear
@@ -118,6 +142,12 @@ module Canopus
           result = job.future.await(timeout: 0)
           if @submitted_version == @buffer.version && @submitted_generation == @generation
             result[:tokens].each { |row, tokens| @tokens[row] = tokens; @stale.delete(row) }
+            if @selection_results
+              result[:selections].each { |index, ranges| @selection_results[index] = ranges }
+              if @selection_results.values.sum(&:length) > SELECTION_RANGE_LIMIT
+                raise Error, "too many background selection ranges"
+              end
+            end
             while @tokens.length > CACHE_ROWS
               @tokens.delete(@tokens.each_key.find { |row| !@rows.include?(row) })
             end
@@ -134,15 +164,17 @@ module Canopus
           @scheduler ||= Scheduler.acquire
           # A folded viewport can contain distant source rows. Fill one missing
           # contiguous run at a time without paint changing/cancelling its job.
-          missing = @rows.select { |row| row_needed?(row) }
-          missing = @rows if missing.empty?
+          rows = work_rows
+          missing = rows.select { |row| row_needed?(row) }
+          missing = rows if missing.empty?
           first = last = missing.first
           missing.drop(1).each do |row|
             break unless row == last + 1
             last = row
           end
           snapshot = Snapshot.new(@buffer.rope, @buffer.version, @id,
-            @document.definition.name, @document.definition.lexer, first, last, !!(@want_syntax && !syntax_complete?))
+            @document.definition.name, @document.definition.lexer, first, last,
+            {syntax: !!(@want_syntax && !syntax_complete?), selections: @selection_positions}.freeze)
           if (@job = @scheduler.submit(snapshot, prior_syntax: @syntax))
             @submitted_version, @submitted_generation = @buffer.version, @generation
           end
@@ -168,6 +200,7 @@ module Canopus
         @provisional.clear
         @syntax_rows.clear
         @syntax = nil
+        @selection_positions = @selection_results = nil
         @analysis_error = nil
       end
 
@@ -211,10 +244,16 @@ module Canopus
         last = [last, end_row].min
         job.check!
         source = rope.byteslice(from, to - from).to_s.freeze
+        selection_request = snapshot.syntax.is_a?(Hash) ? snapshot.syntax : {}
+        syntax = selection_request.fetch(:syntax, snapshot.syntax == true)
+        selections = Array(selection_request[:selections]).filter_map do |index, row, column, _offset|
+          [index, row, column] if row.between?(rope.point_at(from).row, end_row)
+        end
         {"id" => snapshot.id, "version" => snapshot.version, "name" => snapshot.name,
           "lexer" => snapshot.lexer, "source" => source, "base" => from,
           "base_line" => rope.point_at(from).row, "first" => first, "last" => last,
-          "syntax" => snapshot.syntax, "complete" => complete, "context" => context}.freeze
+          "syntax" => syntax, "selections" => selections.freeze,
+          "complete" => complete, "context" => context}.freeze
       end
 
       def self.decode(response, prior_syntax: nil)
@@ -241,7 +280,24 @@ module Canopus
             complete: response.fetch("complete")}.freeze
         end
         syntax = merge_syntax(prior_syntax, syntax) if prior_syntax && syntax && !syntax[:complete]
-        {tokens: tokens, syntax: syntax}.freeze
+        values = response.fetch("selections", [])
+        unless values.is_a?(Array) && values.length <= SELECTION_LIMIT
+          raise Error, "invalid background selection ranges"
+        end
+        seen, total = {}, 0
+        selections = values.to_h do |index, ranges|
+          total += ranges.length if ranges.is_a?(Array)
+          unless index.is_a?(Integer) && index.between?(0, SELECTION_LIMIT - 1) && !seen.key?(index) &&
+              ranges.is_a?(Array) && total <= SELECTION_RANGE_LIMIT && ranges.all? do |range|
+                range.is_a?(Array) && range.length == 2 && range.all? { |value| value.is_a?(Integer) && value >= 0 } &&
+                  range[0] <= range[1]
+              end
+            raise Error, "invalid background selection ranges"
+          end
+          seen[index] = true
+          [index, ranges.map { |first, last| (first...last).freeze }.freeze]
+        end.freeze
+        {tokens: tokens, syntax: syntax, selections: selections}.freeze
       end
 
       # Decoding and bounded merging happen on a preparation thread, never in
@@ -266,8 +322,12 @@ module Canopus
       end
 
       private
-      def row_needed?(row) = !@tokens.key?(row) || (@want_syntax && !syntax_complete? && !@syntax_rows.key?(row))
-      def missing_work? = @rows.any? { |row| row_needed?(row) }
+      def row_needed?(row)
+        !@tokens.key?(row) || (@want_syntax && !syntax_complete? && !@syntax_rows.key?(row)) ||
+          @selection_positions&.any? { |index, selection_row,| selection_row == row && !@selection_results.key?(index) }
+      end
+      def work_rows = [*@rows, *@selection_positions&.map { |_, row,| row }].compact.uniq.sort
+      def missing_work? = work_rows.any? { |row| row_needed?(row) }
 
       def retain_unchanged_rows(patch)
         return if patch.edits.empty?

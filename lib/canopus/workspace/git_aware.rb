@@ -111,6 +111,7 @@ module Canopus
       buffer = Buffer.new(Porrima.unified(before, editor.buffer.text, old_name: "a/#{path}", new_name: "b/#{path}"), read_only: true)
       @buffers[buffer.object_id] = buffer
       @active_pane.open(buffer).language = Language::Definition.new("diff", "diff", [], "", /\A\z/, /\A\z/, [])
+      invalidate_hidden_selection_ranges
     end
     def toggle_git_hunk(current = editor, row: nil)
       row ||= current.buffer.rope.point_at(current.primary.head).row

@@ -36,6 +36,7 @@ installable.
 - LSP completion, diagnostics, hover, symbols, formatting, rename, and code actions
 - Automatic read, write, and text highlights for the symbol at each visible editor's caret
 - LSP folding ranges with an asynchronous Antares fallback
+- LSP-aware selection expansion with an asynchronous Antares fallback
 - Ranked, extensible completion and inline-completion provider registry
 - Viewport-scoped LSP inlay hints with clickable label locations
 - Nested bracket colors and active indentation guides backed by Antares structure analysis
@@ -92,7 +93,8 @@ plugin options.
 | Save / undo / redo | Cmd-S / Cmd-Z / Cmd-Shift-Z | Ctrl-S / Ctrl-Z / Ctrl-Shift-Z |
 | Find / project search | Cmd-F / Cmd-Shift-F | Ctrl-F / Ctrl-Shift-F |
 | Replace / next occurrence | Cmd-Alt-F / Cmd-D | Ctrl-H / Ctrl-D |
-| All occurrences / move lines | Cmd-Shift-L / Alt-Up or Down | Ctrl-Shift-L / Alt-Up or Down |
+| All occurrences / expand or shrink selection | Cmd-Shift-L / Alt-Up or Down | Ctrl-Shift-L / Alt-Up or Down |
+| Move lines | Alt-Shift-Up or Down | Alt-Shift-Up or Down |
 | Completion / definition | Ctrl-Space / F12 | Ctrl-Space / F12 |
 | Split / terminal | Cmd-Backslash / Ctrl-Backtick | Ctrl-Backslash / Ctrl-Backtick |
 | Close / reopen tab | Cmd-W / Cmd-Shift-T | Ctrl-W / Ctrl-Shift-T |

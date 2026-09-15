@@ -204,6 +204,7 @@ module Canopus
       @buffers[projection.object_id] = projection
       @active_pane.editors << prepared.editor
       @active_pane.activate(@active_pane.editors.length - 1)
+      invalidate_hidden_selection_ranges
       @message = "#{prepared.count} matches — edit excerpts, then Save to save source files"
       @window&.request_frame
       prepared = nil

@@ -40,23 +40,18 @@ module Canopus
       self
     end
 
-    def set_selections(selections)
-      merged = []
-      selections.sort_by(&:start).each do |selection|
-        if merged.last && (selection.start < merged.last.end || (selection.start == merged.last.end && !snippet_active?))
-          previous = merged.pop
-          merged << Selection.new(previous.id, previous.start, [previous.end, selection.end].max, selection.goal)
-        else
-          merged << selection
-        end
+    def set_selections(selections, merge: true)
+      unless merge
+        @selections = selections.sort_by(&:start).freeze
+        return @buffer.selections = @selections
       end
-      @selections = merged.freeze
+      @selections = merged_selections(selections).freeze
       @buffer.selections = @selections
     end
 
     def insert_text(text, auto_indent: true)
       raise ArgumentError, "text must be UTF-8" unless text.is_a?(String) && text.valid_encoding?
-      texts = @selections.map do |selection|
+      texts = merged_selections(@selections, touching: false).map do |selection|
         if text == "\n" && auto_indent
           indent = language_document.indent_for(selection.start, tab_size: @tab_size, use_tabs: @use_tabs)
           if language_document.definition == Language::PLAIN
@@ -76,18 +71,29 @@ module Canopus
     end
 
     def replace_selections(texts, kind: :edit, group: false, cursor_back: 0, before_selections: @selections)
-      texts = Array.new(@selections.length, texts) if texts.is_a?(String)
-      raise ArgumentError, "one text per selection required" unless texts.length == @selections.length
-      changes = @selections.zip(texts).map { |selection, text| [selection.range, text] }
+      selections = merged_selections(@selections, touching: false)
+      if texts.is_a?(Array)
+        unless [@selections.length, selections.length].include?(texts.length)
+          raise ArgumentError, "one text per selection required"
+        end
+        if selections.length != @selections.length
+          raise ArgumentError, "overlapping selections require the same text" unless texts.uniq.length == 1
+          texts = texts.first
+        end
+      end
+      texts = Array.new(selections.length, texts) if texts.is_a?(String)
+      raise ArgumentError, "one text per selection required" unless texts.length == selections.length
+      changes = selections.zip(texts).map { |selection, text| [selection.range, text] }
       @buffer.selections = before_selections
       delta = 0
-      after = @selections.zip(texts).map do |selection, text|
+      after = selections.zip(texts).map do |selection, text|
         ending = selection.start + delta + text.bytesize - cursor_back
         delta += text.bytesize - (selection.end - selection.start)
         Selection.new(selection.id, ending, ending, nil)
       end
+      after = merged_selections(after)
       @buffer.edit(changes, kind: kind, selections: after, before_selections: before_selections, group: group)
-      set_selections(after)
+      set_selections(after, merge: false)
     end
 
     def delete_backward
@@ -108,14 +114,14 @@ module Canopus
     def undo
       clear_snippet
       return false unless @buffer.undo
-      set_selections(@buffer.selections)
+      set_selections(@buffer.selections, merge: false)
       reveal_cursor
       true
     end
     def redo
       clear_snippet
       return false unless @buffer.redo
-      set_selections(@buffer.selections)
+      set_selections(@buffer.selections, merge: false)
       reveal_cursor
       true
     end
@@ -353,6 +359,16 @@ module Canopus
     end
 
     private
+    def merged_selections(selections, touching: !snippet_active?)
+      selections.sort_by(&:start).each_with_object([]) do |selection, merged|
+        if merged.last && (selection.start < merged.last.end || (touching && selection.start == merged.last.end))
+          previous = merged.pop
+          merged << Selection.new(previous.id, previous.start, [previous.end, selection.end].max, selection.goal)
+        else
+          merged << selection
+        end
+      end
+    end
     def horizontal(offset, direction)
       if @buffer.rope.respond_to?(:lazy?)
         rope = @buffer.rope

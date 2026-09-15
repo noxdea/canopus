@@ -149,6 +149,7 @@ module Canopus
       opened.language = definition_for(absolute)
       apply_editor_settings(opened)
       @project_tree&.reveal(absolute.delete_prefix(@root + File::SEPARATOR))
+      invalidate_hidden_selection_ranges
       @window&.request_frame
       opened
     end
@@ -211,6 +212,7 @@ module Canopus
       @buffers[buffer.object_id] = buffer
       opened = @active_pane.open(buffer)
       apply_editor_settings(opened)
+      invalidate_hidden_selection_ranges
       opened
     end
     def focus(pane)
@@ -224,6 +226,7 @@ module Canopus
       @vim_states[editor]&.deactivate unless tab.equal?(editor)
       focus(pane)
       pane.activate(pane.editors.index(tab))
+      invalidate_hidden_selection_ranges
     end
     def split(direction = :horizontal)
       raise ArgumentError, "invalid split" unless [:horizontal, :vertical].include?(direction)
@@ -260,6 +263,7 @@ module Canopus
       @sticky_context_cache&.clear
       invalidate_document_highlights(editor: current)
       invalidate_folding_ranges(editor: current)
+      invalidate_selection_ranges(editor: current)
       invalidate_brackets(current.buffer)
       pane.close(current, discard: discard, activate: @settings["tabs"]["activate_on_close"].to_sym)
       release_buffer(current.buffer, discard: discard)
@@ -345,6 +349,7 @@ module Canopus
       to.active_index = index
       to.pin(editor) if pinned
       focus(to)
+      invalidate_hidden_selection_ranges
     end
 
     def new_terminal(cwd: terminal_working_directory)
@@ -706,6 +711,7 @@ module Canopus
       cancel_project_search
       invalidate_document_highlights
       invalidate_folding_ranges
+      invalidate_selection_ranges
       invalidate_inlay_hints
       @inlay_hint_requests&.clear
       invalidate_code_lenses
@@ -755,8 +761,8 @@ module Canopus
       register_action("pane.split_down") { split(:vertical) }
       register_action("pane.next") { focus(@panes[(@panes.index(@active_pane) + 1) % @panes.length]) }
       register_action("tab.pin") { @active_pane.pin }
-      register_action("tab.back") { @vim_states[editor]&.deactivate; @active_pane.back }
-      register_action("tab.forward") { @vim_states[editor]&.deactivate; @active_pane.forward }
+      register_action("tab.back") { @vim_states[editor]&.deactivate; @active_pane.back; invalidate_hidden_selection_ranges }
+      register_action("tab.forward") { @vim_states[editor]&.deactivate; @active_pane.forward; invalidate_hidden_selection_ranges }
       register_action("edit.undo") { editor.undo }
       register_action("edit.redo") { editor.redo }
       register_action("edit.select_all") { editor.select_all }
@@ -774,6 +780,8 @@ module Canopus
         register_action("language.#{kind}") { language_request(kind) }
       end
       register_action("language.rename") { self.palette = {kind: :rename, query: +"", index: 0, matches: []} }
+      register_action("language.expand_selection") { expand_selection }
+      register_action("language.shrink_selection") { shrink_selection }
       register_action("editor.fold") { fold_current }
       register_action("editor.unfold") { editor.display_map.unfold(editor.primary.head) }
       register_action("edit.indent") { editor.indent }

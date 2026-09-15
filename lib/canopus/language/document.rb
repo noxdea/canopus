@@ -118,6 +118,21 @@ module Canopus
           {start_line: region.start_line, end_line: region.end_line, kind: region.kind}.freeze
         end.freeze
       end
+      def selection_ranges(offsets)
+        return @background.selection_ranges(offsets) if @background
+        offsets.map do |offset|
+          point = @buffer.rope.point_at(offset)
+          ranges = highlighter.structure.selection_ranges(point.row, point.column).map do |region|
+            first = @buffer.rope.offset_at(Denebola::Point.new(region.start_line, region.start_column || 0))
+            last = @buffer.rope.offset_at(Denebola::Point.new(region.end_line,
+              region.end_column || @buffer.line(region.end_line).length))
+            (first...last).freeze
+          end.uniq.sort_by { |range| [range.size, -range.begin] }
+          ranges.each_with_object([]) do |range, nested|
+            nested << range if !nested.last || (range.begin <= nested.last.begin && nested.last.end <= range.end)
+          end.freeze
+        end.freeze
+      end
 
       private
       def bracket_rows(rows)

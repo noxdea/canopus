@@ -116,6 +116,52 @@ class EditorTest < Minitest::Test
     assert_equal "日 日\ntwo", editor.buffer.text
   end
 
+  def test_preserved_overlapping_selections_are_normalized_only_for_safe_edits
+    editor = Canopus::Editor.new(Canopus::Buffer.new("abcdef"))
+    adjacent = [Canopus::Selection.new(1, 0, 2, nil), Canopus::Selection.new(2, 2, 4, nil)]
+    editor.set_selections(adjacent, merge: false)
+    editor.replace_selections(["x", "y"])
+    assert_equal "xyef", editor.buffer.text
+
+    overlapping = [Canopus::Selection.new(3, 0, 2, nil), Canopus::Selection.new(4, 1, 3, nil)]
+    editor.set_selections(overlapping, merge: false)
+    editor.replace_selections(["z", "z"])
+    assert_equal "zf", editor.buffer.text
+    assert_equal 1, editor.selections.length
+
+    editor.undo
+    editor.set_selections(overlapping, merge: false)
+    before = editor.selections
+    assert_raises(ArgumentError) { editor.replace_selections(["x", "y"]) }
+    assert_raises(ArgumentError) { editor.replace_selections(["x", "x", "x"]) }
+    assert_equal before, editor.selections
+    assert_equal "xyef", editor.buffer.text
+  end
+
+  def test_typing_into_preserved_overlapping_selections_restores_them_on_undo
+    editor = Canopus::Editor.new(Canopus::Buffer.new("abcdef"))
+    selections = [Canopus::Selection.new(1, 0, 2, nil), Canopus::Selection.new(2, 1, 3, 4)]
+    editor.set_selections(selections, merge: false)
+
+    editor.insert_text("x", auto_indent: false)
+    assert_equal "xdef", editor.buffer.text
+    assert editor.undo
+    assert_equal selections, editor.selections
+  end
+
+  def test_redo_restores_the_same_normalized_selection_as_the_original_edit
+    editor = Canopus::Editor.new(Canopus::Buffer.new("abcdef"))
+    selections = [Canopus::Selection.new(1, 0, 2, nil), Canopus::Selection.new(2, 2, 4, nil)]
+    editor.set_selections(selections, merge: false)
+
+    editor.replace_selections(["", ""])
+    assert_equal 1, editor.selections.length
+    assert editor.undo
+    assert_equal selections, editor.selections
+    assert editor.redo
+    assert_equal 1, editor.selections.length
+  end
+
   def test_line_movement_keeps_multibyte_cursors_and_history
     editor = Canopus::Editor.new(Canopus::Buffer.new("top\r\n日本\r\nlast"))
     editor.select(8)

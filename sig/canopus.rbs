@@ -193,7 +193,7 @@ module Canopus
     def language=: (Language::Definition definition) -> Language::Document
     def primary: () -> Selection
     def select: (Integer first, ?Integer last, ?add: bool) -> self
-    def set_selections: (Array[Selection] selections) -> Array[Selection]
+    def set_selections: (Array[Selection] selections, ?merge: bool) -> Array[Selection]
     def insert_text: (String text, ?auto_indent: bool) -> untyped
     def edit: (Array[[Range[Integer], String]] changes, ?kind: Symbol) -> Array[Selection]?
     def delete_backward: () -> untyped
@@ -275,6 +275,7 @@ module Canopus
       def bracket_at: (Integer offset) -> Range[Integer]?
       def brackets: (?Range[Integer]? rows) -> Array[Bracket]
       def structure_regions: () -> Array[{start_line: Integer, end_line: Integer, kind: ::Symbol}]
+      def selection_ranges: (Array[Integer] offsets) -> Array[Array[Range[Integer]]]?
     end
   end
   class Settings
@@ -397,6 +398,9 @@ module Canopus
     def request_document_highlights: (Editor current) -> bool
     def invalidate_document_highlights: (?Buffer? buffer, ?client: Sadr::Client?, ?editor: Editor?) -> nil
     def invalidate_folding_ranges: (?Buffer? buffer, ?client: Sadr::Client?, ?editor: Editor?) -> nil
+    def expand_selection: (?Editor current) -> bool?
+    def shrink_selection: (?Editor current) -> bool
+    def invalidate_selection_ranges: (?Buffer? buffer, ?client: Sadr::Client?, ?editor: Editor?) -> nil
     def apply_workspace_edit: (Sadr::object edit, ?confirmed: bool) -> Sadr::object
     def resource_workspace_edit?: (Sadr::object edit) -> bool
     def confirm_workspace_edit: (Sadr::object edit, ?label: String, ?response: Sadr::Future?, ?on_applied: ^() -> void) -> untyped
