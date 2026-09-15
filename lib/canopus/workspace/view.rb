@@ -27,6 +27,7 @@ module Canopus
     end
     def paint(bounds, _state, _prepaint, cx)
       @cx, @theme, @scene = cx, @workspace.theme, cx.scene
+      @children.clear
       @viewport_bounds = bounds
       @painted_palette = @workspace.palette
       @font_size = @workspace.settings["font_size"]
@@ -34,6 +35,7 @@ module Canopus
       @line_height = 20 if @cx.window.is_a?(Zaniah::Platform::TUI::Window)
       @regions.clear
       @row_layouts.clear
+      @overlay_rows = []
       @editor_bounds.clear
       @accessibility.clear
       @frame_diagnostics.clear
@@ -175,16 +177,20 @@ module Canopus
         height = bounds.height / panels.length
         area = Zaniah::Bounds.new(bounds.x + 8, bounds.y + height * index, [bounds.width - 16, 0].max, height)
         text(definition.title, area.x + 4, area.y + 10, color: :muted, size: 12)
+        if definition.badge
+          badge = Zaniah::Text.new(ui_text(definition.badge), size: 11, color: @theme[:accent])
+            .w(36).h(22).test_id("syrma:panel:#{instrumentation_component(definition.id)}:badge")
+          paint_element(badge, Zaniah::Bounds.new(area.right - 40, area.y + 5, 36, 22))
+        end
         key = [definition.id, @workspace.editor&.buffer&.object_id, @workspace.editor&.buffer&.version, @theme.object_id]
         @panel_cache ||= {}
         @panel_cache.clear if @panel_cache.length > 50
         element = @panel_cache[key] ||= definition.build.call
-        element = Zaniah::Text.new(element.to_s, color: @theme[:foreground]) unless element.is_a?(Zaniah::Element)
-        root = element.request_layout(@cx)
-        Zaniah::Layout::Engine.new.compute(root, x: area.x, y: area.y + 34, width: area.width, height: [area.height - 34, 0].max)
+        element = Zaniah::Text.new(ui_text(element), color: @theme[:foreground]) unless element.is_a?(Zaniah::Element)
+        panel = Zaniah::Div.new.w(area.width).h([area.height - 34, 0].max)
+          .test_id("syrma:panel:#{instrumentation_component(definition.id)}").child(element)
         @scene.clip(area) do
-          element.prepaint(root.bounds, nil, @cx)
-          element.paint(root.bounds, nil, nil, @cx)
+          paint_element(panel, Zaniah::Bounds.new(area.x, area.y + 34, area.width, [area.height - 34, 0].max))
         end
       rescue StandardError => error
         text(error.message, area.x, area.y + 34, color: :error, size: 12)
@@ -272,8 +278,17 @@ module Canopus
       visible_source_rows = (first...last).map { |index| map.source_row(index) }
       visible_rows = visible_source_rows.empty? ? (0...0) : (visible_source_rows.min..visible_source_rows.max)
       decorations = @workspace.decorations.items_for(editor.buffer, visible_rows, context: editor)
+      if map.set_overlays(decorations.select { |item| %i[inline block].include?(item.kind) },
+        font: @cx.text_system&.font, font_size: @font_size, line_height: @line_height)
+        last = [first + editor.viewport_rows + 1, map.row_count].min
+        cursor = map.to_display(cursor_offset)
+        visible_source_rows = (first...last).map { |index| map.source_row(index) }
+        visible_rows = visible_source_rows.empty? ? (0...0) : (visible_source_rows.min..visible_source_rows.max)
+        decorations = @workspace.decorations.items_for(editor.buffer, visible_rows, context: editor)
+      end
       gutter_items = decorations.select { |item| item.kind == :gutter }
       highlight_items = decorations.select { |item| item.kind == :highlight }
+      line_items = decorations.select { |item| item.kind == :line }
       cursor_row = map.row(cursor.row)
       cursor_line = @cx.text_system&.layout_line(cursor_row.text, size: @font_size)
       brackets = []
@@ -298,13 +313,16 @@ module Canopus
         (first...last).each do |index|
           row = map.row(index)
           y = bounds.y + (index - editor.scroll_y) * @line_height + 4
-          fill(Zaniah::Bounds.new(bounds.x, y - 2, bounds.width, @line_height), :current_line) if cursor.row == index
           source_row = map.source_row(index)
+          fill(Zaniah::Bounds.new(bounds.x, y - 2, bounds.width, @line_height), :current_line) if cursor.row == index
+          paint_line_decorations(editor, source_row, y, bounds, line_items)
           gutter_items.each do |item|
             style = item.style.is_a?(Hash) ? item.style : {color: item.style, rows: 1}
             next unless source_row.between?(item.row, item.row + style.fetch(:rows, 1) - 1)
 
-            fill(Zaniah::Bounds.new(bounds.x + 2, y - 1, 3, @line_height), style.fetch(:color, :accent))
+            marker = Zaniah::Bounds.new(bounds.x + 2, y - 1, 3, @line_height)
+            paint_instrumented_fill(marker, style.fetch(:color, :accent),
+              "syrma:decoration:gutter:#{source_row}:#{instrumentation_component(item.source)}")
             if row.kind == :text && item.on_click
               region(Zaniah::Bounds.new(bounds.x, y - 1, 10, @line_height), role: :button,
                 label: item.content.to_s, action: [:decoration, item.on_click, editor, source_row])
@@ -313,7 +331,9 @@ module Canopus
           number = editor.relative_line_numbers ? (source_row - editor.buffer.rope.point_at(editor.primary.head).row).abs : source_row + 1
           number = source_row + 1 if number.zero?
           text(number, bounds.x + 12, y, color: cursor.row == index ? :foreground : :muted, size: @font_size - 1) if row.kind == :text
-          line = @cx.text_system&.layout_line(row.text, size: @font_size)
+          line, paint_overlays = prepare_inline_overlays(editor, row, left, y,
+            [bounds.width - gutter(editor), 1].max)
+          line ||= @cx.text_system&.layout_line(row.text, size: @font_size)
           measured_width = [measured_width, line&.width || row.text.length * @font_size * 0.6].max
           @row_layouts[[editor, index]] = line
           paint_highlights(editor, index, row, line, left, y, highlight_items)
@@ -323,11 +343,13 @@ module Canopus
             width = [column_x(row.text, line, point.column + 1) - x, 4].max
             fill(Zaniah::Bounds.new(left + x, y + @line_height - 2, width, 2), :accent)
           end
-          if row.kind == :text && line
+          if row.kind == :text && line && @cx.text_system
             spans = code_spans(editor, source_row, row)
             @cx.text_system.paint_line(@scene, line, x: left, y: y + line.ascent, color: @theme[:foreground], spans: spans)
             @cx.window.text_runs << [left, y, row.text, @theme[:foreground]]
-          else
+          elsif row.kind == :overlay_block
+            paint_block_overlay(editor, row.metadata, left, y, [bounds.width - gutter(editor), 1].max) if row.metadata
+          elsif row.kind != :overlay_block_continuation
             color = if row.kind == :git_diff
               row.text.start_with?("+") ? "#80b987" : row.text.start_with?("-") ? :error : :muted
             else
@@ -336,6 +358,7 @@ module Canopus
             text(row.text, left, y, color: color)
           end
           paint_diagnostics(editor, index, row, line, left, y) if row.kind == :text
+          paint_overlays&.call
           if cursor.row == index && active
             x = left + column_x(row.text, line, cursor.column)
             width = @workspace.settings["vim_mode"] && @workspace.vim.mode != :insert ? @font_size * 0.6 : 1.5
@@ -385,6 +408,87 @@ module Canopus
     end
     def column_x(value, line, column)
       line ? line.x_for_index(value[0, column].to_s.bytesize) : column * @font_size * 0.6
+    end
+    def prepare_inline_overlays(editor, row, left, y, width)
+      return [nil, nil] unless row.kind == :text && row.metadata.is_a?(Array) && !row.metadata.empty?
+
+      overlay = Zaniah::Text.new(row.text, size: @font_size, color: "#0000", wrap: :none,
+        line_height: @line_height).w(width)
+      row.metadata.each do |placement|
+        overlay.inline_overlay(offset: placement.offset,
+          element: decoration_element(editor, placement.item, placement.width, placement.height)
+            .test_id("syrma:decoration:inline:#{editor.buffer.rope.point_at(placement.item.range.begin).row}"),
+          align: placement.align)
+      end
+      node = overlay.request_layout(@cx)
+      Zaniah::Layout::Engine.new.compute(node, x: left, y: y, width: width, height: @line_height)
+      overlay.prepaint(node.bounds, nil, @cx)
+      row.metadata.zip(overlay.children).each do |placement, element|
+        register_overlay_region(editor, placement.item, element.layout_node.bounds)
+      end
+      @overlay_rows << overlay
+      child(overlay)
+      paragraph = overlay.instance_variable_get(:@paragraph)
+      painter = -> { overlay.children.each { |child| child.paint(child.layout_node.bounds, nil, nil, @cx) } }
+      [paragraph.lines.first.layout, painter]
+    end
+    def paint_block_overlay(editor, block, left, y, width)
+      overlay = Zaniah::Text.new(" ", size: @font_size, color: "#0000", wrap: :none,
+        line_height: @line_height).w(width)
+      overlay.block_overlay(line: 0, position: :above, height: block.height,
+        element: decoration_element(editor, block.item, width, block.height))
+      node = overlay.request_layout(@cx)
+      Zaniah::Layout::Engine.new.compute(node, x: left, y: y, width: width, height: block.height + @line_height)
+      overlay.prepaint(node.bounds, nil, @cx)
+      register_overlay_region(editor, block.item, overlay.children.first.layout_node.bounds)
+      overlay.children.each { |child| child.paint(child.layout_node.bounds, nil, nil, @cx) }
+      @overlay_rows << overlay
+      child(overlay)
+    end
+    def paint_line_decorations(editor, source_row, y, bounds, items)
+      items.each do |item|
+        row = item.row || (item.range && editor.buffer.rope.point_at(item.range.begin).row)
+        next unless row == source_row
+
+        style = item.style.is_a?(Hash) ? item.style : {color: item.style}
+        area = Zaniah::Bounds.new(bounds.x + gutter(editor), y - 2,
+          [bounds.width - gutter(editor), 1].max, @line_height)
+        paint_instrumented_fill(area, style.fetch(:color, :current_line),
+          "syrma:decoration:line:#{source_row}:#{instrumentation_component(item.source)}")
+      end
+    end
+    def paint_instrumented_fill(bounds, color, test_id)
+      color = @theme[color] if color.is_a?(Symbol)
+      paint_element(Zaniah::Div.new.w(bounds.width).h(bounds.height).bg(color).test_id(test_id), bounds)
+    end
+    def paint_element(element, bounds)
+      child(element)
+      root = element.request_layout(@cx)
+      Zaniah::Layout::Engine.new.compute(root, x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height)
+      element.prepaint(root.bounds, nil, @cx)
+      element.paint(root.bounds, nil, nil, @cx)
+      element
+    end
+    def instrumentation_component(value) = value.to_s.gsub(/[:\x00-\x1f\x7f]/, "_")
+    def ui_text(value) = value.to_s.encode(Encoding::UTF_8)
+    def decoration_element(editor, item, width, height)
+      style = item.style.is_a?(Hash) ? item.style : {}
+      color = style.fetch(:color, item.style.is_a?(Symbol) ? item.style : :muted)
+      color = @theme[color] if color.is_a?(Symbol)
+      content = if item.content.respond_to?(:request_layout) && item.content.respond_to?(:paint)
+        item.content
+      else
+        Zaniah::Text.new(ui_text(item.content), size: [@font_size - 2, 1].max, color: color)
+      end
+      element = Zaniah::Div.new.w(width).h(height).items_center.child(content)
+      element.bg(style[:background]) if style[:background]
+      element
+    end
+    def register_overlay_region(editor, item, bounds)
+      return unless item.on_click
+      offset = item.range&.begin || editor.buffer.rope.line_start(item.row)
+      region(bounds, role: :button, label: item.content.to_s,
+        action: [:decoration, item.on_click, editor, offset])
     end
     def code_spans(editor, source_row, row)
       return [] if editor.buffer.rope.respond_to?(:lazy?) && editor.buffer.rope.lazy?

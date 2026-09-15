@@ -44,8 +44,19 @@ sizes.each do |size|
   edited_row = buffer.line_count / 2
   edit_ms = milliseconds { buffer.edit([[buffer.rope.line_start(edited_row)...buffer.rope.line_start(edited_row), "x"]]) }
   edited = complete(mapping)
+  overlay_row = buffer.line_count / 3
+  overlay_offset = buffer.rope.line_start(overlay_row) + 8
+  decoration = Canopus::Decoration::Item.new(:inline, overlay_offset...overlay_offset, nil,
+    ": String", {}, 0, :benchmark, nil)
+  overlay_ms = milliseconds do
+    mapping.set_overlays([decoration], font_size: 14, line_height: 22)
+    complete(mapping)
+  end
+  raise "single-row overlay layout exceeded 20 ms" if ENV["BUDGET"] == "1" && overlay_ms > 20
+  raise "overlay layout rebuilt more than one source row" if ENV["BUDGET"] == "1" && mapping.recomputed_lines > 1
   close_ms = milliseconds { mapping.dispose }
   puts JSON.generate(bytes: buffer.rope.bytesize, source_rows: buffer.line_count, initial_map_ms: initial_ms.round(3),
     provisional_40_rows_ms: provisional_ms.round(3), initial: initial, retained_bytes: retained, packed_layout_bytes: packed_bytes,
-    width_change_ms: resize_ms.round(3), resized: resized, single_row_edit_ms: edit_ms.round(3), edited: edited, dispose_ms: close_ms.round(3))
+    width_change_ms: resize_ms.round(3), resized: resized, single_row_edit_ms: edit_ms.round(3), edited: edited,
+    single_row_overlay_ms: overlay_ms.round(3), overlay_recomputed_lines: mapping.recomputed_lines, dispose_ms: close_ms.round(3))
 end

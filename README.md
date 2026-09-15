@@ -39,6 +39,8 @@ installable.
 - Editable project-wide search results and safe project file operations
 - Optional Vim-compatible modes, motions, operators, registers, macros, and Ex commands
 - Layered JSONC settings, keymaps, themes, snippets, and trusted Ruby plugins
+- Overlay-aware wrapping and coordinates for inline hints and block decorations
+- Rendered panel and decoration nodes expose stable `test_id` conventions for UI tests
 
 ## Installation
 

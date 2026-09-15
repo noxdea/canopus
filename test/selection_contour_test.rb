@@ -15,9 +15,9 @@ class SelectionContourTest < Minitest::Test
       color = Zaniah::Color.parse(workspace.theme[:selection]).to_a
       strips = window.scene.quads.each_slice(Zaniah::Scene::QUAD_STRIDE).select { |quad| quad[4, 4] == color }
       assert_equal 3, strips.length
-      assert_equal [3, 3, 0, 0], strips[0][8, 4]
-      assert_equal [3, 3, 3, 0], strips[1][8, 4]
-      assert_equal [0, 0, 3, 3], strips[2][8, 4]
+      assert_equal [3, 3, 0, 0], strips[0][12, 4]
+      assert_equal [3, 3, 3, 0], strips[1][12, 4]
+      assert_equal [0, 0, 3, 3], strips[2][12, 4]
       strips.each_cons(2) { |first, last| assert_in_delta first[1] + first[3], last[1] }
       # First/last strips stop at their selected columns, not a full-line hull.
       assert_operator strips.first[0], :>, strips[1][0]

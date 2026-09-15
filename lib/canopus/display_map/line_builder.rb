@@ -11,8 +11,9 @@ class Canopus::DisplayMap::LineBuilder
   private_constant :EMPTY_LINES, :Row, :LineSet, :PendingLineSet, :UNWRAPPED_LINE
 
   attr_reader :rope, :fold, :blocks
-  def initialize(rope, fold, tab, wrap, blocks)
+  def initialize(rope, fold, overlay, tab, wrap, blocks)
     @rope, @tab, @wrap = rope, tab, wrap
+    @overlay = overlay.snapshot
     @fold = Canopus::FoldMap.new
     @fold.instance_variable_set(:@ranges, fold.ranges.dup.freeze)
     @fold.freeze
@@ -25,9 +26,17 @@ class Canopus::DisplayMap::LineBuilder
   def line(row, provisional: false, from: 0, checkpoint: nil)
     input = @fold.transform(@rope, row, max_bytes: provisional ? 16_384 : nil, from: from, checkpoint: checkpoint)
     return EMPTY_LINES unless input
-    text, offsets = @tab.transform(*input, checkpoint: checkpoint)
-    wrapped = provisional ? [[text.freeze, offsets.freeze]] : @wrap.transform(text, offsets, checkpoint: checkpoint)
-    rows = wrapped.map { |value, positions| Row.new(value, positions, :text, nil) }
+    text, offsets = input
+    overlays = @overlay.transform(@rope, row, text, offsets)
+    wrapped = provisional ? [[text.freeze, offsets.freeze, overlays]] : @wrap.transform(text, offsets,
+      checkpoint: checkpoint, overlays: overlays, tab_map: @tab)
+    rows = wrapped.map do |value, positions, placements|
+      placements ||= []
+      value, positions, placements = @tab.transform(value, positions, checkpoint: checkpoint, overlays: placements) if provisional && !placements.empty?
+      value, positions = @tab.transform(value, positions, checkpoint: checkpoint) if provisional && placements.empty?
+      Row.new(value.freeze, positions.freeze, :text, placements.empty? ? nil : placements)
+    end
+    rows = overlay_blocks(row, :above) + rows + overlay_blocks(row, :below)
     (@blocks[row] || []).each do |block|
       block.text.split("\n", -1).each do |value|
         checkpoint&.call
@@ -46,9 +55,20 @@ class Canopus::DisplayMap::LineBuilder
       if hidden[pointer]&.cover?(row)
         EMPTY_LINES
       else
-        count = 1 + (@blocks[row] || []).sum { |block| block.text.count("\n") + 1 }
+        count = 1 + %i[above below].sum { |position| @overlay.blocks(row, position).sum(&:row_span) } +
+          (@blocks[row] || []).sum { |block| block.text.count("\n") + 1 }
         count == 1 ? UNWRAPPED_LINE : PendingLineSet.new(count)
       end
+    end
+  end
+
+  private
+
+  def overlay_blocks(row, position)
+    @overlay.blocks(row, position).flat_map do |block|
+      anchor = position == :above ? 0 : @rope.line(row).bytesize
+      [Row.new("".freeze, [anchor].freeze, :overlay_block, block)] +
+        Array.new(block.row_span - 1) { Row.new("".freeze, [anchor].freeze, :overlay_block_continuation, nil) }
     end
   end
 end

@@ -10,14 +10,15 @@ module Canopus
   class DisplayMap
     BACKGROUND_THRESHOLD = 1 << 20
     Row = Data.define(:text, :offsets, :kind, :metadata)
-    attr_reader :fold_map, :tab_map, :wrap_map, :block_map, :tree, :recomputed_lines
+    attr_reader :fold_map, :overlay_map, :tab_map, :wrap_map, :block_map, :tree, :recomputed_lines
     attr_reader :layout_error
 
     def initialize(buffer, tab_size: 4, wrap_width: nil, background_threshold: BACKGROUND_THRESHOLD)
       raise ArgumentError, "background threshold must be nonnegative or nil" unless background_threshold.nil? || (background_threshold.is_a?(Integer) && background_threshold >= 0)
       @background_threshold, @generation = background_threshold, 0
       @buffer, @rope = buffer, buffer.rope
-      @fold_map, @tab_map, @wrap_map, @block_map = FoldMap.new, TabMap.new(tab_size: tab_size), WrapMap.new(width: wrap_width), BlockMap.new
+      @fold_map, @overlay_map, @tab_map, @wrap_map, @block_map = FoldMap.new, OverlayMap.new,
+        TabMap.new(tab_size: tab_size), WrapMap.new(width: wrap_width), BlockMap.new
       rebuild
       @subscription = buffer.on_edit { |patch| apply(patch) }
     end
@@ -85,6 +86,16 @@ module Canopus
       return if size == @tab_map.tab_size
       @tab_map = TabMap.new(tab_size: size)
       rebuild(reuse: true)
+    end
+    def set_overlays(items, font: nil, font_size: 14, line_height: 20)
+      affected = @overlay_map.replace(items, rope: @rope, font: font, font_size: font_size, line_height: line_height)
+      return false if affected.empty?
+
+      @recomputed_lines = 0
+      affected.flat_map { |row| first, last = affected_lines(row, row); (first..last).to_a }.uniq.sort.each do |row|
+        replace_lines(row, row, row)
+      end
+      true
     end
     def fold(range)
       raise Error, "folding is disabled for large read-only files" if @lazy
@@ -261,7 +272,7 @@ module Canopus
         @worker = nil
         return
       end
-      @builder = LineBuilder.new(@rope, @fold_map, @tab_map, @wrap_map, @block_map)
+      @builder = LineBuilder.new(@rope, @fold_map, @overlay_map, @tab_map, @wrap_map, @block_map)
       @background = background_layout?(@rope)
       unless reuse && @background && @tree && @tree.size == @rope.line_count
         values = @background ? @builder.pending_lines(0, @rope.line_count) : Array.new(@rope.line_count) { |row| build_line(row) }
@@ -276,7 +287,7 @@ module Canopus
       @pending_result = nil
       @failed = false
       @layout_error = nil
-      @builder = LineBuilder.new(@rope, @fold_map, @tab_map, @wrap_map, @block_map)
+      @builder = LineBuilder.new(@rope, @fold_map, @overlay_map, @tab_map, @wrap_map, @block_map)
       replacement = @background ? @builder.pending_lines(first, new_last - first + 1) : Array.new(new_last - first + 1) { |i| build_line(first + i) }
       if first < @computed_prefix
         @computed_prefix = old_last + 1 >= @computed_prefix ? first : @computed_prefix + new_last - old_last
@@ -340,6 +351,7 @@ end
 require_relative "display_map/summary"
 require_relative "display_map/line_set"
 require_relative "display_map/pending_line_set"
+require_relative "display_map/overlay_map"
 
 Canopus::DisplayMap::EMPTY_LINES = Canopus::DisplayMap::LineSet.new([].freeze)
 Canopus::DisplayMap::UNWRAPPED_LINE = Canopus::DisplayMap::PendingLineSet.new(1)

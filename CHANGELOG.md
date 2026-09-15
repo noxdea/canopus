@@ -5,6 +5,8 @@
 - Route commands and keybindings through one context-aware command registry.
 - Register the explorer, project search, terminal, and plugin panels through one stateful panel registry.
 - Supply Git gutter marks and selection highlights through the decoration registry.
+- Include inline and block decorations in wrapping, display coordinates, hit testing, and generic rendering.
+- Expose rendered panels, badges, and decorations through stable UI test identifiers.
 
 ## 0.3.0 — 2026-09-14
 

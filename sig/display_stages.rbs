@@ -10,7 +10,7 @@ module Canopus
   class TabMap
     attr_reader tab_size: Integer
     def initialize: (?tab_size: Integer) -> void
-    def transform: (String text, Array[Integer] offsets, ?checkpoint: (^() -> void)?) -> [String, Array[Integer]]
+    def transform: (String text, Array[Integer] offsets, ?checkpoint: (^() -> void)?, ?overlays: Array[DisplayMap::OverlayMap::Inline]?) -> ([String, Array[Integer]] | [String, Array[Integer], Array[DisplayMap::OverlayMap::Inline]])
   end
   class WrapMap
     attr_reader width: Numeric?
@@ -19,7 +19,7 @@ module Canopus
     attr_reader font_paths: Array[String]?
     attr_reader typesetter: Zaniah::TextSystem::Typesetter?
     def initialize: (?width: Numeric?, ?font: Alhena::Font?, ?font_size: Numeric, ?font_paths: Array[String]?, ?typesetter: Zaniah::TextSystem::Typesetter?) -> void
-    def transform: (String text, Array[Integer] offsets, ?checkpoint: (^() -> void)?) -> Array[[String, Array[Integer]]]
+    def transform: (String text, Array[Integer] offsets, ?checkpoint: (^() -> void)?, ?overlays: Array[DisplayMap::OverlayMap::Inline], ?tab_map: TabMap?) -> Array[([String, Array[Integer]] | [String, Array[Integer], Array[DisplayMap::OverlayMap::Inline]])]
     def close: () -> void
   end
   class BlockMap
@@ -38,9 +38,35 @@ module Canopus
     def apply: (patch patch) -> Hash[untyped, Block]
   end
   class DisplayMap
+    class OverlayMap
+      class Inline < Data
+        attr_reader item: Decoration::Item
+        attr_reader offset: Integer
+        attr_reader width: Float
+        attr_reader cell_width: Float
+        attr_reader height: Float
+        attr_reader align: :before | :after
+        def self.new: (Decoration::Item item, Integer offset, Float width, Float cell_width, Float height, :before | :after align) -> instance
+      end
+      class Block < Data
+        attr_reader item: Decoration::Item
+        attr_reader row: Integer
+        attr_reader height: Float
+        attr_reader row_span: Integer
+        attr_reader position: :above | :below
+        def self.new: (Decoration::Item item, Integer row, Float height, Integer row_span, :above | :below position) -> instance
+      end
+      attr_reader line_height: Numeric
+      def initialize: () -> void
+      def replace: (Array[Decoration::Item] items, rope: rope, ?font: Alhena::Font?, ?font_size: Numeric, ?line_height: Numeric) -> Array[Integer]
+      def transform: (rope rope, Integer row, String text, Array[Integer] offsets) -> Array[Inline]
+      def blocks: (Integer row, :above | :below position) -> Array[Block]
+      def snapshot: () -> OverlayMap
+    end
     attr_reader layout_error: StandardError?
     def wrap_pixels: (Numeric width, ?font: Alhena::Font?, font_size: Numeric, ?font_paths: Array[String]?, ?typesetter: Zaniah::TextSystem::Typesetter?) -> void
     attr_reader fold_map: FoldMap
+    attr_reader overlay_map: OverlayMap
     attr_reader tab_map: TabMap
     attr_reader wrap_map: WrapMap
     attr_reader block_map: BlockMap

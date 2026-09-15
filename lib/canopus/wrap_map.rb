@@ -23,7 +23,9 @@ module Canopus
         end
       end
     end
-    def transform(text, offsets, checkpoint: nil)
+    def transform(text, offsets, checkpoint: nil, overlays: [], tab_map: nil)
+      text, offsets, overlays = tab_map.transform(text, offsets, checkpoint: checkpoint, overlays: overlays) if tab_map
+      return overlay_rows(text, offsets, overlays, checkpoint) unless overlays.empty?
       return pixel_rows(text, offsets, checkpoint) if @width && @font
       return [[text.freeze, offsets.freeze]] if !@width || (text.ascii_only? && text.length <= @width)
       rows, offset, chunk, positions, cells = [], 0, +"", [offsets.first], 0
@@ -53,6 +55,30 @@ module Canopus
     end
 
     private
+    def overlay_rows(text, offsets, overlays, checkpoint)
+      checkpoint&.call
+      typesetter = @font ? (@typesetters[Thread.current] ||= @layout_template.fork(capacity: 32)) : nil
+      scale = @font ? 1.0 : 0.6
+      width = @width ? @width * scale : Float::INFINITY
+      inline = overlays.map do |overlay|
+        Zaniah::TextSystem::Paragraph::InlineOverlay.new(overlay.object_id, overlay.offset,
+          (@font ? overlay.width : overlay.cell_width * scale), overlay.height, overlay.align)
+      end
+      paragraph = Zaniah::TextSystem::Paragraph.new(text, width: width,
+        size: @font ? @font_size : 1, line_height: @font ? nil : 1,
+        wrap: @width ? :anywhere : :none, typesetter: typesetter, inline_overlays: inline)
+      by_key = overlays.to_h { |overlay| [overlay.object_id, overlay] }
+      paragraph.lines.each_with_index.map do |line, index|
+        first = text.byteslice(0...line.start).to_s.length
+        last = first + line.layout.text.length
+        placements = paragraph.inline_placements.filter_map do |placement|
+          next unless placement.line == index
+          by_key.fetch(placement.key).with(offset: placement.offset - line.start)
+        end.freeze
+        [line.layout.text.freeze, offsets[first..last].freeze, placements]
+      end
+    end
+
     def pixel_rows(text, offsets, checkpoint)
       # The template is never used for shaping. Each owner copies its complete
       # typography without reading the rendering thread's mutable caches.

@@ -161,6 +161,7 @@ module Canopus
     def row_count: () -> Integer
     def wrap_width=: (Integer? width) -> void
     def tab_size=: (Integer size) -> void
+    def set_overlays: (Array[Decoration::Item] items, ?font: Alhena::Font?, ?font_size: Numeric, ?line_height: Numeric) -> bool
     def fold: (Range[Integer] range) -> void
     def unfold: (Integer offset) -> void
     def insert_block: (untyped id, row: Integer, text: String, ?kind: Symbol) -> void
