@@ -401,6 +401,11 @@ module Canopus
     def document_highlight_decorations: (Buffer buffer, Range[Integer] rows, Editor? current) -> Array[Decoration::Item]
     def request_document_highlights: (Editor current) -> bool
     def invalidate_document_highlights: (?Buffer? buffer, ?client: Sadr::Client?, ?editor: Editor?) -> nil
+    def document_link_decorations: (Buffer buffer, Range[Integer] rows, Editor? current) -> Array[Decoration::Item]
+    def request_document_links: (Editor current) -> bool
+    def invalidate_document_links: (?Buffer? buffer, ?client: Sadr::Client?, ?editor: Editor?) -> nil
+    def linked_editing_range: (?Editor current) -> bool?
+    def invalidate_linked_editing_ranges: (?Buffer? buffer, ?client: Sadr::Client?, ?editor: Editor?) -> nil
     def invalidate_folding_ranges: (?Buffer? buffer, ?client: Sadr::Client?, ?editor: Editor?) -> nil
     def expand_selection: (?Editor current) -> bool?
     def shrink_selection: (?Editor current) -> bool

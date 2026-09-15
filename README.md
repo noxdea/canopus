@@ -35,8 +35,10 @@ installable.
 - Persistent buffers, tabs, splits, sessions, and explicit save-conflict handling
 - LSP completion, diagnostics, hover, symbols, formatting, prevalidated rename, and code actions
 - Automatic read, write, and text highlights for the symbol at each visible editor's caret
+- Clickable LSP document links with on-demand resolution and safe HTTP or local-file navigation
 - LSP folding ranges with an asynchronous Antares fallback
 - LSP-aware selection expansion with an asynchronous Antares fallback
+- LSP linked-range selection for starting a multi-cursor edit from the command palette
 - Ranked, extensible completion and inline-completion provider registry
 - Viewport-scoped LSP inlay hints with clickable label locations
 - Nested bracket colors and active indentation guides backed by Antares structure analysis
@@ -101,7 +103,8 @@ plugin options.
 | New terminal tab | Ctrl-Shift-Backtick | Ctrl-Shift-Backtick |
 | Next / previous terminal | Ctrl-Shift-] / Ctrl-Shift-[ | Ctrl-Shift-] / Ctrl-Shift-[ |
 
-The command palette also exposes Git operations, language actions, project file
+The command palette also exposes Git operations, language actions (including
+`language.linked_editing`), project file
 operations, settings, themes, docks, and Vim mode. Project deletion moves files
 to `.canopus/trash` instead of deleting them immediately.
 

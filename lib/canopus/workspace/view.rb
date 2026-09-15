@@ -813,7 +813,9 @@ module Canopus
           from = row.offsets.bsearch_index { |offset| offset >= first } || row.text.length
           to = row.offsets.bsearch_index { |offset| offset >= last } || row.text.length
           x = column_x(row.text, line, from)
-          paint_highlight(item, left + x, y, column_x(row.text, line, to) - x)
+          width = column_x(row.text, line, to) - x
+          paint_highlight(item, left + x, y, width)
+          register_highlight_region(editor, item, left + x, y, width)
           next
         end
         span = highlight_span(editor, item, index)
@@ -828,7 +830,14 @@ module Canopus
           after && right > after[0] && right <= after[1] ? 0 : 3,
           after && x >= after[0] && x < after[1] ? 0 : 3]
         paint_highlight(item, left + x, y, right - x, radii: radii)
+        register_highlight_region(editor, item, left + x, y, right - x)
       end
+    end
+    def register_highlight_region(editor, item, x, y, width)
+      return unless item.on_click && width.positive?
+
+      region(Zaniah::Bounds.new(x, y - 1, width, @line_height), role: :link, label: item.content.to_s,
+        action: [:decoration, item.on_click, editor, item.range.begin])
     end
     def paint_indent_guides(row, line, left, y, items)
       items.each do |item, point|
@@ -868,7 +877,7 @@ module Canopus
       x = column_x(row.text, line, from)
       right = column_x(row.text, line, [to, row.text.length].min)
       right += @font_size * 0.6 if to > row.text.length
-      minimum = item.style.is_a?(Hash) && item.style[:underline] ? 6 : 0
+      minimum = item.style.is_a?(Hash) && item.style[:underline] && (!item.on_click || to > from) ? 6 : 0
       right = [right, x + minimum].max
       cache[index] = right > x ? [x, right] : nil
     end

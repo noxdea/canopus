@@ -8,6 +8,11 @@ module Canopus
     CODE_LENS_REQUEST_LIMIT = 64
     DOCUMENT_HIGHLIGHT_LIMIT = 10_000
     DOCUMENT_HIGHLIGHT_REQUEST_LIMIT = 64
+    DOCUMENT_LINK_LIMIT = 10_000
+    DOCUMENT_LINK_REQUEST_LIMIT = 64
+    DOCUMENT_LINK_RESOLVE_LIMIT = 32
+    DOCUMENT_LINK_URI_LIMIT = 16_384
+    DOCUMENT_LINK_TEXT_LIMIT = 4_096
     FOLDING_RANGE_LIMIT = 10_000
     FOLDING_RANGE_REQUEST_LIMIT = 64
     SELECTION_RANGE_LIMIT = 10_000
@@ -16,11 +21,15 @@ module Canopus
     SELECTION_RANGE_REQUEST_LIMIT = 64
     PREPARE_RENAME_REQUEST_LIMIT = 1
     RENAME_VALUE_LIMIT = 4096
+    LINKED_EDITING_RANGE_LIMIT = 256
+    LINKED_EDITING_REQUEST_LIMIT = 1
+    LINKED_EDITING_PATTERN_LIMIT = 4_096
     DOCUMENT_HIGHLIGHT_STYLES = {
       1 => {color: :selection}.freeze,
       2 => {color: :accent, underline: true, thickness: 2}.freeze,
       3 => {color: :muted, underline: true}.freeze
     }.freeze
+    DOCUMENT_LINK_STYLE = {color: :accent, underline: true}.freeze
     CODE_LENS_RESOLVE_LIMIT = 32
     INDENT_GUIDE_LIMIT = 4096
     STICKY_SYMBOL_LIMIT = 10_000
@@ -387,6 +396,171 @@ module Canopus
       end
       @decorations.invalidate(:document_highlight, buffer: buffer)
       @window&.request_frame unless @closed
+      nil
+    end
+
+    def document_link_decorations(buffer, rows, current)
+      return [] unless current.is_a?(Editor) && current.buffer.equal?(buffer)
+
+      client = @clients[current.language_document.definition.name]
+      cache = (@document_link_cache || {})[document_link_key(client, current, buffer)]
+      return [] unless cache.is_a?(Hash)
+
+      cache[:entries].filter_map do |entry|
+        next unless diagnostic_item_visible?(buffer, entry[:decoration], rows)
+
+        entry[:decoration]
+      end
+    end
+
+    def request_document_links(current)
+      requests = @document_link_requests ||= {}
+      requests.delete_if do |editor, request|
+        hidden = @panes.none? { |pane| pane.active.equal?(editor) }
+        request[:future]&.cancel if hidden
+        hidden
+      end
+      buffer = current.buffer
+      return false unless buffer.path && !buffer.read_only && @panes.any? { |pane| pane.active.equal?(current) }
+
+      language = current.language_document.definition.name
+      client = @clients[language]
+      key = document_link_key(client, current, buffer)
+      return false if (@document_link_cache ||= {}).key?(key)
+
+      pending = requests[current]
+      if pending && pending[:buffer].equal?(buffer) && pending[:version] == buffer.version &&
+          pending[:document].equal?(current.language_document) &&
+          (!client || !pending[:client] || pending[:client].equal?(client)) &&
+          (!pending[:client] || pending[:supported] == document_link_supported?(client) &&
+            pending[:resolve] == document_link_resolve_supported?(client))
+        return false
+      end
+      invalidate_document_links(editor: current) if pending || @document_link_cache.keys.any? { |entry| entry[1].equal?(current) }
+      unless client || language_server_options(language)
+        cache_document_links(key, false)
+        return false
+      end
+      return false if requests.length >= DOCUMENT_LINK_REQUEST_LIMIT
+
+      request = {client: client, editor: current, buffer: buffer, version: buffer.version,
+        rope: buffer.rope, uri: Sadr::Protocol.uri(buffer.path), language: language,
+        document: current.language_document,
+        supported: client && document_link_supported?(client),
+        resolve: client && document_link_resolve_supported?(client)}
+      requests[current] = request
+      @decorations.invalidate(:document_link, buffer: buffer)
+      job = Thread.new do
+        begin
+          owner = language_client(buffer)
+          if request[:client]
+            next unless request[:client].equal?(owner)
+          else
+            request[:client] = owner
+            request[:supported] = document_link_supported?(owner)
+            request[:resolve] = document_link_resolve_supported?(owner)
+          end
+          supported, resolve = request.values_at(:supported, :resolve)
+          valid = document_link_request_valid?(request, owner)
+          future = owner.document_link(request[:uri]) if supported && valid
+          request[:future] = future
+          result = future.await(timeout: 10) if future && document_link_request_valid?(request, owner)
+          future&.cancel unless document_link_request_valid?(request, owner)
+          links = supported && valid ? normalize_document_links(request[:rope], result, resolve: resolve) : false
+          post do
+            next unless @document_link_requests&.[](current).equal?(request)
+            @document_link_requests.delete(current)
+            next unless document_link_result_valid?(request, owner)
+
+            cache_document_links(document_link_key(owner, current, buffer, request[:version], supported, resolve), links)
+          end
+        rescue StandardError => error
+          post do
+            next unless @document_link_requests&.[](current).equal?(request)
+            @document_link_requests.delete(current)
+            next unless owner ? document_link_result_valid?(request, owner) : document_link_editor_valid?(request)
+
+            cache_document_links(document_link_key(owner, current, buffer, request[:version]), false)
+            @message = error.message unless owner && @retired_language_clients&.[](owner)
+          end
+        ensure
+          worker = Thread.current
+          post { @language_jobs&.delete(worker) }
+        end
+      end
+      (@language_jobs ||= []) << job
+      @language_jobs.reject! { |thread| !thread.alive? }
+      true
+    end
+
+    def invalidate_document_links(buffer = nil, client: nil, editor: nil)
+      buffer ||= editor&.buffer
+      @document_link_cache&.delete_if do |key, cache|
+        matches = (!buffer || key[2].equal?(buffer)) && (!client || key[0]&.equal?(client)) &&
+          (!editor || key[1].equal?(editor))
+        cache[:entries].each { |entry| entry[:future]&.cancel } if matches && cache.is_a?(Hash)
+        matches
+      end
+      @document_link_requests&.delete_if do |current, request|
+        matches = (!buffer || request[:buffer].equal?(buffer)) && (!client || request[:client]&.equal?(client)) &&
+          (!editor || current.equal?(editor))
+        request[:future]&.cancel if matches
+        matches
+      end
+      @decorations.invalidate(:document_link, buffer: buffer)
+      @window&.request_frame unless @closed
+      nil
+    end
+
+    def linked_editing_range(current = editor)
+      invalidate_linked_editing_ranges
+      buffer = current.buffer
+      unless buffer.path && !buffer.read_only
+        @message = "Linked editing is not available here"
+        return false
+      end
+
+      snapshot = linked_editing_snapshot(current)
+      language, client = snapshot.values_at(:language, :client)
+      unless client || language_server_options(language)
+        release_linked_editing_snapshot(snapshot)
+        @message = "Linked editing is not available here"
+        return false
+      end
+      if client && !snapshot[:supported]
+        release_linked_editing_snapshot(snapshot)
+        @message = "Language server does not support linked editing"
+        return false
+      end
+      requests = @linked_editing_requests ||= {}
+      if requests.length >= LINKED_EDITING_REQUEST_LIMIT
+        release_linked_editing_snapshot(snapshot)
+        @message = "Too many linked editing requests"
+        return false
+      end
+
+      id = @linked_editing_request_id = @linked_editing_request_id.to_i + 1
+      requests[id] = snapshot
+      start_linked_editing_request(id, snapshot)
+      @message = "Loading linked ranges…"
+      nil
+    rescue StandardError => error
+      @linked_editing_requests&.delete_if { |_id, request| request.equal?(snapshot) }
+      release_linked_editing_snapshot(snapshot) if snapshot
+      @message = error.message
+      false
+    end
+
+    def invalidate_linked_editing_ranges(buffer = nil, client: nil, editor: nil)
+      @linked_editing_requests&.delete_if do |_id, snapshot|
+        matches = (!buffer || snapshot[:buffer].equal?(buffer)) && (!client || snapshot[:client]&.equal?(client)) &&
+          (!editor || snapshot[:editor].equal?(editor))
+        if matches
+          snapshot[:future]&.cancel
+          release_linked_editing_snapshot(snapshot)
+        end
+        matches
+      end
       nil
     end
 
@@ -823,6 +997,15 @@ module Canopus
       end
       snapshot = @palette&.dig(:kind) == :rename && @palette[:rename]
       invalidate_prepare_rename(editor: snapshot[:editor]) if snapshot && !visible.include?(snapshot[:editor])
+      @document_link_requests&.keys&.reject { |current| visible.include?(current) }&.each do |current|
+        invalidate_document_links(editor: current)
+      end
+      @document_link_cache&.keys&.map { |key| key[1] }&.uniq&.reject { |current| visible.include?(current) }&.each do |current|
+        invalidate_document_links(editor: current)
+      end
+      @linked_editing_requests&.values&.select { |request| !visible.include?(request[:editor]) }&.each do |request|
+        invalidate_linked_editing_ranges(editor: request[:editor])
+      end
       nil
     end
     private :invalidate_hidden_selection_ranges
@@ -2388,6 +2571,72 @@ module Canopus
       raise Error, "invalid document highlights: #{error.message}"
     end
 
+    def normalize_document_links(rope, result, resolve:)
+      raise Error, "invalid document links" unless result.nil? || result.is_a?(Array)
+      raise Error, "too many document links" if result && result.length > DOCUMENT_LINK_LIMIT
+
+      links = Array(result).each_with_index.map do |value, index|
+        validate_document_link_entry(rope, value, index, resolve: resolve)
+      end.sort_by { |entry| [entry[:range].begin, entry[:range].end] }
+      links.each_cons(2) do |left, right|
+        raise Error, "overlapping document links" if left[:range].end > right[:range].begin
+      end
+      links.freeze
+    rescue JSON::GeneratorError, JSON::ParserError, JSON::NestingError, KeyError, RangeError, TypeError,
+      ArgumentError, Sadr::Error => error
+      raise Error, "invalid document links: #{error.message}"
+    end
+
+    def validate_document_link_entry(rope, value, index, resolve:)
+      raise Error, "invalid document link" unless value.is_a?(Hash)
+      encoded = JSON.generate(value)
+      raise Error, "document link exceeds 1 MiB" if encoded.bytesize > 1 << 20
+      link = JSON.parse(encoded)
+      range = strict_language_range(rope, link.fetch("range"), "document link", allow_empty: false)
+      target = document_link_target(link["target"]) if link.key?("target")
+      raise Error, "document link has no target" unless target || resolve
+      tooltip = link["tooltip"]
+      unless tooltip.nil? || bounded_document_link_text?(tooltip)
+        raise Error, "invalid document link tooltip"
+      end
+      {link: link.freeze, range: range, target: target, tooltip: tooltip&.dup&.freeze,
+       index: index, state: target ? :ready : :unresolved}
+    end
+
+    def normalize_linked_editing_ranges(rope, offset, selection, result)
+      return if result.nil?
+      unless result.is_a?(Hash) && result.keys.all? { |key| key.is_a?(String) } &&
+          (result.keys - %w[ranges wordPattern]).empty? && result["ranges"].is_a?(Array)
+        raise Error, "invalid linked editing response"
+      end
+      values = result.fetch("ranges")
+      raise Error, "too many linked editing ranges" if values.length > LINKED_EDITING_RANGE_LIMIT
+      ranges = values.map do |value|
+        strict_language_range(rope, value, "linked editing", allow_empty: false)
+      end.sort_by { |range| [range.begin, range.end] }
+      ranges.each_cons(2) do |left, right|
+        raise Error, "overlapping linked editing ranges" if left.end > right.begin
+      end
+      return {ranges: [].freeze, source: nil, pattern: nil}.freeze if ranges.empty?
+      source = ranges.find do |range|
+        selection.empty? ? range.cover?(offset) : range.begin <= selection.start && selection.end <= range.end
+      end
+      unless source && source.begin <= selection.start && selection.end <= source.end
+        raise Error, "linked editing ranges do not contain the selection"
+      end
+      pattern = result["wordPattern"]
+      if pattern
+        unless pattern.is_a?(String) && pattern.encoding == Encoding::UTF_8 && pattern.valid_encoding? &&
+            pattern.bytesize.between?(1, LINKED_EDITING_PATTERN_LIMIT) && !pattern.include?("\0")
+          raise Error, "invalid linked editing word pattern"
+        end
+        Regexp.new(pattern)
+      end
+      {ranges: ranges.freeze, source: source, pattern: pattern&.dup&.freeze}.freeze
+    rescue RegexpError, KeyError, RangeError, TypeError, ArgumentError, Sadr::Error => error
+      raise Error, "invalid linked editing response: #{error.message}"
+    end
+
     def normalize_folding_ranges(rope, result)
       return nil if result.nil?
       raise Error, "invalid folding ranges" unless result.is_a?(Array)
@@ -2481,6 +2730,297 @@ module Canopus
       offset = Sadr::Protocol.offset(rope, point)
       raise Error, "invalid folding range character" unless Sadr::Protocol.position(rope, offset) == point
       offset
+    end
+
+    def document_link_target(value)
+      unless bounded_document_link_text?(value, maximum: DOCUMENT_LINK_URI_LIMIT)
+        raise Error, "invalid document link target"
+      end
+      uri = URI::DEFAULT_PARSER.parse(value)
+      case uri.scheme&.downcase
+      when "http", "https"
+        raise Error, "invalid document link target" unless uri.host && !uri.host.empty?
+      when "file"
+        Sadr::Protocol.path(value)
+      else
+        raise Error, "unsafe document link target"
+      end
+      value.dup.freeze
+    rescue URI::InvalidURIError => error
+      raise Error, "invalid document link target: #{error.message}"
+    end
+
+    def bounded_document_link_text?(value, maximum: DOCUMENT_LINK_TEXT_LIMIT)
+      value.is_a?(String) && value.encoding == Encoding::UTF_8 && value.valid_encoding? &&
+        value.bytesize.between?(1, maximum) && !value.include?("\0")
+    end
+
+    def document_link_supported?(client)
+      provider = client.capabilities["documentLinkProvider"] if client&.respond_to?(:capabilities)
+      provider == true || provider.is_a?(Hash)
+    end
+
+    def document_link_resolve_supported?(client)
+      provider = client.capabilities["documentLinkProvider"] if client&.respond_to?(:capabilities)
+      provider.is_a?(Hash) && (provider["resolveProvider"] == true || provider[:resolveProvider] == true)
+    end
+
+    def document_link_key(client, current, buffer, version = buffer.version,
+      supported = document_link_supported?(client), resolve = document_link_resolve_supported?(client),
+      document = current.language_document)
+      [client, current, buffer, version, supported, resolve, document]
+    end
+
+    def document_link_result_valid?(request, owner)
+      document_link_editor_valid?(request) && request[:client].equal?(owner) &&
+        @clients[request[:language]].equal?(owner) &&
+        request[:supported] == document_link_supported?(owner) &&
+        request[:resolve] == document_link_resolve_supported?(owner) &&
+        @opened_lsp_documents&.key?([owner, request[:buffer]])
+    end
+
+    def document_link_editor_valid?(request)
+      current, buffer = request.values_at(:editor, :buffer)
+      !@closed && current.buffer.equal?(buffer) && buffer.version == request[:version] &&
+        current.language_document.equal?(request[:document]) &&
+        buffer.path && Sadr::Protocol.uri(buffer.path) == request[:uri] &&
+        @panes.any? { |pane| pane.active.equal?(current) }
+    end
+
+    def document_link_request_valid?(request, owner)
+      @document_link_requests&.[](request[:editor]).equal?(request) && document_link_result_valid?(request, owner)
+    end
+
+    def cache_document_links(key, links)
+      cache = @document_link_cache ||= {}
+      cache.delete_if { |entry, value| entry[1].equal?(key[1]) && (cancel_document_link_cache(value); true) }
+      cache.shift while cache.length >= DOCUMENT_LINK_REQUEST_LIMIT
+      if links == false
+        cache[key] = false
+      else
+        holder = {entries: links}
+        links.each do |entry|
+          label = entry[:tooltip] || entry[:target] || "Open document link"
+          entry[:decoration] = Decoration::Item.new(:highlight, entry[:range], nil, label,
+            DOCUMENT_LINK_STYLE, 18, :document_link,
+            ->(current, offset) { activate_document_link(key, holder, entry, current, offset) })
+        end
+        cache[key] = holder
+      end
+      @decorations.invalidate(:document_link, buffer: key[2])
+      @window&.request_frame unless @closed
+      links
+    end
+
+    def cancel_document_link_cache(cache)
+      cache[:entries].each { |entry| entry[:future]&.cancel } if cache.is_a?(Hash)
+      nil
+    end
+
+    def document_link_cache_valid?(key, cache)
+      client, current, buffer, version, supported, resolve, document = key
+      @document_link_cache&.[](key).equal?(cache) && !@closed && buffer.version == version &&
+        current.buffer.equal?(buffer) && current.language_document.equal?(document) && @clients.value?(client) &&
+        document_link_supported?(client) == supported && document_link_resolve_supported?(client) == resolve &&
+        @panes.any? { |pane| pane.active.equal?(current) }
+    end
+
+    def activate_document_link(key, cache, entry, current, offset)
+      return false unless current.equal?(key[1]) && entry[:range].cover?(offset) && document_link_cache_valid?(key, cache)
+      return open_document_link(entry[:target]) if entry[:target]
+      return false unless key[5] && entry[:state] == :unresolved
+      resolving = (@document_link_cache || {}).values.sum do |value|
+        value.is_a?(Hash) ? value[:entries].count { |candidate| candidate[:state] == :resolving } : 0
+      end
+      if resolving >= DOCUMENT_LINK_RESOLVE_LIMIT
+        @message = "Too many document links are resolving"
+        return false
+      end
+
+      entry[:state] = :resolving
+      client, buffer = key.values_at(0, 2)
+      job = Thread.new do
+        begin
+          future = client.resolve_document_link(entry[:link])
+          entry[:future] = future
+          result = future.await(timeout: 10) if document_link_cache_valid?(key, cache)
+          unless document_link_cache_valid?(key, cache)
+            future.cancel
+            next
+          end
+          resolved = validate_document_link_entry(buffer.rope, result, entry[:index], resolve: false)
+          raise Error, "resolved document link moved" unless resolved[:range] == entry[:range]
+          post do
+            next unless document_link_cache_valid?(key, cache) && entry[:state] == :resolving
+            entry.update(resolved)
+            entry.delete(:future)
+            open_document_link(entry[:target])
+          end
+        rescue StandardError => error
+          post do
+            next unless document_link_cache_valid?(key, cache) && entry[:state] == :resolving
+            entry.delete(:future)
+            entry[:state] = :failed
+            @message = error.message unless @retired_language_clients&.[](client)
+          end
+        ensure
+          worker = Thread.current
+          post { @language_jobs&.delete(worker) }
+        end
+      end
+      (@language_jobs ||= []) << job
+      @language_jobs.reject! { |thread| !thread.alive? }
+      true
+    rescue StandardError => error
+      @message = error.message
+      false
+    end
+
+    def open_document_link(target)
+      uri = URI::DEFAULT_PARSER.parse(document_link_target(target))
+      if %w[http https].include?(uri.scheme.downcase)
+        raise Error, "Opening URLs is unavailable" unless @window&.respond_to?(:open_url)
+        @window.open_url(target)
+      else
+        path = canonical_path(Sadr::Protocol.path(target))
+        raise Error, "Document link target is not a file" unless File.file?(path)
+        open(path).tap { |current| current.select(0); current.reveal_cursor }
+      end
+      true
+    rescue URI::InvalidURIError, SystemCallError, Sadr::Error => error
+      raise Error, "Cannot open document link: #{error.message}"
+    end
+
+    def linked_editing_snapshot(current)
+      buffer, offset = current.buffer, current.primary.head
+      language = current.language_document.definition.name
+      client = @clients[language]
+      snapshot = {editor: current, buffer: buffer, version: buffer.version, rope: buffer.rope,
+        selections: current.selections, selection: current.primary, offset: offset,
+        uri: Sadr::Protocol.uri(buffer.path), position: Sadr::Protocol.position(buffer.rope, offset),
+        language: language, document: current.language_document,
+        client: client, supported: linked_editing_supported?(client)}
+      unless Sadr::Protocol.offset(snapshot[:rope], snapshot[:position]) == offset
+        raise Error, "invalid linked editing position"
+      end
+      snapshot[:selection_subscription] = current.on_selection do
+        invalidate_linked_editing_ranges(editor: current) unless current.selections == snapshot[:selections]
+      end
+      snapshot[:edit_subscription] = buffer.on_edit { invalidate_linked_editing_ranges(buffer) }
+      snapshot
+    end
+
+    def start_linked_editing_request(id, snapshot)
+      job = Thread.new do
+        begin
+          owner = language_client(snapshot[:buffer])
+          unless @linked_editing_requests&.[](id).equal?(snapshot) && linked_editing_editor_valid?(snapshot)
+            next
+          end
+          snapshot[:client] = owner
+          snapshot[:supported] = linked_editing_supported?(owner)
+          unless snapshot[:supported]
+            post do
+              next unless take_linked_editing_request(id, snapshot)
+              release_linked_editing_snapshot(snapshot)
+              @message = "Language server does not support linked editing" if linked_editing_editor_valid?(snapshot)
+            end
+            next
+          end
+
+          future = owner.linked_editing_range(snapshot[:uri], snapshot[:position])
+          snapshot[:future] = future
+          result = future.await(timeout: 10) if linked_editing_request_valid?(id, snapshot, owner)
+          unless linked_editing_request_valid?(id, snapshot, owner)
+            future.cancel
+            next
+          end
+          linked = normalize_linked_editing_ranges(snapshot[:rope], snapshot[:offset], snapshot[:selection], result)
+          post do
+            next unless take_linked_editing_request(id, snapshot)
+            valid = linked_editing_snapshot_valid?(snapshot)
+            release_linked_editing_snapshot(snapshot)
+            if valid && linked && !linked[:ranges].empty?
+              apply_linked_editing_ranges(snapshot, linked)
+            elsif valid
+              @message = "Linked editing is not available here"
+            end
+          end
+        rescue StandardError => error
+          post do
+            next unless take_linked_editing_request(id, snapshot)
+            valid = linked_editing_editor_valid?(snapshot) && !@retired_language_clients&.[](owner)
+            release_linked_editing_snapshot(snapshot)
+            @message = error.message if valid
+          end
+        ensure
+          worker = Thread.current
+          post do
+            release_linked_editing_snapshot(snapshot) if take_linked_editing_request(id, snapshot)
+            @language_jobs&.delete(worker)
+          end
+        end
+      end
+      (@language_jobs ||= []) << job
+      @language_jobs.reject! { |thread| !thread.alive? }
+      true
+    end
+
+    def apply_linked_editing_ranges(snapshot, linked)
+      source, selection = linked[:source], snapshot[:selection]
+      anchor, head = selection.anchor - source.begin, selection.head - source.begin
+      selections = linked[:ranges].each_with_index.map do |range, index|
+        unless anchor.between?(0, range.size) && head.between?(0, range.size)
+          raise Error, "linked editing ranges do not match the selection"
+        end
+        first, last = range.begin + anchor, range.begin + head
+        [first, last].each do |offset|
+          position = Sadr::Protocol.position(snapshot[:rope], offset)
+          raise Error, "invalid linked editing selection boundary" unless Sadr::Protocol.offset(snapshot[:rope], position) == offset
+        end
+        Selection.new(index, first, last, nil)
+      end
+      snapshot[:editor].set_selections(selections, merge: false)
+      snapshot[:editor].reveal_cursor
+      @message = "Linked ranges selected"
+      @window&.request_frame
+      true
+    end
+
+    def linked_editing_supported?(client)
+      provider = client.capabilities["linkedEditingRangeProvider"] if client&.respond_to?(:capabilities)
+      provider == true || provider.is_a?(Hash)
+    end
+
+    def linked_editing_editor_valid?(snapshot)
+      current, buffer = snapshot.values_at(:editor, :buffer)
+      !@closed && current.buffer.equal?(buffer) && buffer.version == snapshot[:version] &&
+        current.language_document.equal?(snapshot[:document]) &&
+        current.selections == snapshot[:selections] && current.primary.head == snapshot[:offset] &&
+        buffer.path && Sadr::Protocol.uri(buffer.path) == snapshot[:uri] &&
+        @panes.any? { |pane| pane.active.equal?(current) }
+    end
+
+    def linked_editing_snapshot_valid?(snapshot)
+      client = @clients[snapshot[:language]]
+      linked_editing_editor_valid?(snapshot) && client.equal?(snapshot[:client]) &&
+        linked_editing_supported?(client) == snapshot[:supported]
+    end
+
+    def linked_editing_request_valid?(id, snapshot, owner)
+      @linked_editing_requests&.[](id).equal?(snapshot) && linked_editing_snapshot_valid?(snapshot) &&
+        snapshot[:client].equal?(owner) && @opened_lsp_documents&.key?([owner, snapshot[:buffer]])
+    end
+
+    def take_linked_editing_request(id, snapshot)
+      @linked_editing_requests&.delete(id).equal?(snapshot)
+    end
+
+    def release_linked_editing_snapshot(snapshot)
+      snapshot&.delete(:selection_subscription)&.detach
+      snapshot&.delete(:edit_subscription)&.detach
+      snapshot&.delete(:future)
+      nil
     end
 
     def document_highlight_supported?(client)
@@ -2586,9 +3126,11 @@ module Canopus
       @language_document_subscriptions&.delete(key)&.detach
       (@language_document_subscriptions ||= {})[key] = buffer.on_edit do |patch|
         invalidate_document_highlights(buffer)
+        invalidate_document_links(buffer)
         invalidate_folding_ranges(buffer)
         invalidate_selection_ranges(buffer)
         invalidate_prepare_rename(buffer)
+        invalidate_linked_editing_ranges(buffer)
         invalidate_inlay_hints(buffer)
         invalidate_code_lenses(buffer)
         invalidate_sticky_symbols(buffer)
@@ -2613,9 +3155,11 @@ module Canopus
       end
       invalidate_diagnostics(buffer)
       invalidate_document_highlights(buffer, client: client)
+      invalidate_document_links(buffer, client: client)
       invalidate_folding_ranges(buffer, client: client)
       invalidate_selection_ranges(buffer, client: client)
       invalidate_prepare_rename(buffer, client: client)
+      invalidate_linked_editing_ranges(buffer, client: client)
       invalidate_inlay_hints(buffer)
       invalidate_code_lenses(buffer)
       invalidate_sticky_symbols(buffer, client: client)

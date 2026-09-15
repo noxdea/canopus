@@ -60,6 +60,7 @@ module Canopus
       @decorations.register(:git) { |buffer, rows| git_decorations(buffer, rows) }
       @decorations.register(:diagnostics) { |buffer, rows| diagnostic_decorations(buffer, rows) }
       @decorations.register(:document_highlight) { |buffer, rows, current| document_highlight_decorations(buffer, rows, current) }
+      @decorations.register(:document_link) { |buffer, rows, current| document_link_decorations(buffer, rows, current) }
       @decorations.register(:inlay_hint) { |buffer, rows| inlay_hint_decorations(buffer, rows) }
       @decorations.register(:code_lens) { |buffer, rows| code_lens_decorations(buffer, rows) }
       @decorations.register(:bracket) { |buffer, rows, current| bracket_decorations(buffer, rows, current) }
@@ -180,6 +181,8 @@ module Canopus
       result = buffer.save(target)
       if previous != buffer.path
         invalidate_prepare_rename(buffer)
+        invalidate_document_links(buffer)
+        invalidate_linked_editing_ranges(buffer)
         invalidate_git
         # Close the old URI before registering this buffer under its new path.
         @opened_lsp_documents&.keys&.each do |client, document|
@@ -270,6 +273,8 @@ module Canopus
       invalidate_folding_ranges(editor: current)
       invalidate_selection_ranges(editor: current)
       invalidate_prepare_rename(editor: current)
+      invalidate_document_links(editor: current)
+      invalidate_linked_editing_ranges(editor: current)
       invalidate_brackets(current.buffer)
       pane.close(current, discard: discard, activate: @settings["tabs"]["activate_on_close"].to_sym)
       release_buffer(current.buffer, discard: discard)
@@ -727,6 +732,8 @@ module Canopus
       invalidate_folding_ranges
       invalidate_selection_ranges
       invalidate_prepare_rename
+      invalidate_document_links
+      invalidate_linked_editing_ranges
       invalidate_inlay_hints
       @inlay_hint_requests&.clear
       invalidate_code_lenses
@@ -795,6 +802,7 @@ module Canopus
         register_action("language.#{kind}") { language_request(kind) }
       end
       register_action("language.rename") { prepare_rename }
+      register_action("language.linked_editing") { linked_editing_range }
       register_action("language.expand_selection") { expand_selection }
       register_action("language.shrink_selection") { shrink_selection }
       register_action("editor.fold") { fold_current }

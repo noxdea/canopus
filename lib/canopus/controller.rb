@@ -233,6 +233,7 @@ module Canopus
         sticky = false
         if visible.include?(editor)
           @workspace.request_document_highlights(editor)
+          @workspace.request_document_links(editor)
           map = editor.display_map
           first = editor.scroll_y.floor.clamp(0, map.row_count - 1)
           last = [first + editor.viewport_rows, first + 255, map.row_count - 1].min

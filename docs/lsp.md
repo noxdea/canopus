@@ -47,6 +47,13 @@ writes, and textual occurrences at each visible editor's caret. Results are
 kept per split and caret, and are discarded when the caret or document changes,
 the tab closes, or the language server is replaced.
 
+`textDocument/documentLink` results are underlined and clickable in each visible
+editor. Links without a target are resolved only when clicked. Canopus opens
+HTTP(S) targets through the platform and local `file` targets in an editor;
+remote file URIs and executable or custom URI schemes are rejected. Cached links
+and pending resolutions are discarded after edits, hidden tabs, document close,
+settings changes, or server replacement.
+
 `editor.fold` prefers cached `textDocument/foldingRange` results and folds the
 smallest range containing the caret's source line. Servers without folding
 support, null or failed responses, and unconfigured languages fall back to
@@ -65,6 +72,14 @@ placeholder, or client-side identifier pre-fills the dialog; edits, caret moves,
 hidden tabs, server replacement, and settings reload cancel the snapshot. Servers
 without preparation support, and unconfigured languages, keep the regular rename
 dialog.
+
+Run `language.linked_editing` from the command palette to request
+`textDocument/linkedEditingRange`. Canopus maps the current primary selection's
+relative anchor and caret to every validated, non-overlapping linked range and
+creates multiple selections. The request is cancelled when the selection,
+document, visible tab, settings, or server changes. Continuous linked editing
+and the HTML/XML fallback are intentionally deferred to the later editing-core
+work.
 
 Sticky scroll prefers `textDocument/documentSymbol` when the server advertises
 it and uses cached Antares structure regions otherwise. Requests and normalized
