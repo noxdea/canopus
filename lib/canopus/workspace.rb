@@ -56,6 +56,7 @@ module Canopus
         end
       end
       @decorations.register(:git) { |buffer, rows| git_decorations(buffer, rows) }
+      @decorations.register(:diagnostics) { |buffer, rows| diagnostic_decorations(buffer, rows) }
       @languages, @terminals = {}, []
       @active_terminal_index = 0
       @closed_tabs, @terminal_names = [], {}

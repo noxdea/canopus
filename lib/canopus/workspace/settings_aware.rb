@@ -53,6 +53,7 @@ module Canopus
       end
       @applied_font_family = @settings["font_family"]
       @applied_icon_theme = @settings["icon_theme"]
+      invalidate_diagnostics
       reload_language_servers(servers)
       @window&.request_frame
     end

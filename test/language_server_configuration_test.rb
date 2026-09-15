@@ -147,6 +147,32 @@ class LanguageServerConfigurationTest < Minitest::Test
     end
   end
 
+  def test_diagnostic_notifications_drop_stale_generations_and_closed_buffers
+    with_clients do
+      client = @workspace.language_client
+      buffer = @editor.buffer
+      uri = Sadr::Protocol.uri(buffer.path)
+      diagnostic = {"message" => "error", "severity" => 1, "range" => {
+        "start" => {"line" => 0, "character" => 0}, "end" => {"line" => 0, "character" => 0}
+      }}
+      publish = client.handlers.fetch("textDocument/publishDiagnostics")
+      client.diagnostics[uri] = [diagnostic]
+      publish.call("uri" => uri, "version" => buffer.version, "diagnostics" => [diagnostic])
+      refute_empty @workspace.diagnostic_decorations(buffer, 0...1)
+
+      stale = buffer.version
+      @editor.insert_text("x", auto_indent: false)
+      publish.call("uri" => uri, "version" => stale, "diagnostics" => [diagnostic])
+      assert_empty @workspace.diagnostic_decorations(buffer, 0...1)
+      publish.call("uri" => uri, "version" => buffer.version, "diagnostics" => [diagnostic])
+      refute_empty @workspace.diagnostic_decorations(buffer, 0...1)
+
+      @workspace.close_editor(@editor, discard: true)
+      publish.call("uri" => uri, "version" => buffer.version, "diagnostics" => [diagnostic])
+      assert_empty @workspace.diagnostic_decorations(buffer, 0...1)
+    end
+  end
+
   def test_language_specific_server_override_has_precedence_and_reloads_when_it_changes
     @settings.merge!("languages" => {"ruby" => {"language_servers" => {"ruby" => ["override-a"]}}})
     with_clients do

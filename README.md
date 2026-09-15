@@ -109,6 +109,7 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
   "font_size": 14,
   "vim_mode": false,
   "use_tabs": false,
+  "diagnostics": { "inline": true, "inline_max_length": 80, "severity": "warning" },
   "tabs": { "activate_on_close": "history", "reopen_history_limit": 20 },
   "terminal": { "working_directory": "project", "scrollback_lines": 10000 },
   "dock": {

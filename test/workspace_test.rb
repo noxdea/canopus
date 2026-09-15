@@ -145,13 +145,17 @@ class WorkspaceTest < Minitest::Test
     end
   end
 
-  def test_diagnostics_are_collected_once_per_buffer_and_frame
+  def test_diagnostics_are_collected_once_and_reused_until_invalidated
     type("first\nsecond\nthird")
     @workspace.split
     calls = []
     @workspace.stub(:diagnostics_for, ->(buffer) { calls << buffer; [] }) do
       @controller.tick
       assert_equal [@workspace.editor.buffer], calls
+      @window.request_frame
+      @controller.tick
+      assert_equal [@workspace.editor.buffer], calls
+      @workspace.invalidate_diagnostics(@workspace.editor.buffer)
       @window.request_frame
       @controller.tick
       assert_equal [@workspace.editor.buffer] * 2, calls

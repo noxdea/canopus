@@ -8,10 +8,14 @@ module Canopus
       "Literal.String" => "#356224", "Literal.Number" => "#854b16", "Operator" => "#375780", "Generic.Heading" => "#795500", "Error" => "#aa2438"}.freeze
     DARK = {background: "#161b22", foreground: "#d6dde6", panel: "#10151c", border: "#2c3644",
       active_tab: "#222d3b", muted: "#728399", accent: "#e9a661", selection: "#34547799",
-      cursor: "#f4e4c1", current_line: "#ffffff06", error: "#f97583", status: "#202a36"}.freeze
+      cursor: "#f4e4c1", current_line: "#ffffff06", error: "#f97583", status: "#202a36",
+      :"diagnostic.error" => "#f97583", :"diagnostic.warning" => "#e3b341",
+      :"diagnostic.information" => "#58a6ff", :"diagnostic.hint" => "#8b949e"}.freeze
     LIGHT = DARK.merge(background: "#faf8f3", foreground: "#293440", panel: "#eeece6", border: "#cecac1",
       active_tab: "#fff", muted: "#6d7780", selection: "#93bdd477", current_line: "#00000006",
-      cursor: "#34465a", status: "#e3e2dc").freeze
+      cursor: "#34465a", status: "#e3e2dc", :"diagnostic.error" => "#aa2438",
+      :"diagnostic.warning" => "#8a6116", :"diagnostic.information" => "#0969da",
+      :"diagnostic.hint" => "#57606a").freeze
     attr_reader :colors, :syntax, :name
     def initialize(name: "Canopus Dark", colors: {}, syntax: {})
       @name, @syntax = name, syntax
@@ -35,7 +39,9 @@ module Canopus
       style = theme.fetch("style", {})
       map = {"editor.background" => :background, "editor.foreground" => :foreground,
         "panel.background" => :panel, "border" => :border, "text.muted" => :muted,
-        "status_bar.background" => :status, "editor.active_line.background" => :current_line}
+        "status_bar.background" => :status, "editor.active_line.background" => :current_line,
+        "diagnostic.error" => :"diagnostic.error", "diagnostic.warning" => :"diagnostic.warning",
+        "diagnostic.information" => :"diagnostic.information", "diagnostic.hint" => :"diagnostic.hint"}
       colors = style.each_with_object({}) { |(key, value), result| result[map[key]] = value if map[key] }
       new(name: theme.fetch("name", "Imported"), colors: colors, syntax: style.fetch("syntax", {}))
     end

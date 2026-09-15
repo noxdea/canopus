@@ -59,6 +59,8 @@ module Canopus
     def dismiss_hover: () -> nil
     def close_language_documents: (?Buffer? buffer) -> void
     def semantic_spans_for: (Buffer buffer, Integer row) -> Array[[Integer, Integer, String]]
+    def diagnostic_decorations: (Buffer buffer, Range[Integer] rows) -> Array[Decoration::Item]
+    def invalidate_diagnostics: (?Buffer? buffer) -> nil
     def accept_language_result: (palette_state palette, Integer index) -> void
     def show_diagnostics: () -> void
     def show_outline: () -> void

@@ -12,7 +12,6 @@ module Canopus
       @project_scroll = 0
       reset_blink
       @revealed_cursors, @line_widths, @code_caches = {}, {}, {}
-      @frame_diagnostics = {}
     end
     def reset_blink(now = Process.clock_gettime(Process::CLOCK_MONOTONIC))
       @blink_started, @cursor_visible = now, true
@@ -38,7 +37,6 @@ module Canopus
       @overlay_rows = []
       @editor_bounds.clear
       @accessibility.clear
-      @frame_diagnostics.clear
       visible_editors = @workspace.panes.map(&:active)
       @revealed_cursors.delete_if { |editor, _| !visible_editors.include?(editor) }
       @line_widths.delete_if { |editor, _| !visible_editors.include?(editor) }
@@ -353,7 +351,6 @@ module Canopus
             end
             text(row.text, left, y, color: color)
           end
-          paint_diagnostics(editor, index, row, line, left, y) if row.kind == :text
           paint_overlays&.call
           if cursor.row == index && active
             x = left + column_x(row.text, line, cursor.column)
@@ -371,9 +368,9 @@ module Canopus
       measured_width = [measured_width, previous_width.last].max if previous_width && previous_width.first == editor.buffer.version
       @line_widths[editor] = [editor.buffer.version, measured_width]
       overview = @workspace.decorations.items_for(editor.buffer, 0...editor.buffer.line_count, context: editor)
-      paint_scrollbars(editor, bounds, measured_width, overview.select { |item| item.kind == :gutter })
+      paint_scrollbars(editor, bounds, measured_width, overview)
     end
-    def paint_scrollbars(editor, bounds, content_width, gutter_items)
+    def paint_scrollbars(editor, bounds, content_width, decorations)
       track = Zaniah::Bounds.new(bounds.right - 9, bounds.y, 9, [bounds.height - 9, 0].max)
       total = editor.display_map.row_count
       maximum = [total - editor.viewport_rows, 0].max
@@ -381,15 +378,15 @@ module Canopus
         height = [24, track.height * editor.viewport_rows / total].max.clamp(0, track.height)
         thumb = Zaniah::Bounds.new(track.x + 2, track.y + (track.height - height) * editor.scroll_y / maximum, 5, height)
         fill(thumb, :muted)
-        gutter_items.first(500).each do |item|
+        decorations.select { |item| item.kind == :gutter }.first(500).each do |item|
           y = track.y + track.height * item.row / [editor.buffer.line_count, 1].max
           fill(Zaniah::Bounds.new(track.x, y, 3, 2), :accent)
         end
-        frame_diagnostics(editor.buffer).first(500).each do |diagnostic|
-          row = diagnostic.dig("range", "start", "line")
-          next unless row.is_a?(Integer) && row >= 0
+        decorations.select { |item| item.source == :diagnostics && item.kind == :highlight }.first(500).each do |item|
+          row = editor.buffer.rope.point_at(item.range.begin).row
+          style = item.style.is_a?(Hash) ? item.style : {}
           y = track.y + track.height * row / [editor.buffer.line_count, 1].max
-          fill(Zaniah::Bounds.new(track.x + 5, y, 4, 2), :error)
+          fill(Zaniah::Bounds.new(track.x + 5, y, 4, 2), style.fetch(:color, :error))
         end
         region(track, role: :scrollbar, label: "Vertical scroll", action: [:scrollbar, editor, :vertical, track, thumb, maximum])
       end
@@ -531,24 +528,6 @@ module Canopus
       cache[row.object_id] = [raw, @theme, semantic_state, spans, row]
       spans
     end
-    def paint_diagnostics(editor, index, row, line, left, y)
-      frame_diagnostics(editor.buffer).each do |diagnostic|
-        range = diagnostic["range"]
-        first = editor.display_map.to_display(Sadr::Protocol.offset(editor.buffer.rope, range.fetch("start")))
-        last = editor.display_map.to_display(Sadr::Protocol.offset(editor.buffer.rope, range.fetch("end")))
-        next unless index.between?(first.row, last.row)
-        from = index == first.row ? first.column : 0
-        to = index == last.row ? last.column : row.text.length
-        x = column_x(row.text, line, from)
-        width = [column_x(row.text, line, to) - x, 6].max
-        @scene.underline(left + x, y + @line_height - 2, width, color: @theme[:error], wave: true)
-      rescue RangeError, KeyError
-        next # Stale server positions must not break a frame after a local edit.
-      end
-    end
-    def frame_diagnostics(buffer)
-      @frame_diagnostics[buffer] ||= @workspace.diagnostics_for(buffer)
-    end
     def paint_highlights(editor, index, row, line, left, y, items)
       items.each do |item|
         range = item.range
@@ -561,7 +540,7 @@ module Canopus
           from = row.offsets.bsearch_index { |offset| offset >= first } || row.text.length
           to = row.offsets.bsearch_index { |offset| offset >= last } || row.text.length
           x = column_x(row.text, line, from)
-          fill(Zaniah::Bounds.new(left + x, y - 1, column_x(row.text, line, to) - x, @line_height), item.style)
+          paint_highlight(item, left + x, y, column_x(row.text, line, to) - x)
           next
         end
         span = highlight_span(editor, item, index)
@@ -575,8 +554,18 @@ module Canopus
           before && right > before[0] && right <= before[1] ? 0 : 3,
           after && right > after[0] && right <= after[1] ? 0 : 3,
           after && x >= after[0] && x < after[1] ? 0 : 3]
-        color = item.style.is_a?(Symbol) ? @theme[item.style] : item.style
-        @scene.quad(left + x, y - 1, right - x, @line_height, color: color, radius: radii)
+        paint_highlight(item, left + x, y, right - x, radii: radii)
+      end
+    end
+    def paint_highlight(item, x, y, width, radii: 0)
+      style = item.style.is_a?(Hash) ? item.style : {}
+      color = style.fetch(:color, item.style.is_a?(Symbol) ? item.style : :selection)
+      color = @theme[color] if color.is_a?(Symbol)
+      if style[:underline]
+        @scene.underline(x, y + @line_height - 2, [width, 6].max, color: color,
+          thickness: style.fetch(:thickness, 1), wave: style[:underline] == :wave)
+      else
+        @scene.quad(x, y - 1, width, @line_height, color: color, radius: radii)
       end
     end
     def highlight_span(editor, item, index)
@@ -592,6 +581,8 @@ module Canopus
       x = column_x(row.text, line, from)
       right = column_x(row.text, line, [to, row.text.length].min)
       right += @font_size * 0.6 if to > row.text.length
+      minimum = item.style.is_a?(Hash) && item.style[:underline] ? 6 : 0
+      right = [right, x + minimum].max
       cache[index] = right > x ? [x, right] : nil
     end
     def paint_terminal(bounds)
@@ -607,7 +598,8 @@ module Canopus
       branch = @workspace.git&.branch
       left = "#{branch}    #{left}" if branch
       left = ":#{@workspace.vim.command_line}" if @workspace.settings["vim_mode"] && @workspace.vim.command_line
-      diagnostics = frame_diagnostics(editor.buffer).length
+      diagnostics = @workspace.decorations.items_for(editor.buffer, 0...editor.buffer.line_count, context: editor)
+        .count { |item| item.source == :diagnostics && item.kind == :highlight }
       language = editor.language_document.definition.name
       lsp = @workspace.clients[language]
       right = "#{diagnostics.zero? ? '' : "!#{diagnostics}  "}#{language}#{lsp ? " LSP:#{lsp.state}" : ''}   #{point.row + 1}:#{point.column + 1}   #{editor.use_tabs ? 'Tab' : 'Spaces'}:#{editor.tab_size}   #{editor.buffer.encoding.name}"

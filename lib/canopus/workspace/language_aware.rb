@@ -2,6 +2,10 @@
 
 module Canopus
   module Workspace::LanguageAware
+    DIAGNOSTIC_SEVERITIES = {"error" => 1, "warning" => 2, "information" => 3, "hint" => 4}.freeze
+    DIAGNOSTIC_COLORS = {1 => :"diagnostic.error", 2 => :"diagnostic.warning",
+      3 => :"diagnostic.information", 4 => :"diagnostic.hint"}.freeze
+
     attr_reader :hover_card, :hover_markup, :semantic_styles
     def dismiss_hover = @hover_card = nil
     def close_language_documents(buffer = nil)
@@ -92,7 +96,30 @@ module Canopus
     def diagnostics_for(buffer)
       return [] if !buffer.path || @clients.empty?
       uri = Sadr::Protocol.uri(buffer.path)
-      @clients.values.flat_map { |client| client.diagnostics.fetch(uri, []) }
+      @clients.values.flat_map do |client|
+        key = [client, buffer]
+        next [] unless @opened_lsp_documents&.key?(key)
+        version = @diagnostic_versions&.dig(client, uri)
+        next [] if version && version != buffer.version
+
+        client.diagnostics.fetch(uri, [])
+      end
+    end
+
+    def diagnostic_decorations(buffer, rows)
+      state = [buffer.version, @diagnostic_generation || 0, @settings["diagnostics"]]
+      cached = @diagnostic_decoration_cache&.[](buffer)
+      unless cached && cached.first == state
+        cached = [state, build_diagnostic_decorations(buffer).freeze]
+        (@diagnostic_decoration_cache ||= {})[buffer] = cached
+      end
+      cached.last.select { |item| diagnostic_item_visible?(buffer, item, rows) }
+    end
+
+    def invalidate_diagnostics(buffer = nil)
+      @diagnostic_generation = (@diagnostic_generation || 0) + 1
+      buffer ? @diagnostic_decoration_cache&.delete(buffer) : @diagnostic_decoration_cache&.clear
+      @decorations.invalidate(:diagnostics, buffer: buffer)
     end
     def resource_workspace_edit?(edit)
       edit.is_a?(Hash) && edit["documentChanges"].is_a?(Array) && edit["documentChanges"].any? { |change| change.is_a?(Hash) && change["kind"] }
@@ -330,6 +357,73 @@ module Canopus
 
     private
 
+    def build_diagnostic_decorations(buffer)
+      settings = @settings["diagnostics"]
+      maximum = DIAGNOSTIC_SEVERITIES.fetch(settings["severity"])
+      diagnostics = diagnostics_for(buffer).filter_map do |diagnostic|
+        severity = diagnostic.fetch("severity", 1)
+        next if severity > maximum
+
+        range = diagnostic.fetch("range")
+        first = Sadr::Protocol.offset(buffer.rope, range.fetch("start"))
+        last = Sadr::Protocol.offset(buffer.rope, range.fetch("end"))
+        next if last < first
+
+        row = buffer.rope.point_at(first).row
+        [diagnostic, first...last, row, severity]
+      rescue KeyError, RangeError, TypeError
+        nil
+      end
+      highlights = diagnostics.map do |_diagnostic, range, _row, severity|
+        Decoration::Item.new(:highlight, range, nil, nil,
+          {color: DIAGNOSTIC_COLORS.fetch(severity), underline: :wave}, 5 - severity, :diagnostics, nil)
+      end
+      return highlights unless settings["inline"]
+
+      inlines = diagnostics.group_by { |entry| entry[2] }.map do |row, entries|
+        diagnostic, _range, _row, severity = entries.min_by { |entry| entry[3] }
+        message = diagnostic.fetch("message").encode(Encoding::UTF_8, invalid: :replace, undef: :replace)
+          .gsub(/\s+/, " ").strip
+        message = "#{message} (+#{entries.length - 1})" if entries.length > 1
+        message = truncate_diagnostic_message(message, settings["inline_max_length"])
+        offset = buffer.rope.line_start(row) + buffer.rope.line(row).bytesize
+        Decoration::Item.new(:inline, offset...offset, row, message,
+          {color: DIAGNOSTIC_COLORS.fetch(severity), padding_left: 8}, 10 + severity, :diagnostics, nil)
+      end
+      highlights + inlines
+    end
+
+    def truncate_diagnostic_message(message, maximum)
+      clusters = message.scan(/\X/)
+      clusters.length > maximum ? clusters.first(maximum - 1).join + "…" : message
+    end
+
+    def diagnostic_item_visible?(buffer, item, rows)
+      first = item.row || buffer.rope.point_at(item.range.begin).row
+      last = item.kind == :highlight ? buffer.rope.point_at(item.range.end).row : first
+      last >= rows.begin && first < rows.end
+    rescue RangeError
+      false
+    end
+
+    def accept_diagnostic_notification(client, params)
+      uri = params.fetch("uri")
+      entry = @opened_lsp_documents&.keys&.find do |owner, buffer|
+        owner.equal?(client) && buffer.path && Sadr::Protocol.uri(buffer.path) == uri
+      end
+      return unless entry
+
+      buffer = entry.last
+      version = params["version"]
+      return if version && version != buffer.version
+
+      (@diagnostic_versions ||= {}).tap { |versions| (versions[client] ||= {})[uri] = buffer.version }
+      invalidate_diagnostics(buffer)
+      @window&.request_frame
+    rescue KeyError, Sadr::Error
+      nil
+    end
+
     def open_language_document(client, buffer, language_id)
       uri = Sadr::Protocol.uri(buffer.path)
       client.open(Sadr::Document.new(uri: uri, language_id: language_id, version: buffer.version, text: buffer.text))
@@ -343,14 +437,19 @@ module Canopus
     end
 
     def close_language_document(client, buffer, uri: Sadr::Protocol.uri(buffer.path))
-      forget_language_document(client, buffer)
+      forget_language_document(client, buffer, uri: uri)
       client.close(uri)
     end
 
-    def forget_language_document(client, buffer)
+    def forget_language_document(client, buffer, uri: buffer.path && Sadr::Protocol.uri(buffer.path))
       key = [client, buffer]
       @opened_lsp_documents&.delete(key)
       @language_document_subscriptions&.delete(key)&.detach
+      if uri && (versions = @diagnostic_versions&.[](client))
+        versions.delete(uri)
+        @diagnostic_versions.delete(client) if versions.empty?
+      end
+      invalidate_diagnostics(buffer)
     end
 
     def sync_language_document(client, uri, buffer, patch)
@@ -452,7 +551,11 @@ module Canopus
         self.palette = {kind: :symbols, query: +"", index: 0, matches: symbols.map { |symbol| "#{'  ' * symbol['_depth']}#{symbol['name']}" },
           items: symbols.map { |symbol| symbol.merge("uri" => uri, "range" => symbol["selectionRange"] || symbol["range"]) }}
       when :diagnostic
-        client.diagnostics[Sadr::Protocol.uri(current.buffer.path)] = result.fetch("items", []) if result
+        if result
+          uri = Sadr::Protocol.uri(current.buffer.path)
+          client.diagnostics[uri] = result.fetch("items", [])
+          accept_diagnostic_notification(client, {"uri" => uri, "version" => current.buffer.version})
+        end
       when :semantic_tokens
         types = client.capabilities.dig("semanticTokensProvider", "legend", "tokenTypes") || []
         @semantic_styles ||= {}

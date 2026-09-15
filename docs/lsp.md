@@ -26,6 +26,11 @@ connection and reopen its documents. A configuration-only change sends
 `workspace/didChangeConfiguration` without restarting. Resource-changing server
 requests require confirmation as described in [workspace edits](workspace_edits.md).
 
+Published diagnostics are shown as severity-colored wave underlines. The most
+severe message on each line is also shown at line end by default. Configure this
+with `diagnostics.inline`, `diagnostics.inline_max_length`, and the minimum
+`diagnostics.severity` (`error`, `warning`, `information`, or `hint`).
+
 Editor positions use UTF-8 byte offsets internally and are converted to LSP
 UTF-16 positions. Servers selecting another position encoding are rejected.
 Messages are limited to 32 MiB, crashes fail pending requests, and a connection

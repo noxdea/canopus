@@ -10,6 +10,7 @@ module Canopus
       "theme" => "Canopus Dark", "font_family" => nil, "icon_theme" => nil, "languages" => {}, "language_servers" => {},
       "tabs" => {"activate_on_close" => "history", "close_on_middle_click" => true, "close_empty_pane" => true,
         "reopen_history_limit" => 20, "confirm_on_close_dirty" => true}.freeze,
+      "diagnostics" => {"inline" => true, "inline_max_length" => 80, "severity" => "warning"}.freeze,
       "dock" => {"left" => {"size" => 220, "visible" => true}.freeze,
         "right" => {"size" => 260, "visible" => false}.freeze,
         "bottom" => {"size" => 280, "visible" => false}.freeze,
@@ -33,6 +34,9 @@ module Canopus
       "theme" => {"type" => "string"}, "font_family" => {"type" => ["string", "null"]},
       "icon_theme" => {"type" => ["string", "null"]},
       "tabs" => {"type" => "object"}, "terminal" => {"type" => "object"},
+      "diagnostics" => {"type" => "object", "required" => %w[inline inline_max_length severity], "properties" => {
+        "inline" => {"type" => "boolean"}, "inline_max_length" => {"type" => "integer", "minimum" => 1, "maximum" => 10_000},
+        "severity" => {"type" => "string", "enum" => %w[error warning information hint]}}},
       "dock" => {"type" => "object", "properties" => {
         "left" => {"$ref" => "#/$defs/dock"}, "right" => {"$ref" => "#/$defs/dock"},
         "bottom" => {"$ref" => "#/$defs/dock"}, "panels" => {"type" => "object", "maxProperties" => 1000,
@@ -109,6 +113,7 @@ module Canopus
       raise Error, "icon_theme must be a string or null" unless @values["icon_theme"].nil? || @values["icon_theme"].is_a?(String)
       validate_tabs!
       validate_terminal!
+      validate_diagnostics!
       validate_dock!
       @values["languages"] = @values["languages"].to_h do |name, layer|
         raise Error, "language settings must be objects" unless name.is_a?(String) && layer.is_a?(Hash)
@@ -171,6 +176,17 @@ module Canopus
        "min_rows" => 1..1000, "min_cols" => 1..1000}.each do |key, range|
         value = terminal[key]
         raise Error, "invalid terminal.#{key}" unless value.is_a?(Integer) && range.cover?(value)
+      end
+    end
+
+    def validate_diagnostics!
+      diagnostics = @values["diagnostics"]
+      raise Error, "diagnostics must be an object" unless diagnostics.is_a?(Hash)
+      raise Error, "diagnostics.inline must be true or false" unless [true, false].include?(diagnostics["inline"])
+      length = diagnostics["inline_max_length"]
+      raise Error, "invalid diagnostics.inline_max_length" unless length.is_a?(Integer) && length.between?(1, 10_000)
+      unless %w[error warning information hint].include?(diagnostics["severity"])
+        raise Error, "invalid diagnostics.severity"
       end
     end
 

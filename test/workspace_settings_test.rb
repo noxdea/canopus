@@ -41,6 +41,14 @@ class WorkspaceSettingsTest < Minitest::Test
     assert_equal "integer", Canopus::Settings.schema.dig("properties", "tab_size", "type")
   end
 
+  def test_diagnostic_settings_are_defaulted_and_validated
+    assert_equal({"inline" => true, "inline_max_length" => 80, "severity" => "warning"}, @workspace.settings["diagnostics"])
+    assert_equal "boolean", Canopus::Settings.schema.dig("properties", "diagnostics", "properties", "inline", "type")
+    assert_raises(Canopus::Error) { Canopus::Settings.new("diagnostics" => {"inline" => "yes"}) }
+    assert_raises(Canopus::Error) { Canopus::Settings.new("diagnostics" => {"inline_max_length" => 0}) }
+    assert_raises(Canopus::Error) { Canopus::Settings.new("diagnostics" => {"severity" => "fatal"}) }
+  end
+
   def test_keymap_values_are_bounded_validated_and_snapshotted
     groups = [{"context" => "Editor && !vim_mode", "bindings" => {"ctrl-k ctrl-s" => "file.save", "cmd-s" => nil}}]
     settings = Canopus::Settings.new("keymap" => groups)
