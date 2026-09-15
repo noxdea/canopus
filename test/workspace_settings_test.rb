@@ -49,6 +49,16 @@ class WorkspaceSettingsTest < Minitest::Test
     assert_raises(Canopus::Error) { Canopus::Settings.new("diagnostics" => {"severity" => "fatal"}) }
   end
 
+  def test_inlay_hint_settings_are_defaulted_and_validated
+    expected = {"enabled" => true, "parameter_names" => true, "types" => true, "max_length" => 30}
+    assert_equal expected, @workspace.settings["inlay_hints"]
+    assert_equal "boolean", Canopus::Settings.schema.dig("properties", "inlay_hints", "properties", "enabled", "type")
+    assert_raises(Canopus::Error) { Canopus::Settings.new("inlay_hints" => {"enabled" => "yes"}) }
+    assert_raises(Canopus::Error) { Canopus::Settings.new("inlay_hints" => {"parameter_names" => nil}) }
+    assert_raises(Canopus::Error) { Canopus::Settings.new("inlay_hints" => {"types" => 1}) }
+    assert_raises(Canopus::Error) { Canopus::Settings.new("inlay_hints" => {"max_length" => 0}) }
+  end
+
   def test_keymap_values_are_bounded_validated_and_snapshotted
     groups = [{"context" => "Editor && !vim_mode", "bindings" => {"ctrl-k ctrl-s" => "file.save", "cmd-s" => nil}}]
     settings = Canopus::Settings.new("keymap" => groups)

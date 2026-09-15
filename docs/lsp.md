@@ -31,6 +31,12 @@ severe message on each line is also shown at line end by default. Configure this
 with `diagnostics.inline`, `diagnostics.inline_max_length`, and the minimum
 `diagnostics.severity` (`error`, `warning`, `information`, or `hint`).
 
+Inlay hints are fetched for the visible source lines plus 50 lines of context and
+shown inline. Label parts with a server-provided location are clickable. Configure
+type and parameter-name hints, or their display limit, with `inlay_hints.types`,
+`inlay_hints.parameter_names`, and `inlay_hints.max_length`; set
+`inlay_hints.enabled` to `false` to disable requests.
+
 Editor positions use UTF-8 byte offsets internally and are converted to LSP
 UTF-16 positions. Servers selecting another position encoding are rejected.
 Messages are limited to 32 MiB, crashes fail pending requests, and a connection

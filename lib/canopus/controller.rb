@@ -234,8 +234,13 @@ module Canopus
           # completed wrap batches. Idle polls need not walk every visible row.
           unless cached && cached[0].equal?(document) && cached[1].equal?(map.tree) &&
               cached[2] == editor.buffer.version && cached[3] == first && cached[4] == last
-            document.request(rows: (first..last).map { |row| map.source_row(row) }.uniq)
-            @language_viewports[editor] = [document, map.tree, editor.buffer.version, first, last]
+            rows = (first..last).map { |row| map.source_row(row) }.uniq.sort
+            document.request(rows: rows)
+            ranges = @workspace.visible_inlay_hint_ranges(editor, first...(last + 1))
+            cached = @language_viewports[editor] = [document, map.tree, editor.buffer.version, first, last, ranges]
+          end
+          cached[5].each do |rows|
+            @workspace.request_inlay_hints(editor, rows, start: true)
           end
         end
         changed = document.poll

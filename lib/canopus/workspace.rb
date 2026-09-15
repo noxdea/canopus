@@ -57,6 +57,7 @@ module Canopus
       end
       @decorations.register(:git) { |buffer, rows| git_decorations(buffer, rows) }
       @decorations.register(:diagnostics) { |buffer, rows| diagnostic_decorations(buffer, rows) }
+      @decorations.register(:inlay_hint) { |buffer, rows| inlay_hint_decorations(buffer, rows) }
       @languages, @terminals = {}, []
       @active_terminal_index = 0
       @closed_tabs, @terminal_names = [], {}
@@ -667,6 +668,8 @@ module Canopus
     def close
       @closed = true
       cancel_project_search
+      invalidate_inlay_hints
+      @inlay_hint_requests&.clear
       @palette&.dig(:response)&.fulfill({"applied" => false, "failureReason" => "Workspace closed"})
       self.palette = nil
       @plugins&.close

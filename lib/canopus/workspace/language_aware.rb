@@ -54,6 +54,12 @@ module Canopus
     end
     def language_request(kind, **options)
       current, buffer, offset = editor, editor.buffer, editor.primary.head
+      if kind == :inlayHint
+        requested = request_visible_inlay_hints(current)
+        @message = "#{kind}…" if requested
+        return requested
+      end
+
       version = buffer.version
       (@language_jobs ||= []) << Thread.new do
         begin
@@ -72,7 +78,6 @@ module Canopus
           when :documentSymbol then client.document_symbol(uri).await(timeout: 10)
           when :codeLens then client.code_lens(uri).await(timeout: 10)
           when :diagnostic then client.diagnostic(uri).await(timeout: 10)
-          when :inlayHint then client.inlay_hint(uri, Sadr::Protocol.range(buffer.rope, 0...buffer.rope.bytesize)).await(timeout: 10)
           when :semantic_tokens then client.semantic_tokens(uri, version: buffer.version)
           when :workspace_symbols then client.workspace_symbols(options.fetch(:query, "")).await(timeout: 10)
           else raise Error, "unknown language request #{kind}"
@@ -258,11 +263,7 @@ module Canopus
         client.execute_command(command.fetch("command"), arguments: command.fetch("arguments", [])) if command && client
       when :locations, :symbols
         location = item["location"] || item
-        path = Sadr::Protocol.path(location["uri"] || location.fetch("targetUri"))
-        opened = open(path)
-        range = location["range"] || location.fetch("targetSelectionRange")
-        opened.select(Sadr::Protocol.offset(opened.buffer.rope, range.fetch("start")))
-        opened.reveal_cursor
+        jump_to_language_location(location)
       when :code_actions
         raise Error, item["disabled"]["reason"].to_s if item["disabled"]
         run_command = lambda do
@@ -357,6 +358,92 @@ module Canopus
 
     private
 
+    def cache_inlay_hints(client, buffer, version, rows, result, id, settings)
+      raise Error, "invalid inlay hints" unless result.nil? || result.is_a?(Array)
+      hints = result || []
+      raise Error, "too many inlay hints" if hints.length > 10_000
+
+      items = build_inlay_hint_decorations(buffer, hints, settings).freeze
+      raise Error, "inlay hint is outside its requested range" unless items.all? { |item| rows.cover?(item.row) }
+      cache = @inlay_hint_cache ||= {}
+      cache.delete_if do |key, _|
+        key[0].equal?(client) && key[1].equal?(buffer) && key[2] == version && key[3] == rows.begin && key[4] == rows.end
+      end
+      cache.shift while cache.length >= 64
+      cache[[client, buffer, version, rows.begin, rows.end]] = [id, items].freeze
+      @decorations.invalidate(:inlay_hint, buffer: buffer)
+      @window&.request_frame
+    end
+
+    def build_inlay_hint_decorations(buffer, hints, settings)
+      sequence = 0
+      hints.flat_map do |hint|
+        unless hint.is_a?(Hash) && hint["position"].is_a?(Hash) && [nil, 1, 2].include?(hint["kind"]) &&
+            [nil, true, false].include?(hint["paddingLeft"]) && [nil, true, false].include?(hint["paddingRight"])
+          raise Error, "invalid inlay hint"
+        end
+        next [] if hint["kind"] == 1 && !settings["types"] || hint["kind"] == 2 && !settings["parameter_names"]
+
+        position = Sadr::Protocol.position_value(hint.fetch("position"))
+        offset = Sadr::Protocol.offset(buffer.rope, position)
+        raise Error, "invalid inlay hint position" unless Sadr::Protocol.position(buffer.rope, offset) == position
+        row = buffer.rope.point_at(offset).row
+        parts = truncate_inlay_label(hint.fetch("label"), settings["max_length"]).reject { |label, _location| label.empty? }
+        parts.each_with_index.map do |(label, location), index|
+          validate_inlay_location(location) if location
+          click = location && ->(_editor, _offset) { jump_to_language_location(location) }
+          left = index.zero? && hint["paddingLeft"]
+          right = index == parts.length - 1 && hint["paddingRight"]
+          style = {color: :muted, padding_left: left ? 4 : 0, padding_right: right ? 4 : 0,
+            cells: Zaniah::Unicode.width(label) + (left ? 1 : 0) + (right ? 1 : 0)}
+          sequence += 1
+          Decoration::Item.new(:inline, offset...offset, row, label, style, 20 + sequence, :inlay_hint, click)
+        end
+      rescue KeyError, RangeError, TypeError, Sadr::Error => error
+        raise Error, "invalid inlay hint: #{error.message}"
+      end
+    end
+
+    def truncate_inlay_label(label, maximum)
+      parts = label.is_a?(String) ? [{"value" => label}] : label
+      unless parts.is_a?(Array) && parts.length <= 10_000 &&
+          parts.all? { |part| part.is_a?(Hash) && part["value"].is_a?(String) && part["value"].valid_encoding? }
+        raise Error, "invalid inlay hint label"
+      end
+
+      clusters = []
+      parts.each_with_index do |part, index|
+        part["value"].each_grapheme_cluster do |cluster|
+          clusters << [cluster, part["location"], index]
+          break if clusters.length > maximum
+        end
+        break if clusters.length > maximum
+      end
+      if clusters.length > maximum
+        omitted = clusters[maximum - 1]
+        clusters = clusters.first(maximum - 1)
+        clusters << ["…", omitted[1], omitted[2]]
+      end
+      clusters.chunk_while { |left, right| left[2] == right[2] }
+        .map { |group| [group.map(&:first).join, group.first[1]] }
+    end
+
+    def validate_inlay_location(location)
+      raise Error, "invalid inlay hint location" unless location.is_a?(Hash)
+      Sadr::Protocol.path(location.fetch("uri"))
+      Sadr::Protocol.range_value(location.fetch("range"))
+    rescue KeyError, Sadr::Error
+      raise Error, "invalid inlay hint location"
+    end
+
+    def jump_to_language_location(location)
+      path = Sadr::Protocol.path(location["uri"] || location.fetch("targetUri"))
+      opened = open(path)
+      range = location["range"] || location.fetch("targetSelectionRange")
+      opened.select(Sadr::Protocol.offset(opened.buffer.rope, range.fetch("start")))
+      opened.reveal_cursor
+    end
+
     def build_diagnostic_decorations(buffer)
       settings = @settings["diagnostics"]
       maximum = DIAGNOSTIC_SEVERITIES.fetch(settings["severity"])
@@ -424,12 +511,130 @@ module Canopus
       nil
     end
 
+    public
+
+    def inlay_hint_decorations(buffer, rows)
+      active = @clients.values
+      cache = (@inlay_hint_cache || {}).select do |key, _entry|
+        key[1].equal?(buffer) && key[2] == buffer.version && active.include?(key[0])
+      end
+      covered = []
+      cache.sort_by { |_key, entry| -entry.first }.flat_map do |key, entry|
+        items = entry.last.select { |item| rows.cover?(item.row) && covered.none? { |range| range.cover?(item.row) } }
+        covered << (key[3]...key[4])
+        items
+      end.sort_by { |item| [item.range.begin, item.priority] }.freeze
+    end
+
+    def request_inlay_hints(current, visible_rows, start: false)
+      @language_jobs&.reject! { |thread| !thread.alive? }
+      buffer = current.buffer
+      return false unless buffer.path && !buffer.read_only
+      unless visible_rows.is_a?(Range) && visible_rows.begin.is_a?(Integer) && visible_rows.end.is_a?(Integer)
+        raise ArgumentError, "inlay hint rows must be an integer range"
+      end
+      first = visible_rows.begin.clamp(0, buffer.line_count)
+      last = (visible_rows.exclude_end? ? visible_rows.end : visible_rows.end + 1).clamp(first, buffer.line_count)
+      return false if first == last
+
+      language = current.language_document.definition.name
+      client = @clients[language]
+      return false unless client || start
+      return false if client && !client.capabilities["inlayHintProvider"]
+      settings = @settings.for_language(language)["inlay_hints"]
+      return false unless settings["enabled"]
+      unless client
+        options = language_server_options(language)
+        attempts = @inlay_hint_start_attempts ||= {}
+        return false if attempts.key?(language) && attempts[language] == options
+        attempts[language] = options
+        return false unless options
+      end
+
+      requested = [first - 50, 0].max...[last + 50, buffer.line_count].min
+      cached = (@inlay_hint_cache || {}).keys.any? do |key|
+        (!client || key[0].equal?(client)) && key[1].equal?(buffer) && key[2] == buffer.version &&
+          key[3] <= first && key[4] >= last
+      end
+      pending = (@inlay_hint_requests || {}).values.any? do |entry|
+        entry[:buffer].equal?(buffer) && entry[:version] == buffer.version && entry[:generation] == @inlay_hint_generation.to_i &&
+          (!client || !entry[:client] || entry[:client].equal?(client)) && entry[:range].begin <= first && entry[:range].end >= last
+      end
+      return false if cached || pending
+
+      @inlay_hint_request_id = @inlay_hint_request_id.to_i + 1
+      id, version, generation = @inlay_hint_request_id, buffer.version, @inlay_hint_generation.to_i
+      rope = buffer.rope
+      byte_range = rope.line_start(requested.begin)...(requested.end == buffer.line_count ? rope.bytesize : rope.line_start(requested.end))
+      protocol_range = Sadr::Protocol.range(rope, byte_range)
+      (@inlay_hint_requests ||= {})[id] = {client: client, buffer: buffer, version: version, generation: generation, range: requested}
+      job = Thread.new do
+        begin
+          owner = language_client(buffer)
+          supported = owner.capabilities["inlayHintProvider"]
+          valid = buffer.version == version && @inlay_hint_generation.to_i == generation && @clients.value?(owner)
+          result = owner.inlay_hint(Sadr::Protocol.uri(buffer.path), protocol_range).await(timeout: 10) if supported && valid
+          post do
+            @inlay_hint_requests&.delete(id)
+            @language_jobs&.reject! { |thread| !thread.alive? }
+            next unless supported && valid && @inlay_hint_generation.to_i == generation && @clients.value?(owner)
+            next unless buffer.version == version && @panes.any? { |pane| pane.editors.any? { |editor| editor.buffer.equal?(buffer) } }
+
+            cache_inlay_hints(owner, buffer, version, requested, result, id, settings)
+          end
+        rescue StandardError => error
+          post do
+            @inlay_hint_requests&.delete(id)
+            @language_jobs&.reject! { |thread| !thread.alive? }
+            @message = error.message unless owner && @retired_language_clients&.[](owner)
+          end
+        end
+      end
+      (@language_jobs ||= []) << job
+      @language_jobs.reject! { |thread| !thread.alive? }
+      true
+    end
+
+    def request_visible_inlay_hints(current = editor)
+      @inlay_hint_start_attempts&.delete(current.language_document.definition.name)
+      map = current.display_map
+      first = current.scroll_y.floor.clamp(0, map.row_count - 1)
+      last = [first + current.viewport_rows, map.row_count - 1].min
+      visible_inlay_hint_ranges(current, first...(last + 1)).map do |rows|
+        request_inlay_hints(current, rows, start: true)
+      end.any?
+    end
+
+    def visible_inlay_hint_ranges(current, display_rows)
+      map = current.display_map
+      rows = display_rows.flat_map do |index|
+        row = map.row(index)
+        ending = map.to_buffer(DisplayPoint.new(index, row.text.length))
+        [map.source_row(index), current.buffer.rope.point_at(ending).row]
+      end
+      rows.sort.uniq.slice_when { |left, right| right - left > 101 }
+        .map { |group| group.first...(group.last + 1) }
+    end
+
+    def invalidate_inlay_hints(buffer = nil, client: nil)
+      @inlay_hint_generation = @inlay_hint_generation.to_i + 1
+      @inlay_hint_cache&.delete_if do |key, _|
+        (!buffer || key[1].equal?(buffer)) && (!client || key[0].equal?(client))
+      end
+      @decorations.invalidate(:inlay_hint, buffer: buffer)
+      @window&.request_frame unless @closed
+      nil
+    end
+
+    private
+
     def open_language_document(client, buffer, language_id)
       uri = Sadr::Protocol.uri(buffer.path)
       client.open(Sadr::Document.new(uri: uri, language_id: language_id, version: buffer.version, text: buffer.text))
       key = [client, buffer]
       @language_document_subscriptions&.delete(key)&.detach
       (@language_document_subscriptions ||= {})[key] = buffer.on_edit do |patch|
+        invalidate_inlay_hints(buffer)
         sync_language_document(client, uri, buffer, patch)
       end
       (@opened_lsp_documents ||= {})[key] = true
@@ -450,6 +655,7 @@ module Canopus
         @diagnostic_versions.delete(client) if versions.empty?
       end
       invalidate_diagnostics(buffer)
+      invalidate_inlay_hints(buffer)
     end
 
     def sync_language_document(client, uri, buffer, patch)
@@ -560,24 +766,6 @@ module Canopus
         types = client.capabilities.dig("semanticTokensProvider", "legend", "tokenTypes") || []
         @semantic_styles ||= {}
         @semantic_styles[current.buffer] = [current.buffer.version, result.map { |token| token.to_h.merge(name: types[token[:type]]) }]
-      when :inlayHint
-        hints = result || []
-        raise Error, "invalid inlay hints" unless hints.is_a?(Array)
-        raise Error, "too many inlay hints" if hints.length > 10_000
-        blocks = hints.map do |hint|
-          raise Error, "invalid inlay hint" unless hint.is_a?(Hash) && hint["position"].is_a?(Hash)
-          label = hint["label"]
-          if label.is_a?(Array)
-            raise Error, "invalid inlay hint label" unless label.all? { |part| part.is_a?(Hash) && part["value"].is_a?(String) && part["value"].valid_encoding? }
-            label = label.map { |part| part["value"] }.join
-          end
-          row = hint["position"]["line"]
-          raise Error, "invalid inlay hint" unless label.is_a?(String) && label.valid_encoding? && row.is_a?(Integer) && row.between?(0, current.buffer.line_count - 1)
-          [row, label]
-        end
-        map = current.display_map
-        map.block_map.blocks.keys.each { |id| map.remove_block(id) if id.is_a?(Array) && id.first == :inlay }
-        blocks.each_with_index { |(row, label), index| map.insert_block([:inlay, index], row: row, text: label, kind: :inlay) }
       end
       @window&.request_frame
     end

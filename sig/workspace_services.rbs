@@ -61,6 +61,11 @@ module Canopus
     def semantic_spans_for: (Buffer buffer, Integer row) -> Array[[Integer, Integer, String]]
     def diagnostic_decorations: (Buffer buffer, Range[Integer] rows) -> Array[Decoration::Item]
     def invalidate_diagnostics: (?Buffer? buffer) -> nil
+    def inlay_hint_decorations: (Buffer buffer, Range[Integer] rows) -> Array[Decoration::Item]
+    def request_inlay_hints: (Editor editor, Range[Integer] visible_rows, ?start: bool) -> bool
+    def request_visible_inlay_hints: (?Editor editor) -> bool
+    def visible_inlay_hint_ranges: (Editor editor, Range[Integer] display_rows) -> Array[Range[Integer]]
+    def invalidate_inlay_hints: (?Buffer? buffer, ?client: Sadr::Client?) -> nil
     def accept_language_result: (palette_state palette, Integer index) -> void
     def show_diagnostics: () -> void
     def show_outline: () -> void

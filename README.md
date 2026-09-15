@@ -34,6 +34,7 @@ installable.
 - Native GPU windows on macOS, Linux, and Windows, plus TUI and headless modes
 - Persistent buffers, tabs, splits, sessions, and explicit save-conflict handling
 - LSP completion, diagnostics, hover, symbols, formatting, rename, and code actions
+- Viewport-scoped LSP inlay hints with clickable label locations
 - Resizable integrated terminal with multiple tabs, scrollback, selection, colors, and clickable links
 - Git diff, blame, hunk reversal, and branch switching
 - Editable project-wide search results and safe project file operations
@@ -110,6 +111,7 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
   "vim_mode": false,
   "use_tabs": false,
   "diagnostics": { "inline": true, "inline_max_length": 80, "severity": "warning" },
+  "inlay_hints": { "enabled": true, "parameter_names": true, "types": true, "max_length": 30 },
   "tabs": { "activate_on_close": "history", "reopen_history_limit": 20 },
   "terminal": { "working_directory": "project", "scrollback_lines": 10000 },
   "dock": {

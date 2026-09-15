@@ -484,6 +484,7 @@ module Canopus
         Zaniah::Text.new(ui_text(item.content), size: [@font_size - 2, 1].max, color: color)
       end
       element = Zaniah::Div.new.w(width).h(height).items_center.child(content)
+      element.style(padding: [0, style.fetch(:padding_right, 0), 0, style.fetch(:padding_left, 0)])
       element.bg(style[:background]) if style[:background]
       element
     end
