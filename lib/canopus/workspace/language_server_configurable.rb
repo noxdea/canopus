@@ -172,6 +172,7 @@ module Canopus
 
     def stop_language_servers
       @starting_language_clients&.values&.each(&:stop)
+      resyncs = @language_document_resyncs&.values || []
       (@client_lock ||= Mutex.new).synchronize do
         @language_document_subscriptions&.each_value(&:detach)
         @language_document_subscriptions&.clear
@@ -179,6 +180,8 @@ module Canopus
         @clients.each_value(&:stop)
         @clients.clear
       end
+      resyncs.each { |thread| thread.join unless thread.equal?(Thread.current) }
+      @language_document_resyncs&.clear
       @language_reload_job&.join
     end
   end

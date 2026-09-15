@@ -3,7 +3,8 @@
 require "json"
 require "fileutils"
 sadr_path = ENV["SADR_PATH"]
-sadr_path ? require(File.expand_path("lib/sadr", sadr_path)) : require("sadr")
+sadr_root = File.expand_path("../..", __dir__)
+sadr_path ? require(File.expand_path("lib/sadr", File.expand_path(sadr_path, sadr_root))) : require("sadr")
 require_relative "settings"
 require_relative "theme"
 require_relative "vim"

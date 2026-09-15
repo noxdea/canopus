@@ -25,8 +25,10 @@ class LanguageServerConfigurationTest < Minitest::Test
       @documents[document.uri] = document
     end
     def change(uri, version, changes)
+      raise Sadr::Error, "language server is not running" unless running?
+
       document = @documents.fetch(uri)
-      @events << [:change, Sadr::Protocol.path(uri), changes.last.text]
+      @events << [:change, Sadr::Protocol.path(uri), changes.last.text, changes.map(&:range)]
       @documents[uri] = document.with(version: version, text: changes.last.text)
     end
     def close(uri)
@@ -47,6 +49,9 @@ class LanguageServerConfigurationTest < Minitest::Test
     def did_change_configuration(settings) = notify("workspace/didChangeConfiguration", settings: settings)
     def hover(*) = @pending ||= Sadr::Future.new(1)
     def capabilities = {}
+    def running? = @state == :running
+    def fail! = @state = :failed
+    def resume! = @state = :running
   end
 
   def setup
@@ -122,6 +127,23 @@ class LanguageServerConfigurationTest < Minitest::Test
       assert_equal 1, original.events.count { |event| event.first == "workspace/didChangeConfiguration" }
       result = original.handlers.fetch("workspace/configuration").call("items" => [{"section" => "ruby.enabled"}, {"section" => "use_tabs"}])
       assert_equal [false, false], result
+    end
+  end
+
+  def test_edits_during_a_client_restart_are_resynchronized_from_the_latest_buffer
+    with_clients do
+      client = @workspace.language_client
+      client.fail!
+      @editor.insert_text("during restart", auto_indent: false)
+      @editor.insert_text(" latest", auto_indent: false)
+      wait_until { @workspace.instance_variable_get(:@language_document_resyncs)&.any? }
+      client.resume!
+      wait_until { client.events.any? { |event| event.first == :change } }
+      change = client.events.find { |event| event.first == :change }
+      assert_equal @editor.buffer.text, change[2]
+      assert_equal [nil], change[3]
+      assert_equal 1, client.events.count { |event| event.first == :change }
+      wait_until { @workspace.instance_variable_get(:@language_document_resyncs).empty? }
     end
   end
 

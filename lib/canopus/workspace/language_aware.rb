@@ -364,6 +364,34 @@ module Canopus
       client.change(uri, buffer.version, changes)
     rescue Sadr::Error => error
       self.message = "Language server change failed: #{error.message}"
+      resync_language_document(client, uri, buffer)
+    end
+
+    def resync_language_document(client, uri, buffer)
+      key = [client, buffer]
+      jobs = @language_document_resyncs ||= {}
+      return if jobs[key]&.alive?
+
+      # ponytail: poll until Sadr exposes a restart-complete callback.
+      jobs[key] = Thread.new do
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 35
+        until @closed || @retired_language_clients&.[](client) || !@opened_lsp_documents&.[](key)
+          if client.running?
+            version = buffer.version
+            text = buffer.text
+            next unless version == buffer.version
+
+            client.change(uri, version, [Sadr::ContentChange.new(range: nil, text: text)])
+            break
+          end
+          break if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+          sleep 0.01
+        end
+      rescue Sadr::Error => error
+        self.message = "Language server resync failed: #{error.message}" unless error.message == "document version must increase"
+      ensure
+        jobs.delete(key) if jobs[key].equal?(Thread.current)
+      end
     end
 
     def display_language_result(kind, result, client, current)

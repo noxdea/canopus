@@ -7,7 +7,6 @@ require "fileutils"
 require "rbconfig"
 require "json"
 require_relative "../lib/canopus"
-require_relative "../lib/canopus/lsp"
 
 module LspInterop
   module_function
@@ -19,12 +18,19 @@ module LspInterop
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 30
     begin
       yield.await(timeout: 30)
-    rescue Canopus::Lsp::ServerError => error
+    rescue Sadr::ServerError => error
       # Index/document updates may cancel a read request according to LSP.
       raise unless [-32801, -32802].include?(error.code) && Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
       sleep(0.1)
       retry
     end
+  end
+
+  def change(client, uri, buffer, patch)
+    changes = patch.edits.reverse.map do |edit|
+      Sadr::ContentChange.new(range: Sadr::Protocol.range(patch.before, edit.old_range), text: edit.new_text)
+    end
+    client.change(uri, buffer.version, changes)
   end
 
   def run(language)
@@ -73,13 +79,15 @@ module LspInterop
       end
       path = File.join(root, filename)
       File.write(path, source)
-      client = Canopus::Lsp::Client.new(command: command, root: root, env: env, initialization_options: options, restart: false)
+      client = Sadr::Client.new(command: command, root: root, env: env, initialization_options: options, restart: false)
       logs = []
       client.on("window/logMessage") { |message| logs << message; logs.shift if logs.length > 20 }
       client.start(timeout: 60)
       buffer = Canopus::Buffer.new(source, path: path)
-      uri = client.open_document(buffer, language_id: language)
+      uri = client.open(Sadr::Document.new(uri: Sadr::Protocol.uri(path), language_id: language,
+        version: buffer.version, text: buffer.text))
       offset = source.b.index(needle.b) + 2
+      position = ->(value) { Sadr::Protocol.position(buffer.rope, value) }
       results = {server: client.server_info, encoding: client.position_encoding, capabilities: client.capabilities.keys.sort, checks: {}}
       if language == "go" && results[:server]["version"].start_with?("{")
         results[:server] = results[:server].merge("version" => JSON.parse(results[:server]["version"]).fetch("Version"))
@@ -95,20 +103,22 @@ module LspInterop
         value = nil
         loop do
           future = case feature
-          when :documentSymbol, :codeLens, :diagnostic then client.public_send(feature, buffer)
-          when :formatting then client.formatting(buffer, options: {tabSize: 2, insertSpaces: true})
-          when :codeAction then client.codeAction(buffer, range: Canopus::Lsp::Protocol.range(buffer.rope, 0...buffer.rope.bytesize), context: {diagnostics: []})
-          when :inlayHint then client.inlayHint(buffer, range: Canopus::Lsp::Protocol.range(buffer.rope, 0...buffer.rope.bytesize))
-          when :references then client.references(buffer, offset, context: {includeDeclaration: true})
-          when :rename then client.rename(buffer, offset, newName: "greeting")
+          when :documentSymbol then client.document_symbol(uri)
+          when :codeLens then client.code_lens(uri)
+          when :diagnostic then client.diagnostic(uri)
+          when :formatting then client.formatting(uri, {tabSize: 2, insertSpaces: true})
+          when :codeAction then client.code_action(uri, Sadr::Protocol.range(buffer.rope, 0...buffer.rope.bytesize), {diagnostics: []})
+          when :inlayHint then client.inlay_hint(uri, Sadr::Protocol.range(buffer.rope, 0...buffer.rope.bytesize))
+          when :references then client.references(uri, position.call(offset), include_declaration: true)
+          when :rename then client.rename(uri, position.call(offset), "greeting")
           when :signatureHelp
             call = source.b.rindex("greet(".b)
-            client.signatureHelp(buffer, call + "greet(".bytesize)
-          else client.public_send(feature, buffer, offset)
+            client.signature_help(uri, position.call(call + "greet(".bytesize))
+          else client.public_send(feature, uri, position.call(offset))
           end
           begin
             value = future.await(timeout: 30)
-          rescue Canopus::Lsp::ServerError => error
+          rescue Sadr::ServerError => error
             raise unless ([-32801, -32802].include?(error.code) || (language == "go" && error.message.include?("no package metadata"))) && Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
             sleep(0.2)
             next
@@ -138,15 +148,17 @@ module LspInterop
         results[:checks][:workspace_symbols] = {nonempty: true, bytes: JSON.generate(value).bytesize}
       end
       if client.supports?("semanticTokensProvider")
-        first = client.semantic_tokens(buffer)
-        buffer.edit([[buffer.rope.bytesize...buffer.rope.bytesize, "\n"]])
-        second = client.semantic_tokens(buffer)
+        first = client.semantic_tokens(uri, version: buffer.version)
+        patch = buffer.edit([[buffer.rope.bytesize...buffer.rope.bytesize, "\n"]])
+        change(client, uri, buffer, patch)
+        second = client.semantic_tokens(uri, version: buffer.version)
         raise "#{language} semantic tokens empty" if first.empty? || second.empty?
         results[:checks][:semantic_tokens] = {initial: first.length, after_change: second.length, delta: client.capabilities.dig("semanticTokensProvider", "full").is_a?(Hash)}
       else
-        buffer.edit([[buffer.rope.bytesize...buffer.rope.bytesize, "\n"]])
+        patch = buffer.edit([[buffer.rope.bytesize...buffer.rope.bytesize, "\n"]])
+        change(client, uri, buffer, patch)
       end
-      client.save_document(uri)
+      client.save(uri)
       results[:checks][:incremental_change] = buffer.version == 1
       results[:checks][:diagnostics_push] = client.diagnostics.key?(uri)
       invalid = case language
@@ -155,11 +167,12 @@ module LspInterop
       when "typescript" then "const bad: number = \"wrong\";\n"
       when "go" then "var bad int = \"wrong\"\n"
       end
-      buffer.edit([[buffer.rope.bytesize...buffer.rope.bytesize, invalid]])
+      patch = buffer.edit([[buffer.rope.bytesize...buffer.rope.bytesize, invalid]])
+      change(client, uri, buffer, patch)
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 30
       loop do
         diagnostics = if client.supports?("diagnosticProvider")
-          await_stable { client.diagnostic(buffer) }&.fetch("items", [])
+          await_stable { client.diagnostic(uri) }&.fetch("items", [])
         else
           client.diagnostics[uri]
         end
@@ -171,7 +184,7 @@ module LspInterop
         sleep(0.2)
       end
       results[:errors] = client.errors.map(&:message)
-      client.close_document(uri)
+      client.close(uri)
       client.stop
       results[:checks][:shutdown] = client.state == :stopped && !client.transport.alive?
       puts JSON.generate(language: language, **results)
