@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Delegate language-server protocol transport and lifecycle handling to Sadr.
+
 ## 0.4.0 — 2026-09-15
 
 - Route commands and keybindings through one context-aware command registry.

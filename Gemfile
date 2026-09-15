@@ -3,6 +3,8 @@
 source "https://rubygems.org"
 gemspec
 
+gem "sadr", path: ENV.fetch("SADR_PATH") if ENV["SADR_PATH"]
+
 group :development, :test do
   gem "rake", "~> 13.0"
   gem "minitest", "~> 5.0"

@@ -167,9 +167,12 @@ git clone https://github.com/noxdea/canopus.git
 cd canopus
 bundle install
 bundle exec rake test
-bundle exec rbs -I sig -r porrima -r thuban -r alhena -r antares -r denebola -r zaniah -r stringio -r strscan validate
+bundle exec rbs -I sig -r porrima -r thuban -r alhena -r antares -r denebola -r zaniah -r sadr -r stringio -r strscan validate
 bundle exec ruby tools/check_dependencies.rb test/type/smoke.rb
 ```
+
+Before a Sadr release is available, use a sibling checkout with
+`SADR_PATH=../sadr bundle install`.
 
 Run `bundle exec rake bench` for performance checks. Contributions can be
 submitted through [GitHub issues and pull requests](https://github.com/noxdea/canopus/issues).
