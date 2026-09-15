@@ -44,8 +44,9 @@ class Canopus::DisplayMap::OverlayMap
         width = numeric_style(style, :width, nil) || (font ? font.advance_width(text.codepoints, size: font_size) : Zaniah::Unicode.width(text) * font_size * 0.6)
         width += padding
         height = numeric_style(style, :height, line_height)
-        validate_size(width, "inline width", allow_zero: true)
+        validate_size(width, "inline width")
         validate_size(height, "inline height")
+        raise ArgumentError, "inline height must not exceed line height" if height > line_height
         cells = numeric_style(style, :cells, Zaniah::Unicode.width(text))
         validate_size(cells, "inline cell width", allow_zero: true)
         inlines[row] << Inline.new(item, offset, width.to_f, cells.to_f, height.to_f, align)

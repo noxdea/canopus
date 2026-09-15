@@ -275,16 +275,12 @@ module Canopus
         last = [first + editor.viewport_rows + 1, map.row_count].min
         cursor = map.to_display(cursor_offset)
       end
-      visible_source_rows = (first...last).map { |index| map.source_row(index) }
-      visible_rows = visible_source_rows.empty? ? (0...0) : (visible_source_rows.min..visible_source_rows.max)
-      decorations = @workspace.decorations.items_for(editor.buffer, visible_rows, context: editor)
+      decorations = decorations_for_display_rows(editor, map, first, last)
       if map.set_overlays(decorations.select { |item| %i[inline block].include?(item.kind) },
         font: @cx.text_system&.font, font_size: @font_size, line_height: @line_height)
         last = [first + editor.viewport_rows + 1, map.row_count].min
         cursor = map.to_display(cursor_offset)
-        visible_source_rows = (first...last).map { |index| map.source_row(index) }
-        visible_rows = visible_source_rows.empty? ? (0...0) : (visible_source_rows.min..visible_source_rows.max)
-        decorations = @workspace.decorations.items_for(editor.buffer, visible_rows, context: editor)
+        decorations = decorations_for_display_rows(editor, map, first, last)
       end
       gutter_items = decorations.select { |item| item.kind == :gutter }
       highlight_items = decorations.select { |item| item.kind == :highlight }
@@ -408,6 +404,16 @@ module Canopus
     end
     def column_x(value, line, column)
       line ? line.x_for_index(value[0, column].to_s.bytesize) : column * @font_size * 0.6
+    end
+    def decorations_for_display_rows(editor, map, first, last)
+      rows = (first...last).flat_map do |index|
+        row = map.row(index)
+        ending = map.to_buffer(DisplayPoint.new(index, row.text.length))
+        [map.source_row(index), editor.buffer.rope.point_at(ending).row]
+      end
+      rows.sort.uniq.slice_when { |left, right| right != left + 1 }.flat_map do |group|
+        @workspace.decorations.items_for(editor.buffer, group.first...(group.last + 1), context: editor)
+      end.uniq.sort_by(&:priority).freeze
     end
     def prepare_inline_overlays(editor, row, left, y, width)
       return [nil, nil] unless row.kind == :text && row.metadata.is_a?(Array) && !row.metadata.empty?

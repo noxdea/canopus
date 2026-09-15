@@ -92,7 +92,8 @@ module Canopus
       return false if affected.empty?
 
       @recomputed_lines = 0
-      affected.flat_map { |row| first, last = affected_lines(row, row); (first..last).to_a }.uniq.sort.each do |row|
+      affected.select { |row| row.between?(0, @rope.line_count - 1) }
+        .flat_map { |row| first, last = affected_lines(row, row); (first..last).to_a }.uniq.sort.each do |row|
         replace_lines(row, row, row)
       end
       true
@@ -177,6 +178,14 @@ module Canopus
       local = offset - @rope.line_start(source)
       lines = display_lines(source, local: local).rows
       prefix = @tree.prefix_summary(source).display_rows
+      lines.each_with_index do |line, i|
+        next unless line.kind == :text && line.metadata&.any? do |placement|
+          placement.align == :before && placement.item.range.begin == offset
+        end
+
+        column = line.offsets.bsearch_index { |position| position >= local } || line.offsets.length - 1
+        return DisplayPoint.new(prefix + i, column)
+      end
       lines.each_with_index do |line, i|
         next unless line.kind == :text
         next if local > line.offsets.last

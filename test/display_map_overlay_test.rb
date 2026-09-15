@@ -42,6 +42,18 @@ class DisplayMapOverlayTest < Minitest::Test
     editor&.dispose
   end
 
+  def test_before_aligned_overlay_owns_its_wrapped_boundary
+    map = Canopus::DisplayMap.new(Canopus::Buffer.new("abcd"), wrap_width: 3,
+      background_threshold: nil)
+    map.set_overlays([inline(1, "[]", align: :before)], font_size: 10, line_height: 10)
+
+    assert_equal %w[a b cd], map.each_row.map { |row, _| row.text }
+    assert_equal Canopus::DisplayPoint.new(1, 0), map.to_display(1)
+    assert_equal 1, map.to_buffer(Canopus::DisplayPoint.new(1, 0))
+  ensure
+    map&.dispose
+  end
+
   def test_block_height_and_position_change_display_rows_without_becoming_text
     map = Canopus::DisplayMap.new(Canopus::Buffer.new("a\nb"), background_threshold: nil)
     map.set_overlays([block(1, height: 25)], font_size: 10, line_height: 10)
@@ -61,6 +73,20 @@ class DisplayMapOverlayTest < Minitest::Test
 
     map.set_overlays([inline(2, "xx")], font_size: 10, line_height: 10)
     assert_equal 1, map.recomputed_lines
+  ensure
+    map&.dispose
+  end
+
+  def test_removing_an_overlay_after_its_source_row_was_deleted
+    buffer = Canopus::Buffer.new("a\nb\nc")
+    map = Canopus::DisplayMap.new(buffer, background_threshold: nil)
+    map.set_overlays([block(2, height: 10)], font_size: 10, line_height: 10)
+
+    buffer.edit([[0...buffer.rope.bytesize, "x"]])
+
+    assert map.set_overlays([], font_size: 10, line_height: 10)
+    assert_equal [[:text, "x"]], map.each_row.map { |row, _| [row.kind, row.text] }
+    assert_equal 0, map.recomputed_lines
   ensure
     map&.dispose
   end
@@ -96,6 +122,8 @@ class DisplayMapOverlayTest < Minitest::Test
 
     assert_raises(TypeError) { map.set_overlays([Object.new]) }
     assert_raises(ArgumentError) { map.set_overlays([inline(0, "x", padding_left: -1)]) }
+    assert_raises(ArgumentError) { map.set_overlays([inline(0, "", width: 0)]) }
+    assert_raises(ArgumentError) { map.set_overlays([inline(0, "x", height: 11)], line_height: 10) }
     combining = Canopus::DisplayMap.new(Canopus::Buffer.new("e\u0301"), background_threshold: nil)
     assert_raises(ArgumentError) { combining.set_overlays([inline(1)]) }
   ensure

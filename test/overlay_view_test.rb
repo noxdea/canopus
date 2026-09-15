@@ -65,6 +65,35 @@ class OverlayViewTest < Minitest::Test
     end
   end
 
+  def test_visible_fold_suffix_supplies_its_inline_decorations
+    Dir.mktmpdir("canopus-fold-overlay-") do |root|
+      workspace = Canopus::Workspace.new(root: root)
+      window = Zaniah::Platform.open_window(backend: :headless, width: 800, height: 220)
+      window.text_system = Zaniah::TextSystem::Renderer.new
+      controller = Canopus::Controller.new(workspace, window)
+      editor = workspace.editor
+      editor.insert_text("one\nhidden\nlast", auto_indent: false)
+      editor.display_map.fold(3...11)
+      workspace.decorations.register(:fold_suffix) do |_buffer, rows|
+        if rows.cover?(2)
+          [Canopus::Decoration::Item.new(:inline, 11...11, nil, "[hint]", {}, 0, :fold_suffix, nil)]
+        else
+          []
+        end
+      end
+
+      editor.language_document.stub(:poll, false) { controller.tick }
+
+      assert_equal "one…last", editor.display_map.row(0).text
+      assert_equal ["[hint]"], editor.display_map.row(0).metadata.map { |placement| placement.item.content }
+      assert_includes window.text_runs.map { |run| run[2] }, "[hint]"
+    ensure
+      workspace&.close
+      window&.on_close { true }
+      window&.close
+    end
+  end
+
   private
 
   def descendants(element) = [element, *element.children.flat_map { |child| descendants(child) }]
