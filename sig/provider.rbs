@@ -1,0 +1,29 @@
+module Canopus
+  module Provider
+    class Completion < Data
+      attr_reader label: String
+      attr_reader insert_text: String?
+      attr_reader kind: untyped
+      attr_reader detail: String?
+      attr_reader documentation: String?
+      attr_reader sort_text: String?
+      attr_reader filter_text: String?
+      attr_reader additional_edits: Array[untyped]?
+      attr_reader source: Symbol?
+      def self.new: (String label, String? insert_text, untyped kind, String? detail, String? documentation,
+        String? sort_text, String? filter_text, Array[untyped]? additional_edits, Symbol? source) -> instance
+    end
+
+    class Registry
+      MAX_PROVIDERS: Integer
+      MAX_ITEMS: Integer
+      MAX_STRING: Integer
+      PROVIDER_TIMEOUT: Integer
+      def initialize: () -> void
+      def register_completion: (Symbol source, priority: Numeric) { (Buffer, Integer, untyped) -> untyped } -> Symbol
+      def complete: (Buffer buffer, Integer offset, untyped context) -> Array[Completion]
+      def register_inline_completion: (Symbol source) { (Buffer, Integer) -> untyped } -> Symbol
+      def inline_completion: (Buffer buffer, Integer offset) -> String?
+    end
+  end
+end

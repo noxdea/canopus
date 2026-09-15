@@ -31,6 +31,7 @@ module Canopus
     attr_reader docks: Hash[Symbol, {visible: bool, size: Numeric}]
     attr_reader panels: Panel::Registry
     attr_reader decorations: Decoration::Registry
+    attr_reader providers: Provider::Registry
     attr_accessor window: Zaniah::Platform::Headless::Window?
     attr_reader palette: palette_state?
     def palette=: (palette_state? value) -> void

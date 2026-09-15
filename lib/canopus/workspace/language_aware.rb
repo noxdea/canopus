@@ -62,6 +62,7 @@ module Canopus
         @message = "#{kind}…" if requested
         return requested
       end
+      return request_completions(current, buffer, offset) if kind == :completion
 
       version = buffer.version
       (@language_jobs ||= []) << Thread.new do
@@ -70,7 +71,7 @@ module Canopus
           uri = Sadr::Protocol.uri(buffer.path)
           position = Sadr::Protocol.position(buffer.rope, offset)
           result = case kind
-          when :completion, :hover, :definition, :typeDefinition, :implementation, :signatureHelp
+          when :hover, :definition, :typeDefinition, :implementation, :signatureHelp
             method = {typeDefinition: :type_definition, signatureHelp: :signature_help}.fetch(kind, kind)
             client.public_send(method, uri, position).await(timeout: 10)
           when :references then client.references(uri, position, include_declaration: true).await(timeout: 10)
@@ -101,6 +102,83 @@ module Canopus
       @language_jobs.reject! { |thread| !thread.alive? }
       @message = "#{kind}…"
     end
+
+    def request_completions(current, buffer, offset)
+      cancel_completion_requests
+      version = buffer.version
+      generation = @completion_generation = (@completion_generation || 0) + 1
+      context = {editor: current, version: version, generation: generation,
+        query: completion_query(buffer, offset), metadata: {}, errors: []}
+      job = Thread.new do
+        completions = @providers.complete(buffer, offset, context)
+        post do
+          next unless generation == @completion_generation
+          next unless @panes.any? { |pane| pane.editors.include?(current) }
+          if buffer.version == version
+            display_completions(completions, current, context)
+          else
+            @message = "Document changed; request completion again"
+          end
+        end
+      rescue StandardError => error
+        post { @message = error.message }
+      end
+      (@completion_jobs ||= []) << job
+      (@language_jobs ||= []) << job
+      @completion_jobs.reject! { |thread| !thread.alive? }
+      @language_jobs.reject! { |thread| !thread.alive? }
+      @message = "completion…"
+    end
+
+    def cancel_completion_requests
+      @completion_generation = (@completion_generation || 0) + 1
+      jobs = @completion_jobs&.dup || []
+      jobs.each do |thread|
+        thread.kill if thread.alive?
+        begin
+          thread.join
+        rescue StandardError
+          nil
+        end
+      end
+      @completion_jobs&.clear
+      @language_jobs&.reject! { |thread| jobs.include?(thread) || !thread.alive? }
+    end
+
+    def lsp_completions(buffer, offset, context)
+      client = context[:client]
+      result = context[:lsp_result]
+      unless context.key?(:lsp_result)
+        client = language_client(buffer)
+        context[:client] = client
+        result = client.completion(Sadr::Protocol.uri(buffer.path), Sadr::Protocol.position(buffer.rope, offset)).await(timeout: 10)
+      end
+      context[:client] = client
+      lsp_completion_items(result).map do |item|
+        text_edit = item["textEdit"]
+        if text_edit
+          range = text_edit.is_a?(Hash) && (text_edit["range"] || text_edit["replace"] || text_edit["insert"])
+          unless range.is_a?(Hash) && text_edit["newText"].is_a?(String) && text_edit["newText"].valid_encoding?
+            raise Error, "invalid completion text edit"
+          end
+          Sadr::Protocol.offset(buffer.rope, range.fetch("start"))
+          Sadr::Protocol.offset(buffer.rope, range.fetch("end"))
+        end
+        insertion = text_edit && text_edit["newText"] || item["insertText"] || item.fetch("label")
+        documentation = item["documentation"]
+        documentation = documentation["value"] if documentation.is_a?(Hash)
+        additional = item.fetch("additionalTextEdits", []).map do |entry|
+          raise Error, "invalid completion additional edit" unless entry.is_a?(Hash)
+          range = entry.fetch("range")
+          [Sadr::Protocol.offset(buffer.rope, range.fetch("start"))...Sadr::Protocol.offset(buffer.rope, range.fetch("end")), entry.fetch("newText")]
+        end
+        completion = Provider::Completion.new(item.fetch("label"), insertion, item["kind"], item["detail"], documentation,
+          item["sortText"], item["filterText"], additional, :lsp)
+        context[:metadata][completion] ||= {item: item, client: client}
+        completion
+      end
+    end
+    private :request_completions, :cancel_completion_requests, :lsp_completions
     def diagnostics_for(buffer)
       return [] if !buffer.path || @clients.empty?
       uri = Sadr::Protocol.uri(buffer.path)
@@ -207,6 +285,49 @@ module Canopus
       grouped&.reverse_each(&:end_undo_group)
       pending&.each { |path, buffer| buffer.close unless @buffers[path].equal?(buffer) }
     end
+
+    def display_completions(completions, current, context)
+      metadata = context.fetch(:metadata)
+      active = @clients.values
+      completions = completions.reject do |completion|
+        client = metadata[completion]&.fetch(:client)
+        client && !active.include?(client)
+      end
+      return if completions.empty? && context[:client] && !active.include?(context[:client])
+      if completions.empty? && (failure = context.fetch(:errors).first)
+        @message = failure.last
+        self.palette = nil
+        return
+      end
+      self.palette = {kind: :completion, query: +"", index: 0, matches: completions.map(&:label), items: completions,
+        completion_metadata: metadata, completion_generation: context[:generation], editor: current, version: current.buffer.version}
+      update_palette
+    end
+
+    def accept_provider_completion(completion, current)
+      raise Error, "invalid completion" unless completion.is_a?(Provider::Completion)
+      value = completion.insert_text || completion.label
+      snippet = completion.source == :snippet || completion.kind == :snippet
+      variables = current.snippet_variables(workspace_root: @root, clipboard: @window.respond_to?(:clipboard) ? @window.clipboard : nil) if snippet
+      expanded = snippet ? Snippet.new(value, variables: variables).text : value
+      range = current.primary.range
+      additional = completion.additional_edits.map do |entry|
+        raise ArgumentError, "invalid completion additional edit" unless entry.is_a?(Array) && entry.length == 2
+        entry
+      end.sort_by { |edit| edit.first.begin }
+      current.buffer.rope.apply_edits((additional + [[range, expanded]]).sort_by { |edit| edit.first.begin })
+      current.buffer.begin_undo_group
+      begin
+        current.select(range.begin, range.end)
+        current.buffer.edit(additional, kind: :completion) unless additional.empty?
+        snippet ? current.insert_snippet(value, variables: variables) : current.insert_text(value, auto_indent: false)
+      ensure
+        current.buffer.end_undo_group
+      end
+      show_snippet_choices(current) if snippet
+    end
+    private :display_completions, :accept_provider_completion
+
     def accept_language_result(palette, index)
       item = palette[:items][index]
       return unless item
@@ -215,7 +336,10 @@ module Canopus
       if current && palette[:version] && current.buffer.version != palette[:version]
         raise Error, "Document changed; request #{palette[:kind]} again"
       end
-      client = palette[:client]
+      completion = item if item.is_a?(Provider::Completion)
+      metadata = palette[:completion_metadata]&.[](completion)
+      item = metadata[:item] if metadata
+      client = metadata&.fetch(:client) || palette[:client]
       raise Error, "Language server settings changed; request again" if client && @retired_language_clients&.[](client)
       provider, resolver = case palette[:kind]
       when :completion then ["completionProvider", :resolve_completion]
@@ -226,9 +350,10 @@ module Canopus
         (@language_jobs ||= []) << Thread.new do
           resolved = client.public_send(resolver, item).await(timeout: 10)
           post do
+            next if palette[:completion_generation] && palette[:completion_generation] != @completion_generation
             items = palette[:items].dup
             items[index] = item.merge(resolved || {})
-            accept_language_result(palette.merge(items: items, resolved: true), index)
+            accept_language_result(palette.merge(items: items, resolved: true, client: client), index)
           end
         rescue StandardError => error
           post { @message = error.message }
@@ -238,6 +363,7 @@ module Canopus
       case palette[:kind]
       when :completion
         editor = palette[:editor]
+        return accept_provider_completion(completion, editor) if completion && !metadata
         text_edit = item["textEdit"]
         range = if text_edit
           range = text_edit["range"] || text_edit["replace"] || text_edit.fetch("insert")
@@ -1056,21 +1182,40 @@ module Canopus
       end
     end
 
+    def completion_query(buffer, offset)
+      line = buffer.rope.byteslice(buffer.rope.line_start(buffer.rope.point_at(offset).row)...offset).to_s
+      line[/[[:alnum:]_]*\z/].to_s.each_grapheme_cluster.to_a.last(64).join
+    end
+
+    def lsp_completion_items(result)
+      items = result.is_a?(Hash) ? result.fetch("items", []) : result.nil? ? [] : result
+      defaults = result.is_a?(Hash) ? result.fetch("itemDefaults", {}) : {}
+      raise Error, "invalid completion result" unless items.is_a?(Array) && defaults.is_a?(Hash)
+      raise Error, "too many completion items" if items.length > Provider::Registry::MAX_ITEMS
+
+      items.map do |item|
+        raise Error, "invalid completion item" unless item.is_a?(Hash)
+        merged = defaults.reject { |key, _| key == "editRange" }.merge(item)
+        if defaults["editRange"] && !merged["textEdit"]
+          range = defaults["editRange"]
+          raise Error, "invalid completion edit range" unless range.is_a?(Hash)
+          text = item["textEditText"] || item["insertText"] || item.fetch("label")
+          merged["textEdit"] = (range.key?("start") ? {"range" => range} : range).merge("newText" => text)
+        end
+        merged.freeze
+      end
+    rescue KeyError => error
+      raise Error, "invalid completion result: #{error.message}"
+    end
+
     def display_language_result(kind, result, client, current)
       case kind
       when :completion
-        items = result.is_a?(Hash) ? result.fetch("items", []) : Array(result)
-        defaults = result.is_a?(Hash) ? result.fetch("itemDefaults", {}) : {}
-        items = items.map do |item|
-          merged = defaults.reject { |key, _| key == "editRange" }.merge(item)
-          if defaults["editRange"] && !merged["textEdit"]
-            range = defaults["editRange"]
-            merged["textEdit"] = (range.key?("start") ? {"range" => range} : range).merge("newText" => item["textEditText"] || item["insertText"] || item.fetch("label"))
-          end
-          merged
-        end
-        self.palette = {kind: :completion, query: +"", index: 0, matches: items.map { |item| item.fetch("label") }, items: items, editor: current, client: client, version: current.buffer.version}
-        update_palette
+        generation = @completion_generation = (@completion_generation || 0) + 1
+        context = {editor: current, version: current.buffer.version, generation: generation,
+          query: completion_query(current.buffer, current.primary.head),
+          lsp_result: result, client: client, metadata: {}, errors: []}
+        display_completions(@providers.complete(current.buffer, current.primary.head, context), current, context)
       when :hover, :signatureHelp
         contents = result && (result["contents"] || result["signatures"]&.map { |signature| signature["label"] })
         @hover_markup = kind == :hover && !(contents.is_a?(Hash) && contents["kind"] == "plaintext")

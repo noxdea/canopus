@@ -34,6 +34,7 @@ installable.
 - Native GPU windows on macOS, Linux, and Windows, plus TUI and headless modes
 - Persistent buffers, tabs, splits, sessions, and explicit save-conflict handling
 - LSP completion, diagnostics, hover, symbols, formatting, rename, and code actions
+- Ranked, extensible completion and inline-completion provider registry
 - Viewport-scoped LSP inlay hints with clickable label locations
 - Nested bracket colors and active indentation guides backed by Antares structure analysis
 - Resizable integrated terminal with multiple tabs, scrollback, selection, colors, and clickable links
@@ -162,6 +163,7 @@ network privileges.
 - [Language servers](docs/lsp.md)
 - [Vim mode](docs/vim.md)
 - [Snippets](docs/snippets.md)
+- [Completion providers](docs/providers.md)
 - [Workspace edits](docs/workspace_edits.md)
 - [Packaging](docs/distribution.md)
 - [Profiling and local crash reports](docs/performance.md)

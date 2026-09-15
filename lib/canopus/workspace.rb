@@ -13,11 +13,12 @@ require_relative "project/tree"
 require_relative "command"
 require_relative "panel"
 require_relative "decoration"
+require_relative "provider"
 
 module Canopus
   class Workspace
     ClosedTab = Data.define(:path, :selections, :scroll_x, :scroll_y, :pane_id, :index)
-    attr_reader :panes, :active_pane, :buffers, :actions, :commands, :settings, :theme, :project, :clients, :root, :docks, :panels, :decorations
+    attr_reader :panes, :active_pane, :buffers, :actions, :commands, :settings, :theme, :project, :clients, :root, :docks, :panels, :decorations, :providers
     attr_reader :terminals, :active_terminal_index
     attr_accessor :window, :terminal_composition, :selected_project_path, :performance
     attr_reader :message, :palette
@@ -60,6 +61,8 @@ module Canopus
       @decorations.register(:inlay_hint) { |buffer, rows| inlay_hint_decorations(buffer, rows) }
       @decorations.register(:code_lens) { |buffer, rows| code_lens_decorations(buffer, rows) }
       @decorations.register(:bracket) { |buffer, rows, current| bracket_decorations(buffer, rows, current) }
+      @providers = Provider::Registry.new
+      @providers.register_completion(:lsp, priority: 100) { |buffer, offset, context| lsp_completions(buffer, offset, context) }
       @languages, @terminals = {}, []
       @active_terminal_index = 0
       @closed_tabs, @terminal_names = [], {}
@@ -544,7 +547,23 @@ module Canopus
         @palette[:index] = @palette[:index].clamp(0, [@palette[:matches].length - 1, 0].max)
         return
       end
-      if [:completion, :locations, :symbols, :code_actions, :outline, :branches, :settings_keys, :snippet_choices].include?(@palette[:kind])
+      if @palette[:kind] == :completion
+        labels = @palette[:all_matches] ||= @palette[:matches].dup
+        candidates = @palette[:items].map do |item|
+          item.is_a?(Provider::Completion) ? item.filter_text || item.label : item["filterText"] || item.fetch("label")
+        end
+        groups = @palette[:completion_indices] ||= candidates.each_with_index.each_with_object({}) do |(candidate, index), grouped|
+          (grouped[candidate] ||= []) << index
+        end
+        session = @palette[:search] ||= Spica::Index.new(groups.keys, tie_break: :index).session
+        session.query = @palette[:query]
+        matches = session.matches(12)
+        @palette[:indices] = matches.flat_map { |match| groups.fetch(match.candidate) }.first(12)
+        @palette[:matches] = @palette[:indices].map { |index| labels.fetch(index) }
+        @palette[:index] = 0
+        return
+      end
+      if [:locations, :symbols, :code_actions, :outline, :branches, :settings_keys, :snippet_choices].include?(@palette[:kind])
         labels = @palette[:all_matches] ||= @palette[:matches].dup
         session = @palette[:search] ||= Spica::Index.new(labels).session
         session.query = @palette[:query]
@@ -670,6 +689,7 @@ module Canopus
     end
     def close
       @closed = true
+      cancel_completion_requests
       cancel_project_search
       invalidate_inlay_hints
       @inlay_hint_requests&.clear
