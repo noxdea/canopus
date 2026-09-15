@@ -399,10 +399,13 @@ module Canopus
     def bracket_decorations: (Buffer buffer, Range[Integer] rows, Editor? current) -> Array[Decoration::Item]
     def invalidate_brackets: (?Buffer? buffer) -> nil
     def sticky_scroll_enabled?: (Editor current) -> bool
+    def breadcrumbs_enabled?: (Editor current) -> bool
     def sticky_context: (Editor current, Integer display_row) -> Array[Language::DocumentSymbol]
     def document_symbol_chain: (Editor current, Integer offset) -> Array[Language::DocumentSymbol]
     def document_symbol_siblings: (Editor current, Language::DocumentSymbol symbol, generation: Integer) -> Array[Language::DocumentSymbol]
     def document_symbol_generation: (Editor current) -> Integer?
+    def breadcrumb_context: (Editor current) -> Hash[Symbol, untyped]?
+    def show_breadcrumb_menu: (Pane pane, Editor current, Hash[Symbol, untyped] item, Hash[Symbol, untyped] context) -> bool
     def refresh_sticky_fallback: (Editor current, ?Language::Document document) -> Array[Language::DocumentSymbol]
     def request_sticky_symbols: (Editor current) -> bool
     def invalidate_sticky_symbols: (?Buffer? buffer, ?client: Sadr::Client?) -> nil

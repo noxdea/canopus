@@ -245,14 +245,21 @@ module Canopus
         return
       end
       area = Zaniah::Bounds.new(bounds.x, bounds.y + 34, bounds.width, [bounds.height - 34, 0].max)
-      decorations = prepare_editor_map(editor, area)
-      sticky = prepare_sticky_scroll(editor, area)
+      breadcrumbs = @workspace.breadcrumb_context(editor)
+      breadcrumb_height = breadcrumbs && area.height >= @line_height * 2 ? @line_height : 0
+      content = Zaniah::Bounds.new(area.x, area.y + breadcrumb_height, area.width,
+        [area.height - breadcrumb_height, 0].max)
+      decorations = prepare_editor_map(editor, content)
+      sticky = prepare_sticky_scroll(editor, content)
       sticky_height = sticky.length * @line_height
-      body = Zaniah::Bounds.new(area.x, area.y + sticky_height, area.width, [area.height - sticky_height, 0].max)
+      body = Zaniah::Bounds.new(content.x, content.y + sticky_height, content.width,
+        [content.height - sticky_height, 0].max)
       @editor_bounds[editor] = body
       region(body, role: :textbox, label: editor.buffer.path || "Untitled document", action: [:editor, pane, editor])
       paint_editor(editor, body, pane == @workspace.active_pane, decorations)
-      paint_sticky_scroll(editor, pane, Zaniah::Bounds.new(area.x, area.y, area.width, sticky_height), sticky) unless sticky.empty?
+      paint_sticky_scroll(editor, pane,
+        Zaniah::Bounds.new(content.x, content.y, content.width, sticky_height), sticky) unless sticky.empty?
+      paint_breadcrumbs(editor, pane, Zaniah::Bounds.new(area.x, area.y, area.width, breadcrumb_height), breadcrumbs) if breadcrumb_height.positive?
       fill(Zaniah::Bounds.new(bounds.right - 1, bounds.y, 1, bounds.height), :border)
     end
     def gutter(editor) = [editor.buffer.line_count.to_s.length * @font_size * 0.6 + 24, 52].max
@@ -441,6 +448,49 @@ module Canopus
         end
       end
       fill(Zaniah::Bounds.new(bounds.x, bounds.bottom - 1, bounds.width, 1), :border)
+    end
+    def paint_breadcrumbs(editor, pane, bounds, context)
+      fill(bounds, :panel)
+      items = context[:items].first(3)
+      slot = bounds.width / items.length
+      @scene.clip(bounds) do
+        items.each_with_index do |item, index|
+          area = Zaniah::Bounds.new(bounds.x + slot * index, bounds.y, slot, bounds.height)
+          inset = index.zero? ? 8 : 20
+          text("›", area.x + 5, area.y + 3, color: :muted, size: 12) unless index.zero?
+          label = clip_breadcrumb(item[:label], [area.width - inset - 6, 0].max, 12)
+          next if label.empty?
+
+          text(label, area.x + inset, area.y + 3, color: :foreground, size: 12)
+          region(area, role: :button, label: "Choose siblings for #{item[:label]}",
+            action: [:breadcrumb, pane, editor, item, context])
+        end
+      end
+      fill(Zaniah::Bounds.new(bounds.x, bounds.bottom - 1, bounds.width, 1), :border)
+    end
+    def clip_breadcrumb(value, maximum, size)
+      source = value.to_s.encode(Encoding::UTF_8, invalid: :replace, undef: :replace).scrub
+      return "" unless maximum.positive?
+
+      layout = @cx.text_system&.layout_line(source, size: size)
+      width = layout&.width || Zaniah::Unicode.width(source) * size * 0.6
+      return source if width <= maximum
+
+      ellipsis = "…"
+      ellipsis_width = @cx.text_system&.layout_line(ellipsis, size: size)&.width || size * 0.6
+      return "" if ellipsis_width > maximum
+
+      shown = +""
+      bytes = 0
+      shown_width = 0
+      source.each_grapheme_cluster do |grapheme|
+        bytes += grapheme.bytesize
+        grapheme_width = layout ? layout.x_for_index(bytes) : shown_width + Zaniah::Unicode.width(grapheme) * size * 0.6
+        break if grapheme_width + ellipsis_width > maximum
+        shown << grapheme
+        shown_width = grapheme_width
+      end
+      shown << ellipsis
     end
     def paint_scrollbars(editor, bounds, content_width, decorations)
       track = Zaniah::Bounds.new(bounds.right - 9, bounds.y, 9, [bounds.height - 9, 0].max)

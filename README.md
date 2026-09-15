@@ -120,6 +120,7 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
   "render_whitespace": "boundary",
   "render_ideographic_space": true,
   "sticky_scroll": { "enabled": true, "max_lines": 5 },
+  "breadcrumbs": { "enabled": true },
   "tabs": { "activate_on_close": "history", "reopen_history_limit": 20 },
   "terminal": { "working_directory": "project", "scrollback_lines": 10000 },
   "dock": {
@@ -143,6 +144,10 @@ Sticky scroll keeps the declarations containing the first visible source byte
 above the editor body. It prefers cached LSP document symbols and falls back to
 cached Antares structure regions; `sticky_scroll.enabled` and
 `sticky_scroll.max_lines` can also be overridden per language.
+
+Breadcrumbs show the project-relative file, containing type, and callable above
+sticky scroll. Selecting an item opens its same-directory files or same-parent
+symbols in the palette. `breadcrumbs.enabled` can be overridden per language.
 
 Closing a dirty tab asks whether to save, discard, or cancel. Reopening restores
 the file, selections, position, and pane while Canopus is running; discarded

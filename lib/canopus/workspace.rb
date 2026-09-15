@@ -565,7 +565,7 @@ module Canopus
         @palette[:index] = 0
         return
       end
-      if [:locations, :symbols, :code_actions, :outline, :branches, :settings_keys, :snippet_choices].include?(@palette[:kind])
+      if [:locations, :symbols, :code_actions, :outline, :branches, :settings_keys, :snippet_choices, :breadcrumbs].include?(@palette[:kind])
         labels = @palette[:all_matches] ||= @palette[:matches].dup
         session = @palette[:search] ||= Spica::Index.new(labels).session
         session.query = @palette[:query]
@@ -609,6 +609,11 @@ module Canopus
           editor.reveal_cursor
         end
         return
+      elsif @palette[:kind] == :breadcrumbs
+        current = @palette
+        index = current[:indices] ? current[:indices][current[:index]] : current[:index]
+        self.palette = nil
+        return accept_breadcrumb_palette(current, index)
       end
       selected = @palette[:matches][@palette[:index]]
       selected_command = if @palette[:kind] == :commands && selected

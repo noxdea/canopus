@@ -11,6 +11,7 @@
 - Color nested bracket pairs from Antares structure data and draw display-aware active indentation guides.
 - Render configurable space, tab, and ideographic-space markers without changing display coordinates.
 - Keep the active declaration chain visible with cached LSP symbols and an Antares fallback.
+- Navigate files and the cached declaration hierarchy from editor breadcrumbs.
 - Route LSP, snippet, and extension completion through a bounded provider registry with stable fuzzy ranking.
 
 ## 0.4.0 — 2026-09-15

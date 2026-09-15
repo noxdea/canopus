@@ -231,16 +231,17 @@ module Canopus
           first = editor.scroll_y.floor.clamp(0, map.row_count - 1)
           last = [first + editor.viewport_rows, first + 255, map.row_count - 1].min
           sticky = @workspace.sticky_scroll_enabled?(editor)
+          symbols = sticky || @workspace.breadcrumbs_enabled?(editor)
           cached = @language_viewports[editor]
           # The persistent display tree changes on edits, folds, blocks and
           # completed wrap batches. Idle polls need not walk every visible row.
           unless cached && cached[0].equal?(document) && cached[1].equal?(map.tree) &&
-              cached[2] == editor.buffer.version && cached[3] == first && cached[4] == last && cached[7] == sticky
+              cached[2] == editor.buffer.version && cached[3] == first && cached[4] == last && cached[7] == symbols
             rows = (first..last).map { |row| map.source_row(row) }.uniq.sort
-            document.request(rows: rows, syntax: sticky)
+            document.request(rows: rows, syntax: symbols)
             inlay_ranges = @workspace.visible_inlay_hint_ranges(editor, first...(last + 1))
             lens_ranges = @workspace.visible_code_lens_ranges(editor, first...(last + 1))
-            cached = @language_viewports[editor] = [document, map.tree, editor.buffer.version, first, last, inlay_ranges, lens_ranges, sticky]
+            cached = @language_viewports[editor] = [document, map.tree, editor.buffer.version, first, last, inlay_ranges, lens_ranges, symbols]
           end
           cached[5].each do |rows|
             @workspace.request_inlay_hints(editor, rows, start: true)
@@ -248,10 +249,10 @@ module Canopus
           cached[6].each do |rows|
             @workspace.request_code_lenses(editor, rows, start: true)
           end
-          @workspace.request_sticky_symbols(editor) if sticky
+          @workspace.request_sticky_symbols(editor) if symbols
         end
         changed = document.poll
-        @workspace.refresh_sticky_fallback(editor, document) if visible.include?(editor) && sticky && document.syntax_ready?
+        @workspace.refresh_sticky_fallback(editor, document) if visible.include?(editor) && symbols && document.syntax_ready?
         @workspace.invalidate_brackets(editor.buffer) if changed
         @workspace.language_ready(editor, document)
         @window.request_frame if changed
@@ -518,6 +519,9 @@ module Canopus
           editor.select(offset)
           editor.reveal_cursor
         end
+      when :breadcrumb
+        pane, editor, item, context = args
+        @workspace.show_breadcrumb_menu(pane, editor, item, context) if event.button == :left
       when :palette
         @workspace.palette[:index] = args.first
         palette_key("enter")
@@ -532,10 +536,10 @@ module Canopus
       cancel_scroll
       raise ArgumentError, "scroll deltas must be finite" unless [event.delta.x, event.delta.y].all? { |value| value.is_a?(Numeric) && value.finite? }
       action = @view.hit(event.position)
-      if [:editor, :scrollbar, :sticky].include?(action&.first)
+      if [:editor, :scrollbar, :sticky, :breadcrumb].include?(action&.first)
         editor = case action.first
         when :editor then action.last
-        when :sticky then action[2]
+        when :sticky, :breadcrumb then action[2]
         else action[1]
         end
         editor.scroll(dx: event.delta.x, dy: event.delta.y / 20.0)

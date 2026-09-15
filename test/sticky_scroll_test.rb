@@ -133,13 +133,27 @@ class StickyScrollTest < Minitest::Test
       distinct = [
         {"name" => "#{prefix}first", "kind" => 5,
           "location" => {"uri" => uri, "range" => byte_range(0, 0, 0, 1)}},
-        {"name" => "#{prefix}second", "kind" => 5,
+        {"name" => "#{prefix}second", "kind" => 5, "containerName" => "#{prefix}first",
           "location" => {"uri" => uri, "range" => byte_range(1, 0, 1, 1)}},
         {"name" => "child", "kind" => 6, "containerName" => "#{prefix}first",
           "location" => {"uri" => uri, "range" => byte_range(2, 0, 2, 1)}}
       ]
       distinct_symbols = cache(client, distinct)
       assert_equal distinct_symbols.first.id, distinct_symbols.last.parent_id
+
+      duplicate_containers = [
+        {"name" => "Same", "kind" => 5,
+          "location" => {"uri" => uri, "range" => byte_range(0, 0, 0, 1)}},
+        {"name" => "first", "kind" => 6, "containerName" => "Same",
+          "location" => {"uri" => uri, "range" => byte_range(1, 0, 1, 1)}},
+        {"name" => "Same", "kind" => 5,
+          "location" => {"uri" => uri, "range" => byte_range(4, 0, 4, 1)}},
+        {"name" => "second", "kind" => 6, "containerName" => "Same",
+          "location" => {"uri" => uri, "range" => byte_range(5, 0, 5, 1)}}
+      ]
+      duplicate_symbols = cache(client, duplicate_containers)
+      assert_equal duplicate_symbols[0].id, duplicate_symbols[1].parent_id
+      assert_equal duplicate_symbols[2].id, duplicate_symbols[3].parent_id
 
       same_line = [{"name" => "Line", "kind" => 5, "range" => byte_range(2, 0, 3, 0),
         "selectionRange" => byte_range(2, 0, 2, 4), "children" => [
@@ -174,6 +188,9 @@ class StickyScrollTest < Minitest::Test
     cyclic = document_symbol("cycle", 0, 73)
     cyclic["children"] = [cyclic]
     assert_match(/cyclic/, assert_raises(Canopus::Error) { normalize.call([cyclic]) }.message)
+
+    overlapping = Array.new(10_000) { document_symbol("overlap", 0, 73) }
+    assert_match(/overlapping/, assert_raises(Canopus::Error) { normalize.call(overlapping) }.message)
 
     unicode = Canopus::Buffer.new("😀x")
     bad = {"name" => "bad", "kind" => 1,
@@ -301,6 +318,9 @@ class StickyScrollTest < Minitest::Test
     assert_equal [0, @editor.buffer.rope.line_start(1)], labels
     assert_includes output.string, "class Outer"
     assert_includes output.string, "def inner"
+    assert_includes output.string, "source.sti"
+    assert controller.view.regions.any? { |_bounds, action| action.first == :breadcrumb }
+    assert controller.view.accessibility.any? { |item| item[:label] == "Choose siblings for source.sticky" }
     assert_operator @editor.viewport_rows, :>=, 1
   end
 

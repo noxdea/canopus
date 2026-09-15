@@ -17,6 +17,7 @@ module Canopus
       "indent_guides" => {"enabled" => true, "active" => true}.freeze,
       "render_whitespace" => "boundary", "render_ideographic_space" => true,
       "sticky_scroll" => {"enabled" => true, "max_lines" => 5}.freeze,
+      "breadcrumbs" => {"enabled" => true}.freeze,
       "dock" => {"left" => {"size" => 220, "visible" => true}.freeze,
         "right" => {"size" => 260, "visible" => false}.freeze,
         "bottom" => {"size" => 280, "visible" => false}.freeze,
@@ -55,6 +56,8 @@ module Canopus
       "render_ideographic_space" => {"type" => "boolean"},
       "sticky_scroll" => {"type" => "object", "required" => %w[enabled max_lines], "properties" => {
         "enabled" => {"type" => "boolean"}, "max_lines" => {"type" => "integer", "minimum" => 1, "maximum" => 20}}},
+      "breadcrumbs" => {"type" => "object", "required" => ["enabled"], "properties" => {
+        "enabled" => {"type" => "boolean"}}},
       "dock" => {"type" => "object", "properties" => {
         "left" => {"$ref" => "#/$defs/dock"}, "right" => {"$ref" => "#/$defs/dock"},
         "bottom" => {"$ref" => "#/$defs/dock"}, "panels" => {"type" => "object", "maxProperties" => 1000,
@@ -137,6 +140,7 @@ module Canopus
       validate_code_lens!
       validate_structural_guides!
       validate_sticky_scroll!
+      validate_breadcrumbs!
       validate_dock!
       @values["languages"] = @values["languages"].to_h do |name, layer|
         raise Error, "language settings must be objects" unless name.is_a?(String) && layer.is_a?(Hash)
@@ -246,6 +250,13 @@ module Canopus
       raise Error, "sticky_scroll.enabled must be true or false" unless [true, false].include?(sticky["enabled"])
       unless sticky["max_lines"].is_a?(Integer) && sticky["max_lines"].between?(1, 20)
         raise Error, "invalid sticky_scroll.max_lines"
+      end
+    end
+
+    def validate_breadcrumbs!
+      breadcrumbs = @values["breadcrumbs"]
+      unless breadcrumbs.is_a?(Hash) && [true, false].include?(breadcrumbs["enabled"])
+        raise Error, "breadcrumbs.enabled must be true or false"
       end
     end
 

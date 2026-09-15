@@ -11,6 +11,8 @@ module Canopus
     STICKY_SYMBOL_LIMIT = 10_000
     STICKY_DEPTH_LIMIT = 64
     STICKY_REQUEST_LIMIT = 16
+    BREADCRUMB_CONTAINER_KINDS = [2, 3, 4, 5, 10, 11, 23].freeze
+    BREADCRUMB_CALLABLE_KINDS = [6, 9, 12].freeze
 
     attr_reader :hover_card, :hover_markup, :semantic_styles
     def dismiss_hover = @hover_card = nil
@@ -1072,7 +1074,11 @@ module Canopus
     end
 
     def sticky_scroll_enabled?(current)
-      sticky_setting(current, "enabled")
+      language_setting(current, "sticky_scroll", "enabled")
+    end
+
+    def breadcrumbs_enabled?(current)
+      language_setting(current, "breadcrumbs", "enabled")
     end
 
     def sticky_context(current, display_row)
@@ -1083,7 +1089,7 @@ module Canopus
       entry = document_symbol_entry(current)
       return [] unless entry
       top = map.to_buffer(DisplayPoint.new(first, 0))
-      maximum = sticky_setting(current, "max_lines")
+      maximum = language_setting(current, "sticky_scroll", "max_lines")
       context_key = [entry[:generation], map.tree.object_id, first, top, maximum]
       contexts = @sticky_context_cache ||= {}
       return contexts[context_key] if contexts.key?(context_key)
@@ -1102,12 +1108,10 @@ module Canopus
       return [] unless entry && offset.is_a?(Integer) && offset.between?(0, current.buffer.rope.bytesize)
 
       result = []
-      siblings = entry[:children][nil] || []
-      while (symbol = siblings
-          .select { |candidate| candidate.range.begin <= offset && offset < candidate.range.end }
-          .min_by { |candidate| [candidate.range.end - candidate.range.begin, -candidate.range.begin, candidate.id] })
+      parent_id = nil
+      while (symbol = containing_document_symbol(entry, parent_id, offset))
         result << symbol
-        siblings = entry[:children][symbol.id] || []
+        parent_id = symbol.id
       end
       result.freeze
     end
@@ -1125,8 +1129,57 @@ module Canopus
       document_symbol_entry(current)&.dig(:generation)
     end
 
+    def breadcrumb_context(current)
+      return unless breadcrumbs_enabled?(current)
+      path = current.buffer.path
+      return unless path
+
+      entry = document_symbol_entry(current)
+      chain = entry ? document_symbol_chain(current, current.primary.head) : []
+      symbols = if chain.any? { |symbol| symbol.kind == :structure }
+        chain.last(2)
+      else
+        container = chain.reverse.find { |symbol| BREADCRUMB_CONTAINER_KINDS.include?(symbol.kind) }
+        callable = chain.reverse.find { |symbol| BREADCRUMB_CALLABLE_KINDS.include?(symbol.kind) }
+        [container, callable].compact.uniq.sort_by(&:depth)
+      end
+      prefix = @root + File::SEPARATOR
+      relative = path.start_with?(prefix) ? path.delete_prefix(prefix) : File.basename(path)
+      project_path = relative if path.start_with?(prefix)
+      items = [{kind: :path, label: relative.freeze, value: project_path&.freeze}.freeze]
+      items.concat(symbols.map { |symbol| {kind: :symbol, label: symbol.name, value: symbol}.freeze })
+      {buffer: current.buffer, document: current.language_document, path: path, version: current.buffer.version,
+       client: @clients[current.language_document.definition.name], generation: entry&.dig(:generation), items: items.freeze}.freeze
+    end
+
+    def show_breadcrumb_menu(pane, current, item, context)
+      return false unless breadcrumb_context_valid?(pane, current, context) && context[:items].any? { |entry| entry.equal?(item) }
+
+      activate_tab(pane, current)
+      if item[:kind] == :path
+        source = item[:value]
+        return false unless source
+        directory = File.dirname(source)
+        values = files.select { |path| File.dirname(path) == directory }
+        labels = values
+      else
+        source = item[:value]
+        values = document_symbol_siblings(current, source, generation: context[:generation])
+          .select { |symbol| breadcrumb_symbol_category(symbol) == breadcrumb_symbol_category(source) }
+        labels = breadcrumb_symbol_labels(current.buffer, values)
+      end
+      return false if values.empty?
+
+      self.palette = {kind: :breadcrumbs, query: +"", index: 0, matches: labels, items: values,
+        breadcrumb_kind: item[:kind], breadcrumb_source: item, breadcrumb_context: context,
+        breadcrumb_editor: current, breadcrumb_pane: pane}
+      update_palette
+      true
+    end
+
     def refresh_sticky_fallback(current, document = current.language_document)
-      return [] unless sticky_scroll_enabled?(current) && document.equal?(current.language_document) && document.syntax_ready?
+      return [] unless (sticky_scroll_enabled?(current) || breadcrumbs_enabled?(current)) &&
+        document.equal?(current.language_document) && document.syntax_ready?
 
       buffer = current.buffer
       regions = document.structure_regions
@@ -1163,7 +1216,7 @@ module Canopus
     end
 
     def request_sticky_symbols(current)
-      return false unless sticky_scroll_enabled?(current)
+      return false unless sticky_scroll_enabled?(current) || breadcrumbs_enabled?(current)
 
       buffer = current.buffer
       return false unless buffer.path && !buffer.read_only
@@ -1249,6 +1302,67 @@ module Canopus
 
     private
 
+    def containing_document_symbol(entry, parent_id, offset)
+      siblings = entry[:children][parent_id] || []
+      index = siblings.bsearch_index { |candidate| candidate.range.begin > offset } || siblings.length
+      candidate = siblings[index - 1] if index.positive?
+      candidate if candidate && offset < candidate.range.end
+    end
+
+    def breadcrumb_context_valid?(pane, current, context)
+      return false if @closed || !context.is_a?(Hash) || !@panes.include?(pane) || !pane.active.equal?(current)
+      return false unless context[:buffer].equal?(current.buffer) && context[:document].equal?(current.language_document) &&
+        context[:path] == current.buffer.path && context[:version] == current.buffer.version
+
+      entry = document_symbol_entry(current)
+      active_client = @clients[current.language_document.definition.name]
+      return false unless context[:client].equal?(active_client) && context[:generation] == entry&.dig(:generation)
+      client = context[:client]
+      !client || @clients.value?(client) && client.running? && @opened_lsp_documents&.key?([client, current.buffer])
+    end
+
+    def breadcrumb_symbol_category(symbol)
+      return :container if BREADCRUMB_CONTAINER_KINDS.include?(symbol.kind)
+      return :callable if BREADCRUMB_CALLABLE_KINDS.include?(symbol.kind)
+
+      symbol.kind
+    end
+
+    def breadcrumb_symbol_labels(buffer, symbols)
+      labels = symbols.map do |symbol|
+        point = buffer.rope.point_at(symbol.selection.begin)
+        "#{symbol.name} — #{point.row + 1}:#{point.column + 1}"
+      end
+      duplicates = labels.tally
+      labels.each_with_index.map { |label, index| duplicates[label] > 1 ? "#{label} ##{symbols[index].id}" : label }.freeze
+    end
+
+    def accept_breadcrumb_palette(state, index)
+      item = index && state[:items][index]
+      context = state[:breadcrumb_context]
+      current = state[:breadcrumb_editor]
+      pane = state[:breadcrumb_pane]
+      return false unless item && breadcrumb_context_valid?(pane, current, context)
+
+      if state[:breadcrumb_kind] == :path
+        source = state.dig(:breadcrumb_source, :value)
+        return false unless item.is_a?(String) && source && File.dirname(item) == File.dirname(source)
+        absolute = @project.path(item)
+        return false unless File.file?(absolute)
+        activate_tab(pane, current)
+        open(item)
+      else
+        source = state.dig(:breadcrumb_source, :value)
+        siblings = document_symbol_siblings(current, source, generation: context[:generation])
+        return false unless item.is_a?(Language::DocumentSymbol) && siblings.any? { |symbol| symbol.equal?(item) } &&
+          breadcrumb_symbol_category(item) == breadcrumb_symbol_category(source)
+        activate_tab(pane, current)
+        current.select(item.selection.begin)
+        current.reveal_cursor
+      end
+      true
+    end
+
     def document_symbol_entry(current)
       buffer = current.buffer
       client = @clients[current.language_document.definition.name]
@@ -1260,9 +1374,9 @@ module Canopus
       fallback.last if fallback && fallback[0] == buffer.version && fallback[1].equal?(current.language_document)
     end
 
-    def sticky_setting(current, key)
-      defaults = @settings["sticky_scroll"]
-      override = @settings["languages"].fetch(current.language_document.definition.name, {}).fetch("sticky_scroll", {})
+    def language_setting(current, group, key)
+      defaults = @settings[group]
+      override = @settings["languages"].fetch(current.language_document.definition.name, {}).fetch(group, {})
       override.fetch(key, defaults.fetch(key))
     end
 
@@ -1320,7 +1434,7 @@ module Canopus
         raise Error, "too many document symbols" if symbols.length + stack.length + children.length > STICKY_SYMBOL_LIMIT
         children.reverse_each { |child| stack << [child, depth + 1, id] }
       end
-      symbols.freeze
+      validate_document_symbol_siblings!(symbols)
     rescue KeyError, RangeError, TypeError, ArgumentError, Sadr::Error => error
       raise Error, "invalid document symbols: #{error.message}"
     end
@@ -1361,10 +1475,11 @@ module Canopus
         scopes[id] = (draft[:selection].begin...finish).freeze
         following << id
       end
-      drafts.map do |draft|
+      symbols = drafts.map do |draft|
         Language::DocumentSymbol.new(draft[:id], draft[:name], draft[:kind], scopes[draft[:id]], draft[:selection],
           draft[:depth], draft[:parent_id])
-      end.freeze
+      end
+      validate_document_symbol_siblings!(symbols)
     end
 
     def sticky_symbol_kind(value)
@@ -1375,6 +1490,23 @@ module Canopus
 
     def strictly_contains?(outer, inner)
       outer.begin <= inner.begin && inner.end <= outer.end && outer != inner
+    end
+
+    def validate_document_symbol_siblings!(symbols)
+      by_id = symbols.to_h { |symbol| [symbol.id, symbol] }
+      symbols.each do |symbol|
+        parent = by_id[symbol.parent_id]
+        next unless parent
+        unless parent.range.begin <= symbol.range.begin && symbol.range.end <= parent.range.end
+          raise Error, "document symbol is outside its parent"
+        end
+      end
+      symbols.group_by(&:parent_id).each_value do |siblings|
+        siblings.sort_by { |symbol| [symbol.range.begin, symbol.range.end, symbol.id] }.each_cons(2) do |left, right|
+          raise Error, "overlapping document symbol siblings" if left.range.end > right.range.begin
+        end
+      end
+      symbols.freeze
     end
 
     def bounded_sticky_string(value, name, optional: false, maximum: 4_096, truncate: true)
@@ -1410,7 +1542,9 @@ module Canopus
     def sticky_cache_entry(buffer, version, client, symbols)
       generation = @sticky_symbol_generation = @sticky_symbol_generation.to_i + 1
       by_id = symbols.to_h { |symbol| [symbol.id, symbol] }.freeze
-      children = symbols.group_by(&:parent_id).transform_values(&:freeze).freeze
+      children = symbols.group_by(&:parent_id).transform_values do |values|
+        values.sort_by { |symbol| [symbol.range.begin, symbol.range.end, symbol.id] }.freeze
+      end.freeze
       {buffer: buffer, version: version, client: client, generation: generation,
        symbols: symbols.freeze, by_id: by_id, children: children}.freeze
     end
