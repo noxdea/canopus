@@ -117,6 +117,8 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
   "code_lens": { "enabled": true },
   "bracket_colorization": true,
   "indent_guides": { "enabled": true, "active": true },
+  "render_whitespace": "boundary",
+  "render_ideographic_space": true,
   "tabs": { "activate_on_close": "history", "reopen_history_limit": 20 },
   "terminal": { "working_directory": "project", "scrollback_lines": 10000 },
   "dock": {
@@ -130,6 +132,11 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
   "language_servers": { "ruby": ["ruby-lsp"] }
 }
 ```
+
+`render_whitespace` accepts `none`, `boundary`, `selection`, or `all`.
+`boundary` hides only single spaces between non-whitespace characters. Tabs use
+`→`, spaces use `·`, and ideographic spaces use `□`; the last remains visible
+independently when `render_ideographic_space` is enabled.
 
 Closing a dirty tab asks whether to save, discard, or cancel. Reopening restores
 the file, selections, position, and pane while Canopus is running; discarded

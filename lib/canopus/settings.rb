@@ -15,6 +15,7 @@ module Canopus
       "code_lens" => {"enabled" => true}.freeze,
       "bracket_colorization" => true,
       "indent_guides" => {"enabled" => true, "active" => true}.freeze,
+      "render_whitespace" => "boundary", "render_ideographic_space" => true,
       "dock" => {"left" => {"size" => 220, "visible" => true}.freeze,
         "right" => {"size" => 260, "visible" => false}.freeze,
         "bottom" => {"size" => 280, "visible" => false}.freeze,
@@ -49,6 +50,8 @@ module Canopus
       "bracket_colorization" => {"type" => "boolean"},
       "indent_guides" => {"type" => "object", "required" => %w[enabled active], "properties" => {
         "enabled" => {"type" => "boolean"}, "active" => {"type" => "boolean"}}},
+      "render_whitespace" => {"type" => "string", "enum" => %w[none boundary selection all]},
+      "render_ideographic_space" => {"type" => "boolean"},
       "dock" => {"type" => "object", "properties" => {
         "left" => {"$ref" => "#/$defs/dock"}, "right" => {"$ref" => "#/$defs/dock"},
         "bottom" => {"$ref" => "#/$defs/dock"}, "panels" => {"type" => "object", "maxProperties" => 1000,
@@ -117,7 +120,8 @@ module Canopus
         raise Error, "invalid #{key}" unless value.is_a?(Numeric) && range.cover?(value)
       end
       raise Error, "tab_size must be an integer" unless @values["tab_size"].is_a?(Integer)
-      %w[soft_wrap vim_mode use_tabs].each { |key| raise Error, "#{key} must be true or false" unless [true, false].include?(@values[key]) }
+      %w[soft_wrap vim_mode use_tabs render_ideographic_space].each { |key| raise Error, "#{key} must be true or false" unless [true, false].include?(@values[key]) }
+      raise Error, "invalid render_whitespace" unless %w[none boundary selection all].include?(@values["render_whitespace"])
       validate_keymap!
       %w[languages language_servers].each { |key| raise Error, "#{key} must be an object" unless @values[key].is_a?(Hash) }
       raise Error, "theme must be a string" unless @values["theme"].is_a?(String)

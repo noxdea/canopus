@@ -361,6 +361,7 @@ module Canopus
             end
             text(row.text, left, y, color: color)
           end
+          paint_whitespace(editor, map, index, source_row, row, line, left, y, bounds) if row.kind == :text
           paint_overlays&.call
           paint_indent_guides(row, line, left, y, guides_by_row[index] || [])
           if cursor.row == index && active
@@ -412,6 +413,61 @@ module Canopus
     end
     def column_x(value, line, column)
       line ? line.x_for_index(value[0, column].to_s.bytesize) : column * @font_size * 0.6
+    end
+    def paint_whitespace(editor, map, index, source_row, row, line, left, y, bounds)
+      settings = @workspace.settings
+      language = settings["languages"].fetch(editor.language_document.definition.name, {})
+      mode = language.fetch("render_whitespace", settings["render_whitespace"])
+      ideographic = language.fetch("render_ideographic_space", settings["render_ideographic_space"])
+      return if mode == "none" && !ideographic
+
+      rope = editor.buffer.rope
+      source_lines = {source_row => [rope.line_start(source_row), rope.line(source_row)]}
+      byte = column = cells = 0
+      row.text.each_grapheme_cluster do |grapheme|
+        if grapheme == " " || grapheme == "　"
+          offset = map.to_buffer(DisplayPoint.new(index, column))
+          point = rope.point_at(offset)
+          start, source = source_lines[point.row] ||= [rope.line_start(point.row), rope.line(point.row)]
+          local = offset - start
+          character = source.byteslice(local..)&.each_char&.first
+          marker = whitespace_marker(character, mode, ideographic, source, local, offset, editor.selections)
+          if marker && (character != "\t" || whitespace_origin?(map, index, column, offset))
+            x = line ? line.x_for_index(byte) : cells * @font_size * 0.6
+            right = line ? line.x_for_index(byte + grapheme.bytesize) : x + Zaniah::Unicode.width(grapheme) * @font_size * 0.6
+            text(marker, left + x, y, color: :muted) if left + right > bounds.x + gutter(editor) && left + x < bounds.right
+          end
+        end
+        byte += grapheme.bytesize
+        column += grapheme.length
+        cells += grapheme.ascii_only? ? grapheme.length : Zaniah::Unicode.width(grapheme)
+      end
+    end
+    def whitespace_origin?(map, row, column, offset)
+      point = map.to_display(offset)
+      point == DisplayPoint.new(row, column) || column.zero? && point.row + 1 == row &&
+        point.column == map.row(point.row).text.length
+    end
+    def whitespace_marker(character, mode, ideographic, source, local, offset, selections)
+      return "□" if character == "　" && ideographic
+      return unless character == " " || character == "\t"
+      return unless mode == "all" ||
+        mode == "boundary" && (character == "\t" || whitespace_boundary?(source, local)) ||
+        mode == "selection" && selections.any? { |selection| !selection.empty? && selection.start < offset + character.bytesize && offset < selection.end }
+
+      character == "\t" ? "→" : "·"
+    end
+    def whitespace_boundary?(source, offset)
+      following = offset + 1
+      offset.zero? || following == source.bytesize || whitespace_before?(source, offset) || whitespace_at?(source, following)
+    end
+    def whitespace_before?(source, offset)
+      byte = source.getbyte(offset - 1)
+      byte == 32 || byte == 9 || source.byteslice(offset - 3, 3) == "　"
+    end
+    def whitespace_at?(source, offset)
+      byte = source.getbyte(offset)
+      byte == 32 || byte == 9 || source.byteslice(offset, 3) == "　"
     end
     def decorations_for_display_rows(editor, map, first, last)
       rows = (first...last).flat_map do |index|
