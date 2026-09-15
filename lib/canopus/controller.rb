@@ -67,6 +67,10 @@ module Canopus
         mouse_down(event)
       when Zaniah::Input::MouseMove
         mouse_move(event) if @drag
+        if @minimap_drag
+          pane, editor = @minimap_drag
+          @view.minimap_scroll(editor, event.position) if @workspace.panes.include?(pane) && pane.editors.include?(editor)
+        end
         resize_drag(event.position) if @resize_drag
         scroll_drag(event.position) if @scroll_drag
         if @terminal_drag
@@ -79,6 +83,7 @@ module Canopus
         @workspace.flush_terminal_resize if @resize_drag&.first == :dock_resize
         @resize_drag = nil
         @scroll_drag = nil
+        @minimap_drag = nil
         if @drag_file
           path, origin = @drag_file
           target = @view.hit(event.position)
@@ -339,7 +344,7 @@ module Canopus
     end
     def palette_input(event)
       return false unless @workspace.palette
-      @drag = @resize_drag = @scroll_drag = @terminal_drag = @drag_file = @drag_tab = @drag_terminal_tab = nil
+      @drag = @resize_drag = @scroll_drag = @minimap_drag = @terminal_drag = @drag_file = @drag_tab = @drag_terminal_tab = nil
       case event
       when Zaniah::Input::KeyDown then key(event.keystroke)
       when Zaniah::Input::TextInput then input_text(event.text)
@@ -469,6 +474,12 @@ module Canopus
         grab = coordinate.between?(start, start + length) ? coordinate - start : length / 2.0
         @scroll_drag = [editor, direction, track, thumb, maximum, grab]
         scroll_drag(event.position)
+      when :minimap
+        pane, editor = args
+        if event.button == :left && pane.active.equal?(editor) && @view.minimap_scroll(editor, event.position)
+          @workspace.focus(pane)
+          @minimap_drag = [pane, editor]
+        end
       when :terminal
         return if event.button == :left && @view.terminal_open_link(event.position, modifiers: event.modifiers)
         tracking = [1000, 1002, 1003].any? { |mode| @workspace.terminal.vt.modes[mode] }
@@ -536,10 +547,11 @@ module Canopus
       cancel_scroll
       raise ArgumentError, "scroll deltas must be finite" unless [event.delta.x, event.delta.y].all? { |value| value.is_a?(Numeric) && value.finite? }
       action = @view.hit(event.position)
-      if [:editor, :scrollbar, :sticky, :breadcrumb].include?(action&.first)
+      if [:editor, :scrollbar, :sticky, :breadcrumb, :minimap].include?(action&.first)
         editor = case action.first
         when :editor then action.last
         when :sticky, :breadcrumb then action[2]
+        when :minimap then action[2]
         else action[1]
         end
         editor.scroll(dx: event.delta.x, dy: event.delta.y / 20.0)

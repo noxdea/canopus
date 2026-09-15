@@ -1,7 +1,11 @@
 # frozen_string_literal: true
 
-antares_path = ENV["ANTARES_PATH"]
 canopus_root = File.expand_path("../../..", __dir__)
+if defined?(Gem::Specification)
+  Gem::Specification.find_all_by_name("canopus")
+    .find { |specification| File.expand_path(specification.full_gem_path) == canopus_root }&.activate
+end
+antares_path = ENV["ANTARES_PATH"]
 antares_path ? require(File.expand_path("lib/antares", File.expand_path(antares_path, canopus_root))) : require("antares")
 require_relative "../../canopus"
 

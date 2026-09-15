@@ -18,6 +18,7 @@ module Canopus
       "render_whitespace" => "boundary", "render_ideographic_space" => true,
       "sticky_scroll" => {"enabled" => true, "max_lines" => 5}.freeze,
       "breadcrumbs" => {"enabled" => true}.freeze,
+      "minimap" => {"enabled" => false, "width" => 100, "show_diagnostics" => true}.freeze,
       "dock" => {"left" => {"size" => 220, "visible" => true}.freeze,
         "right" => {"size" => 260, "visible" => false}.freeze,
         "bottom" => {"size" => 280, "visible" => false}.freeze,
@@ -58,6 +59,9 @@ module Canopus
         "enabled" => {"type" => "boolean"}, "max_lines" => {"type" => "integer", "minimum" => 1, "maximum" => 20}}},
       "breadcrumbs" => {"type" => "object", "required" => ["enabled"], "properties" => {
         "enabled" => {"type" => "boolean"}}},
+      "minimap" => {"type" => "object", "required" => %w[enabled width show_diagnostics], "properties" => {
+        "enabled" => {"type" => "boolean"}, "width" => {"type" => "integer", "minimum" => 40, "maximum" => 400},
+        "show_diagnostics" => {"type" => "boolean"}}},
       "dock" => {"type" => "object", "properties" => {
         "left" => {"$ref" => "#/$defs/dock"}, "right" => {"$ref" => "#/$defs/dock"},
         "bottom" => {"$ref" => "#/$defs/dock"}, "panels" => {"type" => "object", "maxProperties" => 1000,
@@ -141,6 +145,7 @@ module Canopus
       validate_structural_guides!
       validate_sticky_scroll!
       validate_breadcrumbs!
+      validate_minimap!
       validate_dock!
       @values["languages"] = @values["languages"].to_h do |name, layer|
         raise Error, "language settings must be objects" unless name.is_a?(String) && layer.is_a?(Hash)
@@ -258,6 +263,15 @@ module Canopus
       unless breadcrumbs.is_a?(Hash) && [true, false].include?(breadcrumbs["enabled"])
         raise Error, "breadcrumbs.enabled must be true or false"
       end
+    end
+
+    def validate_minimap!
+      minimap = @values["minimap"]
+      raise Error, "minimap must be an object" unless minimap.is_a?(Hash)
+      %w[enabled show_diagnostics].each do |key|
+        raise Error, "minimap.#{key} must be true or false" unless [true, false].include?(minimap[key])
+      end
+      raise Error, "invalid minimap.width" unless minimap["width"].is_a?(Integer) && minimap["width"].between?(40, 400)
     end
 
     def validate_dock!

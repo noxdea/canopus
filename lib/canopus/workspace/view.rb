@@ -3,12 +3,12 @@
 module Canopus
   # A viewport is one element; only visible document rows become draw commands.
   class Workspace::View < Zaniah::Element
-    attr_reader :editor_bounds, :row_layouts, :regions, :accessibility
+    attr_reader :editor_bounds, :minimap_bounds, :row_layouts, :regions, :accessibility
     attr_accessor :keymap
     def initialize(workspace)
       super()
       @workspace = workspace
-      @editor_bounds, @row_layouts, @regions, @accessibility = {}, {}, [], []
+      @editor_bounds, @minimap_bounds, @row_layouts, @regions, @accessibility = {}, {}, {}, [], []
       @project_scroll = 0
       reset_blink
       @revealed_cursors, @line_widths, @code_caches = {}, {}, {}
@@ -32,10 +32,14 @@ module Canopus
       @font_size = @workspace.settings["font_size"]
       @line_height = (@font_size * 1.55).ceil
       @line_height = 20 if @cx.window.is_a?(Zaniah::Platform::TUI::Window)
+      @frame_id = @frame_id.to_i + 1
+      @workspace.minimap.begin_frame(@frame_id, text_system: @cx.text_system, font_size: @font_size,
+        font_family: @workspace.settings["font_family"], scale_factor: @cx.window.scale_factor)
       @regions.clear
       @row_layouts.clear
       @overlay_rows = []
       @editor_bounds.clear
+      @minimap_bounds.clear
       @accessibility.clear
       visible_editors = @workspace.panes.map(&:active)
       @revealed_cursors.delete_if { |editor, _| !visible_editors.include?(editor) }
@@ -98,6 +102,18 @@ module Canopus
     end
     def project_scroll(delta)
       @project_scroll = [@project_scroll + delta, 0].max
+    end
+    def minimap_scroll(editor, point)
+      entry = @minimap_bounds[editor]
+      return false unless entry && @workspace.panes.include?(entry[:pane]) && entry[:pane].active.equal?(editor)
+
+      bounds = entry[:bounds]
+      fraction = ((point.y - bounds.y).to_f / [bounds.height, 1].max).clamp(0, 1)
+      source_row = (fraction * editor.buffer.line_count).floor.clamp(0, editor.buffer.line_count - 1)
+      display_row = editor.display_map.to_display(editor.buffer.rope.line_start(source_row)).row
+      target = (display_row - editor.viewport_rows / 2.0).clamp(0, [editor.display_map.row_count - editor.viewport_rows, 0].max)
+      editor.scroll(dy: target - editor.scroll_y)
+      true
     end
 
     private
@@ -245,10 +261,18 @@ module Canopus
         return
       end
       area = Zaniah::Bounds.new(bounds.x, bounds.y + 34, bounds.width, [bounds.height - 34, 0].max)
+      minimap = @workspace.minimap_settings(editor)
+      minimap_width = if minimap["enabled"] && !@cx.window.is_a?(Zaniah::Platform::TUI::Window) &&
+          area.height.positive? && area.width >= minimap["width"] + gutter(editor) + 80
+        minimap["width"]
+      else 0
+      end
+      editor_area = Zaniah::Bounds.new(area.x, area.y, area.width - minimap_width, area.height)
+      minimap_area = Zaniah::Bounds.new(editor_area.right, area.y, minimap_width, area.height)
       breadcrumbs = @workspace.breadcrumb_context(editor)
-      breadcrumb_height = breadcrumbs && area.height >= @line_height * 2 ? @line_height : 0
-      content = Zaniah::Bounds.new(area.x, area.y + breadcrumb_height, area.width,
-        [area.height - breadcrumb_height, 0].max)
+      breadcrumb_height = breadcrumbs && editor_area.height >= @line_height * 2 ? @line_height : 0
+      content = Zaniah::Bounds.new(editor_area.x, editor_area.y + breadcrumb_height, editor_area.width,
+        [editor_area.height - breadcrumb_height, 0].max)
       decorations = prepare_editor_map(editor, content)
       sticky = prepare_sticky_scroll(editor, content)
       sticky_height = sticky.length * @line_height
@@ -256,10 +280,12 @@ module Canopus
         [content.height - sticky_height, 0].max)
       @editor_bounds[editor] = body
       region(body, role: :textbox, label: editor.buffer.path || "Untitled document", action: [:editor, pane, editor])
-      paint_editor(editor, body, pane == @workspace.active_pane, decorations)
+      overview = paint_editor(editor, body, pane == @workspace.active_pane, decorations)
       paint_sticky_scroll(editor, pane,
         Zaniah::Bounds.new(content.x, content.y, content.width, sticky_height), sticky) unless sticky.empty?
-      paint_breadcrumbs(editor, pane, Zaniah::Bounds.new(area.x, area.y, area.width, breadcrumb_height), breadcrumbs) if breadcrumb_height.positive?
+      paint_breadcrumbs(editor, pane,
+        Zaniah::Bounds.new(editor_area.x, editor_area.y, editor_area.width, breadcrumb_height), breadcrumbs) if breadcrumb_height.positive?
+      paint_minimap(editor, pane, minimap_area, overview, minimap) if minimap_width.positive?
       fill(Zaniah::Bounds.new(bounds.right - 1, bounds.y, 1, bounds.height), :border)
     end
     def gutter(editor) = [editor.buffer.line_count.to_s.length * @font_size * 0.6 + 24, 52].max
@@ -431,6 +457,7 @@ module Canopus
       @line_widths[editor] = [editor.buffer.version, measured_width]
       overview = @workspace.decorations.items_for(editor.buffer, 0...editor.buffer.line_count)
       paint_scrollbars(editor, bounds, measured_width, overview)
+      overview
     end
     def paint_sticky_scroll(editor, pane, bounds, symbols)
       fill(bounds, :panel)
@@ -467,6 +494,65 @@ module Canopus
         end
       end
       fill(Zaniah::Bounds.new(bounds.x, bounds.bottom - 1, bounds.width, 1), :border)
+    end
+    def paint_minimap(editor, pane, bounds, overview, settings)
+      fill(bounds, :panel)
+      @minimap_bounds[editor] = {pane: pane, bounds: bounds}.freeze
+      rows = minimap_rows(editor.buffer.line_count, bounds.height)
+      @scene.clip(bounds) do
+        rows.each do |row|
+          texture = @workspace.minimap.texture(editor.buffer, row, width: bounds.width.to_i)
+          next unless texture
+
+          y = bounds.y + bounds.height * row / [editor.buffer.line_count, 1].max
+          @scene.sprite(bounds.x, y, bounds.width, 2, texture: texture, color: @theme[:muted])
+        end
+        paint_minimap_markers(editor, bounds, overview, settings)
+        paint_minimap_viewport(editor, bounds)
+      end
+      region(bounds, role: :scrollbar, label: "Document minimap", action: [:minimap, pane, editor])
+      fill(Zaniah::Bounds.new(bounds.x, bounds.y, 1, bounds.height), :border)
+      @cx.window.request_frame if @workspace.minimap.pending?
+    end
+    def minimap_rows(line_count, height)
+      count = [[(height / 2).floor, line_count, Minimap::ENTRY_LIMIT].min, 1].max
+      return [0] if count == 1
+
+      count.times.map { |index| index * (line_count - 1) / (count - 1) }.uniq
+    end
+    def paint_minimap_markers(editor, bounds, overview, settings)
+      pixels = {}
+      overview.each_with_index do |item, index|
+        break if index >= 10_000
+        if item.source == :git && item.row
+          style = item.style.is_a?(Hash) ? item.style : {color: item.style, rows: 1}
+          minimap_marker(pixels, bounds, editor.buffer.line_count, item.row, style.fetch(:rows, 1), style.fetch(:color, :accent))
+        elsif settings["show_diagnostics"] && item.source == :diagnostics && item.range
+          row = editor.buffer.rope.point_at(item.range.begin).row
+          style = item.style.is_a?(Hash) ? item.style : {color: item.style}
+          minimap_marker(pixels, bounds, editor.buffer.line_count, row, 1, style.fetch(:color, :error))
+        end
+      end
+      @workspace.minimap.search_rows(editor.buffer, editor.buffer.version).each do |row|
+        minimap_marker(pixels, bounds, editor.buffer.line_count, row, 1, :accent)
+      end
+      pixels.each { |y, color| fill(Zaniah::Bounds.new(bounds.right - 5, y, 5, 1), color) }
+    end
+    def minimap_marker(pixels, bounds, line_count, row, count, color)
+      first = (bounds.y + bounds.height * row / [line_count, 1].max).floor
+      last = (bounds.y + bounds.height * (row + count) / [line_count, 1].max).ceil - 1
+      first.clamp(bounds.y.ceil, bounds.bottom.ceil - 1).upto(last.clamp(bounds.y.ceil, bounds.bottom.ceil - 1)) do |y|
+        pixels[y] = color
+      end
+    end
+    def paint_minimap_viewport(editor, bounds)
+      map = editor.display_map
+      first = editor.scroll_y.floor.clamp(0, map.row_count - 1)
+      last = [first + editor.viewport_rows - 1, map.row_count - 1].min
+      top = bounds.y + bounds.height * map.source_row(first) / [editor.buffer.line_count, 1].max
+      bottom = bounds.y + bounds.height * (map.source_row(last) + 1) / [editor.buffer.line_count, 1].max
+      height = [bottom - top, 8].max.clamp(0, bounds.bottom - top)
+      @scene.quad(bounds.x, top, bounds.width, height, color: "#ffffff12", border_width: 1, border_color: @theme[:accent])
     end
     def clip_breadcrumb(value, maximum, size)
       source = value.to_s.encode(Encoding::UTF_8, invalid: :replace, undef: :replace).scrub

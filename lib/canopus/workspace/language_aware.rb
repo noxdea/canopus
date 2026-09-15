@@ -1152,6 +1152,12 @@ module Canopus
        client: @clients[current.language_document.definition.name], generation: entry&.dig(:generation), items: items.freeze}.freeze
     end
 
+    def minimap_settings(current)
+      @settings["minimap"].merge(
+        @settings["languages"].fetch(current.language_document.definition.name, {}).fetch("minimap", {})
+      )
+    end
+
     def show_breadcrumb_menu(pane, current, item, context)
       return false unless breadcrumb_context_valid?(pane, current, context) && context[:items].any? { |entry| entry.equal?(item) }
 

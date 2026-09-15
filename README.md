@@ -37,6 +37,7 @@ installable.
 - Ranked, extensible completion and inline-completion provider registry
 - Viewport-scoped LSP inlay hints with clickable label locations
 - Nested bracket colors and active indentation guides backed by Antares structure analysis
+- Optional GPU minimap with shared line textures, viewport navigation, and overview markers
 - Resizable integrated terminal with multiple tabs, scrollback, selection, colors, and clickable links
 - Git diff, blame, hunk reversal, and branch switching
 - Editable project-wide search results and safe project file operations
@@ -121,6 +122,7 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
   "render_ideographic_space": true,
   "sticky_scroll": { "enabled": true, "max_lines": 5 },
   "breadcrumbs": { "enabled": true },
+  "minimap": { "enabled": false, "width": 100, "show_diagnostics": true },
   "tabs": { "activate_on_close": "history", "reopen_history_limit": 20 },
   "terminal": { "working_directory": "project", "scrollback_lines": 10000 },
   "dock": {
@@ -148,6 +150,13 @@ cached Antares structure regions; `sticky_scroll.enabled` and
 Breadcrumbs show the project-relative file, containing type, and callable above
 sticky scroll. Selecting an item opens its same-directory files or same-parent
 symbols in the palette. `breadcrumbs.enabled` can be overridden per language.
+
+The GUI-only minimap is disabled by default. When enabled, it reserves its
+configured width only in panes wide enough to keep the editor usable, reuses
+bounded low-resolution line textures across splits, and shows Git, search, and
+optionally diagnostic overview marks. Click or drag it to center that source
+position without moving the selection. All minimap options can be overridden
+per language.
 
 Closing a dirty tab asks whether to save, discard, or cancel. Reopening restores
 the file, selections, position, and pane while Canopus is running; discarded

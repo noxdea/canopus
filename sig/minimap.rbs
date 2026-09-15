@@ -1,0 +1,20 @@
+module Canopus
+  class Minimap
+    GENERATION_LIMIT: Integer
+    ENTRY_LIMIT: Integer
+    VARIANT_LIMIT: Integer
+    LINE_BYTES: Integer
+
+    attr_reader generated: Integer
+    def initialize: () -> void
+    def begin_frame: (Integer frame, text_system: untyped, font_size: Numeric, font_family: String?, scale_factor: Numeric) -> untyped
+    def texture: (Buffer buffer, Integer row, width: Numeric) -> Zaniah::GPU::Texture?
+    def pending?: () -> bool
+    def cache_size: () -> Integer
+    def cached_rows: (Buffer buffer) -> Array[Integer]
+    def record_search: (Buffer buffer, Integer version, Array[Range[Integer]] ranges) -> Hash[Symbol, untyped]
+    def search_rows: (Buffer buffer, Integer version) -> Array[Integer]
+    def release: (Buffer buffer) -> nil
+    def close: () -> nil
+  end
+end

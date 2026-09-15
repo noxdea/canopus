@@ -13,7 +13,10 @@ unless RUBY_PLATFORM.match?(/mswin|mingw/) || RbConfig::CONFIG["YJIT_SUPPORT"] !
   exec(RbConfig.ruby, *flags, __FILE__, *ARGV)
 end
 ENV.delete("CANOPUS_YJIT_REEXEC")
-$LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
+canopus_root = File.expand_path("..", __dir__)
+Gem::Specification.find_all_by_name("canopus")
+  .find { |specification| File.expand_path(specification.full_gem_path) == canopus_root }&.activate
+$LOAD_PATH.unshift(File.join(canopus_root, "lib"))
 require "canopus"
 require "canopus/cli"
 exit Canopus::CLI.main(ARGV)

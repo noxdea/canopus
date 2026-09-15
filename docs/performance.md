@@ -31,6 +31,7 @@ Developers can produce current, reproducible measurements with:
 
 ```sh
 ruby --yjit bench/frame_profile.rb --frames 120 --output /tmp/frames.json
+ruby --yjit bench/minimap.rb
 ruby bench/startup.rb --runs 3
 ruby --yjit tools/native_check.rb --idle /tmp/native-check.png
 ```
@@ -42,3 +43,8 @@ check, not a hardware-GPU performance result.
 Bracket colors and indentation guides are requested and cached by visible source
 rows. Structural analysis stays in the bounded language worker; files on the
 large read-only path skip these decorations instead of scanning on the UI thread.
+
+`bench/minimap.rb` renders a 10,000-line file through the real headless renderer.
+It asserts the per-frame cold-generation bound, texture reuse while scrolling,
+one-row regeneration after an edit, and warm p95 against a same-run minimap-off
+baseline. Compare raw timings only on the same Ruby, font, scale factor, and renderer.

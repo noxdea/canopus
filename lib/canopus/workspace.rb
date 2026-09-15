@@ -14,11 +14,12 @@ require_relative "command"
 require_relative "panel"
 require_relative "decoration"
 require_relative "provider"
+require_relative "minimap"
 
 module Canopus
   class Workspace
     ClosedTab = Data.define(:path, :selections, :scroll_x, :scroll_y, :pane_id, :index)
-    attr_reader :panes, :active_pane, :buffers, :actions, :commands, :settings, :theme, :project, :clients, :root, :docks, :panels, :decorations, :providers
+    attr_reader :panes, :active_pane, :buffers, :actions, :commands, :settings, :theme, :project, :clients, :root, :docks, :panels, :decorations, :providers, :minimap
     attr_reader :terminals, :active_terminal_index
     attr_accessor :window, :terminal_composition, :selected_project_path, :performance
     attr_reader :message, :palette
@@ -61,6 +62,7 @@ module Canopus
       @decorations.register(:inlay_hint) { |buffer, rows| inlay_hint_decorations(buffer, rows) }
       @decorations.register(:code_lens) { |buffer, rows| code_lens_decorations(buffer, rows) }
       @decorations.register(:bracket) { |buffer, rows, current| bracket_decorations(buffer, rows, current) }
+      @minimap = Minimap.new
       @providers = Provider::Registry.new
       @providers.register_completion(:lsp, priority: 100) { |buffer, offset, context| lsp_completions(buffer, offset, context) }
       @languages, @terminals = {}, []
@@ -630,6 +632,7 @@ module Canopus
       elsif kind == :search
         pattern, options = search_query(query, search_state)
         matches = editor.search(pattern, **options)
+        @minimap.record_search(editor.buffer, editor.buffer.version, matches)
         editor.select(matches.first.begin, matches.first.end) unless matches.empty?
         @message = "#{matches.length} matches"
       elsif kind == :project_search
@@ -706,6 +709,7 @@ module Canopus
       @palette&.dig(:response)&.fulfill({"applied" => false, "failureReason" => "Workspace closed"})
       self.palette = nil
       @plugins&.close
+      @minimap.close
       @watcher&.close
       stop_language_servers
       terminal_closers = @terminals.filter_map do |current|
@@ -850,6 +854,7 @@ module Canopus
     def release_buffer(buffer, discard: false)
       return unless buffer_refs(buffer).empty?
       return if buffer.dirty? && !discard
+      @minimap.release(buffer)
       invalidate_sticky_symbols(buffer)
       close_language_documents(buffer)
       @buffers.delete_if { |_, current| current.equal?(buffer) }

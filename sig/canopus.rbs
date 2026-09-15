@@ -334,6 +334,7 @@ module Canopus
     attr_reader theme: Theme
     attr_reader root: String
     attr_reader clients: Hash[String, Sadr::Client]
+    attr_reader minimap: Minimap
     attr_accessor message: String
     def notify: (String text, ?now: Numeric) -> Integer
     def notifications: () -> Array[{id: Integer, text: String, expires: Numeric}]
@@ -406,6 +407,7 @@ module Canopus
     def document_symbol_generation: (Editor current) -> Integer?
     def breadcrumb_context: (Editor current) -> Hash[Symbol, untyped]?
     def show_breadcrumb_menu: (Pane pane, Editor current, Hash[Symbol, untyped] item, Hash[Symbol, untyped] context) -> bool
+    def minimap_settings: (Editor current) -> Hash[String, untyped]
     def refresh_sticky_fallback: (Editor current, ?Language::Document document) -> Array[Language::DocumentSymbol]
     def request_sticky_symbols: (Editor current) -> bool
     def invalidate_sticky_symbols: (?Buffer? buffer, ?client: Sadr::Client?) -> nil

@@ -38,6 +38,7 @@ module Canopus
     include TerminalPresentable
     type action = Array[untyped]
     attr_reader editor_bounds: Hash[Editor, Zaniah::Bounds]
+    attr_reader minimap_bounds: Hash[Editor, Hash[Symbol, untyped]]
     attr_reader row_layouts: Hash[[Editor, Integer], Zaniah::TextSystem::LineLayout]
     attr_reader regions: Array[[Zaniah::Bounds, action]]
     attr_reader accessibility: Array[{role: Symbol, label: String, bounds: Zaniah::Bounds}]
@@ -50,5 +51,6 @@ module Canopus
     def hit: (Zaniah::Point point) -> action?
     def offset_at: (Editor editor, Zaniah::Point point) -> Integer
     def project_scroll: (Numeric delta) -> Numeric
+    def minimap_scroll: (Editor editor, Zaniah::Point point) -> bool
   end
 end

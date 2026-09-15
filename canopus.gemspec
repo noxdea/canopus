@@ -34,5 +34,5 @@ Gem::Specification.new do |spec|
   spec.add_dependency "tarazed", "~> 0.1.0"
   spec.add_dependency "thuban", "~> 0.2.0"
   spec.add_dependency "unicode-display_width", "~> 3.2"
-  spec.add_dependency "zaniah", "~> 0.4.0"
+  spec.add_dependency "zaniah", "~> 0.5.0"
 end
