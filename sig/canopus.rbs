@@ -193,6 +193,7 @@ module Canopus
     def language=: (Language::Definition definition) -> Language::Document
     def primary: () -> Selection
     def select: (Integer first, ?Integer last, ?add: bool) -> self
+    def on_selection: () { (Array[Selection]) -> void } -> Zaniah::Subscription
     def set_selections: (Array[Selection] selections, ?merge: bool) -> Array[Selection]
     def insert_text: (String text, ?auto_indent: bool) -> untyped
     def edit: (Array[[Range[Integer], String]] changes, ?kind: Symbol) -> Array[Selection]?
@@ -393,6 +394,9 @@ module Canopus
     def connect_server: (String language, Array[String] command) -> Sadr::Client
     def language_client: (?Buffer buffer) -> Sadr::Client
     def language_request: (Symbol kind, **json options) -> void
+    def prepare_rename: (?Editor? current) -> bool?
+    def rename_prepared: (Hash[Symbol, untyped] snapshot, String name) -> bool?
+    def invalidate_prepare_rename: (?Buffer? buffer, ?client: Sadr::Client?, ?editor: Editor?) -> nil
     def diagnostics_for: (Buffer buffer) -> Array[Sadr::object]
     def document_highlight_decorations: (Buffer buffer, Range[Integer] rows, Editor? current) -> Array[Decoration::Item]
     def request_document_highlights: (Editor current) -> bool

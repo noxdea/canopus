@@ -11,6 +11,7 @@
 - Highlight language-server read, write, and text occurrences for each visible editor caret.
 - Prefer language-server folding ranges with asynchronous Antares structure fallback.
 - Expand and shrink multiple selections from language-server ranges or asynchronous Antares structure data.
+- Validate rename targets asynchronously before opening the dialog when the language server supports preparation.
 - Color nested bracket pairs from Antares structure data and draw display-aware active indentation guides.
 - Render configurable space, tab, and ideographic-space markers without changing display coordinates.
 - Keep the active declaration chain visible with cached LSP symbols and an Antares fallback.

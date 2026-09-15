@@ -59,6 +59,13 @@ selection. Unsupported, null, failed, or invalid responses fall back to
 asynchronous Antares structure analysis. Move-line shortcuts use
 `Alt-Shift-Up` and `Alt-Shift-Down`.
 
+`F2` asks servers advertising rename preparation to validate the exact document
+version and caret before opening the rename dialog. The prepared range,
+placeholder, or client-side identifier pre-fills the dialog; edits, caret moves,
+hidden tabs, server replacement, and settings reload cancel the snapshot. Servers
+without preparation support, and unconfigured languages, keep the regular rename
+dialog.
+
 Sticky scroll prefers `textDocument/documentSymbol` when the server advertises
 it and uses cached Antares structure regions otherwise. Requests and normalized
 symbol trees are tied to the current buffer version and discarded after edits,

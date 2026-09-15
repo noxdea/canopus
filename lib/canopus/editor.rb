@@ -16,11 +16,14 @@ module Canopus
       select(0)
       @subscription = buffer.on_edit do |patch|
         @display_map.block_map.blocks.values.each { |block| @display_map.remove_block(block.id) if block.kind == :git_diff }
+        previous = @selections
         @selections = @selections.map { |s| Selection.new(s.id, patch.map_offset(s.anchor), patch.map_offset(s.head), s.goal) }.freeze
+        notify_selection if @selections != previous
       end
     end
     def dispose
       @subscription.detach
+      @selection_listeners&.clear
       @display_map.dispose
       @language_document&.dispose
       clear_snippet
@@ -40,13 +43,24 @@ module Canopus
       self
     end
 
+    def on_selection(&listener)
+      raise ArgumentError, "selection listener required" unless listener
+      (@selection_listeners ||= []) << listener
+      Zaniah::Subscription.new { @selection_listeners.delete(listener) }
+    end
+
     def set_selections(selections, merge: true)
+      previous = @selections
       unless merge
         @selections = selections.sort_by(&:start).freeze
-        return @buffer.selections = @selections
+        @buffer.selections = @selections
+        notify_selection if @selections != previous
+        return @selections
       end
       @selections = merged_selections(selections).freeze
       @buffer.selections = @selections
+      notify_selection if @selections != previous
+      @selections
     end
 
     def insert_text(text, auto_indent: true)
@@ -359,6 +373,18 @@ module Canopus
     end
 
     private
+    def notify_selection
+      @selection_listeners&.dup&.each do |listener|
+        listener.call(@selections)
+      rescue StandardError => error
+        begin
+          warn "Canopus selection notification failed: #{error.message}"
+        rescue StandardError
+          nil
+        end
+      end
+    end
+
     def merged_selections(selections, touching: !snippet_active?)
       selections.sort_by(&:start).each_with_object([]) do |selection, merged|
         if merged.last && (selection.start < merged.last.end || (touching && selection.start == merged.last.end))

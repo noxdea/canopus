@@ -14,6 +14,8 @@ module Canopus
     SELECTION_RANGE_POSITION_LIMIT = 256
     SELECTION_RANGE_DEPTH_LIMIT = 256
     SELECTION_RANGE_REQUEST_LIMIT = 64
+    PREPARE_RENAME_REQUEST_LIMIT = 1
+    RENAME_VALUE_LIMIT = 4096
     DOCUMENT_HIGHLIGHT_STYLES = {
       1 => {color: :selection}.freeze,
       2 => {color: :accent, underline: true, thickness: 2}.freeze,
@@ -119,6 +121,87 @@ module Canopus
       end
       @language_jobs.reject! { |thread| !thread.alive? }
       @message = "#{kind}…"
+    end
+
+    def prepare_rename(current = editor)
+      self.palette = nil
+      invalidate_prepare_rename
+      unless current && current.buffer.path
+        self.palette = {kind: :rename, query: +"", index: 0, matches: []}
+        return true
+      end
+
+      snapshot = rename_snapshot(current)
+      language, client = snapshot.values_at(:language, :client)
+      unless client || language_server_options(language)
+        return open_rename_palette(snapshot, "")
+      end
+      return open_rename_palette(snapshot, "") if client && !snapshot[:prepare_supported]
+
+      requests = @prepare_rename_requests ||= {}
+      if requests.length >= PREPARE_RENAME_REQUEST_LIMIT
+        release_rename_snapshot(snapshot)
+        @message = "Too many rename requests"
+        return false
+      end
+      id = @prepare_rename_request_id = @prepare_rename_request_id.to_i + 1
+      requests[id] = snapshot
+      start_prepare_rename(id, snapshot)
+      @message = "Preparing rename…"
+      nil
+    rescue StandardError => error
+      @prepare_rename_requests&.delete_if { |_id, request| request.equal?(snapshot) }
+      release_rename_snapshot(snapshot) if snapshot
+      @message = error.message
+      false
+    end
+
+    def rename_prepared(snapshot, name)
+      unless valid_rename_value?(name) && name.bytesize <= RENAME_VALUE_LIMIT
+        release_rename_snapshot(snapshot)
+        @message = "Invalid rename value"
+        return false
+      end
+      unless rename_snapshot_valid?(snapshot)
+        release_rename_snapshot(snapshot)
+        @message = "Rename cancelled because the document changed"
+        return false
+      end
+
+      requests = @prepare_rename_requests ||= {}
+      if requests.length >= PREPARE_RENAME_REQUEST_LIMIT
+        release_rename_snapshot(snapshot)
+        @message = "Too many rename requests"
+        return false
+      end
+      id = @prepare_rename_request_id = @prepare_rename_request_id.to_i + 1
+      requests[id] = snapshot
+      start_prepared_rename(id, snapshot, name.dup.freeze)
+      @message = "rename…"
+      nil
+    rescue StandardError => error
+      @prepare_rename_requests&.delete_if { |_id, request| request.equal?(snapshot) }
+      release_rename_snapshot(snapshot)
+      @message = error.message
+      false
+    end
+
+    def invalidate_prepare_rename(buffer = nil, client: nil, editor: nil)
+      @prepare_rename_requests&.delete_if do |_id, snapshot|
+        matches = (!buffer || snapshot[:buffer].equal?(buffer)) && (!editor || snapshot[:editor].equal?(editor)) &&
+          (!client || snapshot[:client]&.equal?(client))
+        if matches
+          snapshot[:future]&.cancel
+          release_rename_snapshot(snapshot)
+        end
+        matches
+      end
+      snapshot = @palette&.dig(:kind) == :rename && @palette[:rename]
+      if snapshot && (!buffer || snapshot[:buffer].equal?(buffer)) && (!editor || snapshot[:editor].equal?(editor)) &&
+          (!client || snapshot[:client]&.equal?(client))
+        self.palette = nil
+      end
+      nil
     end
 
     def request_completions(current, buffer, offset)
@@ -735,11 +818,177 @@ module Canopus
         !visible.include?(current)
       end
       cancel_unused_selection_range_requests
+      @prepare_rename_requests&.values&.select { |snapshot| !visible.include?(snapshot[:editor]) }&.each do |snapshot|
+        invalidate_prepare_rename(editor: snapshot[:editor])
+      end
+      snapshot = @palette&.dig(:kind) == :rename && @palette[:rename]
+      invalidate_prepare_rename(editor: snapshot[:editor]) if snapshot && !visible.include?(snapshot[:editor])
       nil
     end
     private :invalidate_hidden_selection_ranges
 
     private
+
+    def rename_snapshot(current)
+      buffer, offset = current.buffer, current.primary.head
+      language = current.language_document.definition.name
+      client = @clients[language]
+      snapshot = {editor: current, buffer: buffer, version: buffer.version, rope: buffer.rope,
+        selections: current.selections, offset: offset, uri: Sadr::Protocol.uri(buffer.path),
+        position: Sadr::Protocol.position(buffer.rope, offset), language: language,
+        client: client, prepare_supported: prepare_rename_supported?(client)}
+      unless Sadr::Protocol.offset(snapshot[:rope], snapshot[:position]) == offset
+        raise Error, "invalid rename position"
+      end
+      snapshot[:selection_subscription] = current.on_selection do
+        invalidate_prepare_rename(editor: current) unless current.selections == snapshot[:selections]
+      end
+      snapshot[:edit_subscription] = buffer.on_edit { invalidate_prepare_rename(buffer) }
+      snapshot
+    end
+
+    def start_prepare_rename(id, snapshot)
+      job = Thread.new do
+        begin
+          owner = language_client(snapshot[:buffer])
+          unless @prepare_rename_requests&.[](id).equal?(snapshot) && rename_editor_valid?(snapshot)
+            next
+          end
+          snapshot[:client] = owner
+          snapshot[:prepare_supported] = prepare_rename_supported?(owner)
+          unless snapshot[:prepare_supported]
+            post do
+              next unless take_rename_request(id, snapshot) && rename_snapshot_valid?(snapshot)
+              open_rename_palette(snapshot, "")
+            end
+            next
+          end
+
+          future = owner.prepare_rename(snapshot[:uri], snapshot[:position])
+          snapshot[:future] = future
+          result = future.await(timeout: 10) if prepare_rename_request_valid?(id, snapshot, owner)
+          unless prepare_rename_request_valid?(id, snapshot, owner)
+            future.cancel
+            next
+          end
+          placeholder = normalize_prepare_rename(snapshot[:rope], snapshot[:offset], result)
+          post do
+            next unless take_rename_request(id, snapshot)
+            unless rename_snapshot_valid?(snapshot)
+              release_rename_snapshot(snapshot)
+              next
+            end
+            if placeholder.nil?
+              release_rename_snapshot(snapshot)
+              @message = "Rename is not available here"
+            else
+              open_rename_palette(snapshot, placeholder)
+            end
+          end
+        rescue StandardError => error
+          post do
+            next unless take_rename_request(id, snapshot)
+            valid = rename_editor_valid?(snapshot) && !@retired_language_clients&.[](owner)
+            release_rename_snapshot(snapshot)
+            @message = error.message if valid
+          end
+        ensure
+          worker = Thread.current
+          post do
+            release_rename_snapshot(snapshot) if take_rename_request(id, snapshot)
+            @language_jobs&.delete(worker)
+          end
+        end
+      end
+      (@language_jobs ||= []) << job
+      @language_jobs.reject! { |thread| !thread.alive? }
+      true
+    end
+
+    def start_prepared_rename(id, snapshot, name)
+      job = Thread.new do
+        begin
+          owner = language_client(snapshot[:buffer])
+          unless snapshot[:client]&.equal?(owner) && prepare_rename_request_valid?(id, snapshot, owner)
+            raise Error, "Rename cancelled because the language server changed"
+          end
+          future = owner.rename(snapshot[:uri], snapshot[:position], name)
+          snapshot[:future] = future
+          result = future.await(timeout: 10) if prepare_rename_request_valid?(id, snapshot, owner)
+          unless prepare_rename_request_valid?(id, snapshot, owner)
+            future.cancel
+            next
+          end
+          post do
+            next unless take_rename_request(id, snapshot)
+            valid = rename_snapshot_valid?(snapshot)
+            release_rename_snapshot(snapshot)
+            display_language_result(:rename, result, owner, snapshot[:editor]) if valid
+          end
+        rescue StandardError => error
+          post do
+            next unless take_rename_request(id, snapshot)
+            valid = rename_editor_valid?(snapshot) && !@retired_language_clients&.[](owner)
+            release_rename_snapshot(snapshot)
+            @message = error.message if valid
+          end
+        ensure
+          worker = Thread.current
+          post { @language_jobs&.delete(worker) }
+        end
+      end
+      (@language_jobs ||= []) << job
+      @language_jobs.reject! { |thread| !thread.alive? }
+      true
+    end
+
+    def prepare_rename_request_valid?(id, snapshot, owner)
+      @prepare_rename_requests&.[](id).equal?(snapshot) && rename_snapshot_valid?(snapshot) &&
+        snapshot[:client].equal?(owner) && @opened_lsp_documents&.key?([owner, snapshot[:buffer]])
+    end
+
+    def rename_snapshot_valid?(snapshot)
+      client = @clients[snapshot[:language]]
+      rename_editor_valid?(snapshot) && client.equal?(snapshot[:client]) &&
+        prepare_rename_supported?(client) == snapshot[:prepare_supported]
+    end
+
+    def rename_editor_valid?(snapshot)
+      current, buffer = snapshot.values_at(:editor, :buffer)
+      !@closed && current.buffer.equal?(buffer) && buffer.version == snapshot[:version] &&
+        current.selections == snapshot[:selections] && current.primary.head == snapshot[:offset] &&
+        buffer.path && Sadr::Protocol.uri(buffer.path) == snapshot[:uri] &&
+        @panes.any? { |pane| pane.active.equal?(current) }
+    end
+
+    def take_rename_request(id, snapshot)
+      @prepare_rename_requests&.delete(id).equal?(snapshot)
+    end
+
+    def open_rename_palette(snapshot, placeholder)
+      unless rename_snapshot_valid?(snapshot)
+        release_rename_snapshot(snapshot)
+        return false
+      end
+      self.palette = {kind: :rename, query: +placeholder, index: 0, matches: [], rename: snapshot}
+      true
+    end
+
+    def release_rename_snapshot(snapshot)
+      snapshot&.delete(:selection_subscription)&.detach
+      snapshot&.delete(:edit_subscription)&.detach
+      snapshot&.delete(:future)
+      nil
+    end
+
+    def prepare_rename_supported?(client)
+      provider = client.capabilities["renameProvider"] if client&.respond_to?(:capabilities)
+      provider.is_a?(Hash) && (provider["prepareProvider"] == true || provider[:prepareProvider] == true)
+    end
+
+    def valid_rename_value?(value)
+      value.is_a?(String) && value.encoding == Encoding::UTF_8 && value.valid_encoding? && !value.include?("\0")
+    end
 
     def cancel_unused_selection_range_requests
       @selection_range_requests&.delete_if do |_id, request|
@@ -2090,6 +2339,40 @@ module Canopus
       (first...last).freeze
     end
 
+    def normalize_prepare_rename(rope, offset, result)
+      return if result.nil?
+
+      keys = result.keys.map(&:to_s) if result.is_a?(Hash) && result.keys.all? { |key| key.is_a?(String) || key.is_a?(Symbol) }
+      raise Error, "invalid prepare rename response" if keys && keys.uniq.length != keys.length
+      value = ->(key) { result.key?(key) ? result[key] : result[key.to_sym] }
+      placeholder = if keys == ["defaultBehavior"]
+        behavior = value.call("defaultBehavior")
+        raise Error, "invalid prepare rename default behavior" unless behavior == true || behavior == false
+        point = rope.point_at(offset)
+        line_start = rope.line_start(point.row)
+        line_end = point.row + 1 < rope.line_count ? rope.line_start(point.row + 1) : rope.bytesize
+        before = rope.byteslice(line_start...offset).to_s[/[[:alnum:]_]*\z/].to_s
+        after = rope.byteslice(offset...line_end).to_s[/\A[[:alnum:]_]*/].to_s
+        before + after
+      elsif keys&.sort == %w[placeholder range]
+        range = strict_language_range(rope, value.call("range"), "prepare rename", allow_empty: false)
+        raise Error, "invalid prepare rename position" unless range.cover?(offset)
+        value.call("placeholder")
+      elsif result.is_a?(Sadr::Range_) || keys&.sort == %w[end start]
+        range = strict_language_range(rope, result, "prepare rename", allow_empty: false)
+        raise Error, "invalid prepare rename position" unless range.cover?(offset)
+        rope.byteslice(range).to_s
+      else
+        raise Error, "invalid prepare rename response"
+      end
+      unless valid_rename_value?(placeholder) && placeholder.bytesize <= RENAME_VALUE_LIMIT
+        raise Error, "invalid prepare rename placeholder"
+      end
+      placeholder.dup.freeze
+    rescue KeyError, RangeError, TypeError, ArgumentError, Sadr::Error => error
+      raise Error, "invalid prepare rename response: #{error.message}"
+    end
+
     def normalize_document_highlights(rope, result)
       raise Error, "invalid document highlights" unless result.nil? || result.is_a?(Array)
       raise Error, "too many document highlights" if result && result.length > DOCUMENT_HIGHLIGHT_LIMIT
@@ -2305,6 +2588,7 @@ module Canopus
         invalidate_document_highlights(buffer)
         invalidate_folding_ranges(buffer)
         invalidate_selection_ranges(buffer)
+        invalidate_prepare_rename(buffer)
         invalidate_inlay_hints(buffer)
         invalidate_code_lenses(buffer)
         invalidate_sticky_symbols(buffer)
@@ -2331,6 +2615,7 @@ module Canopus
       invalidate_document_highlights(buffer, client: client)
       invalidate_folding_ranges(buffer, client: client)
       invalidate_selection_ranges(buffer, client: client)
+      invalidate_prepare_rename(buffer, client: client)
       invalidate_inlay_hints(buffer)
       invalidate_code_lenses(buffer)
       invalidate_sticky_symbols(buffer, client: client)

@@ -33,7 +33,7 @@ installable.
 
 - Native GPU windows on macOS, Linux, and Windows, plus TUI and headless modes
 - Persistent buffers, tabs, splits, sessions, and explicit save-conflict handling
-- LSP completion, diagnostics, hover, symbols, formatting, rename, and code actions
+- LSP completion, diagnostics, hover, symbols, formatting, prevalidated rename, and code actions
 - Automatic read, write, and text highlights for the symbol at each visible editor's caret
 - LSP folding ranges with an asynchronous Antares fallback
 - LSP-aware selection expansion with an asynchronous Antares fallback
@@ -95,7 +95,7 @@ plugin options.
 | Replace / next occurrence | Cmd-Alt-F / Cmd-D | Ctrl-H / Ctrl-D |
 | All occurrences / expand or shrink selection | Cmd-Shift-L / Alt-Up or Down | Ctrl-Shift-L / Alt-Up or Down |
 | Move lines | Alt-Shift-Up or Down | Alt-Shift-Up or Down |
-| Completion / definition | Ctrl-Space / F12 | Ctrl-Space / F12 |
+| Completion / definition / rename | Ctrl-Space / F12 / F2 | Ctrl-Space / F12 / F2 |
 | Split / terminal | Cmd-Backslash / Ctrl-Backtick | Ctrl-Backslash / Ctrl-Backtick |
 | Close / reopen tab | Cmd-W / Cmd-Shift-T | Ctrl-W / Ctrl-Shift-T |
 | New terminal tab | Ctrl-Shift-Backtick | Ctrl-Shift-Backtick |

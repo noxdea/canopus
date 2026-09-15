@@ -92,6 +92,10 @@ module Canopus
     end
     def palette=(value)
       previous, @palette = @palette, @closed ? nil : value
+      rename = previous&.dig(:kind) == :rename && previous[:rename]
+      if rename && !previous.equal?(@submitting_rename_palette) && !rename.equal?(@palette&.dig(:rename))
+        release_rename_snapshot(rename)
+      end
       response = previous&.dig(:response)
       unless response.nil? || response.equal?(@palette&.dig(:response))
         response.fulfill({"applied" => false, "failureReason" => value ? "Replaced by another dialog" : "User cancelled"})
@@ -175,6 +179,7 @@ module Canopus
       previous = buffer.path
       result = buffer.save(target)
       if previous != buffer.path
+        invalidate_prepare_rename(buffer)
         invalidate_git
         # Close the old URI before registering this buffer under its new path.
         @opened_lsp_documents&.keys&.each do |client, document|
@@ -264,6 +269,7 @@ module Canopus
       invalidate_document_highlights(editor: current)
       invalidate_folding_ranges(editor: current)
       invalidate_selection_ranges(editor: current)
+      invalidate_prepare_rename(editor: current)
       invalidate_brackets(current.buffer)
       pane.close(current, discard: discard, activate: @settings["tabs"]["activate_on_close"].to_sym)
       release_buffer(current.buffer, discard: discard)
@@ -624,6 +630,14 @@ module Canopus
         index = current[:indices] ? current[:indices][current[:index]] : current[:index]
         self.palette = nil
         return accept_breadcrumb_palette(current, index)
+      elsif @palette[:kind] == :rename && @palette[:rename]
+        current = @submitting_rename_palette = @palette
+        begin
+          self.palette = nil
+        ensure
+          @submitting_rename_palette = nil
+        end
+        return rename_prepared(current[:rename], current[:query])
       end
       selected = @palette[:matches][@palette[:index]]
       selected_command = if @palette[:kind] == :commands && selected
@@ -712,6 +726,7 @@ module Canopus
       invalidate_document_highlights
       invalidate_folding_ranges
       invalidate_selection_ranges
+      invalidate_prepare_rename
       invalidate_inlay_hints
       @inlay_hint_requests&.clear
       invalidate_code_lenses
@@ -779,7 +794,7 @@ module Canopus
       %i[completion hover definition typeDefinition implementation references formatting codeAction signatureHelp documentSymbol inlayHint codeLens diagnostic semantic_tokens].each do |kind|
         register_action("language.#{kind}") { language_request(kind) }
       end
-      register_action("language.rename") { self.palette = {kind: :rename, query: +"", index: 0, matches: []} }
+      register_action("language.rename") { prepare_rename }
       register_action("language.expand_selection") { expand_selection }
       register_action("language.shrink_selection") { shrink_selection }
       register_action("editor.fold") { fold_current }

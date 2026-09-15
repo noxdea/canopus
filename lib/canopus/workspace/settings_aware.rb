@@ -57,6 +57,7 @@ module Canopus
       invalidate_document_highlights
       invalidate_folding_ranges
       invalidate_selection_ranges
+      invalidate_prepare_rename
       invalidate_inlay_hints
       invalidate_code_lenses
       invalidate_brackets
