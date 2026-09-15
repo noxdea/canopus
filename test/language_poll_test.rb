@@ -100,21 +100,23 @@ class LanguagePollTest < Minitest::Test
 
   def test_pending_fold_is_applied_once_and_cancelled_if_cursor_moves
     ready = false
-    @document.stub(:syntax_ready?, -> { ready }) do
-      @document.stub(:pending?, -> { !ready }) do
-        @document.stub(:fold_ranges, -> { ready ? [@symbol.range] : [] }) do
-          @workspace.fold_current
-          assert_empty @editor.display_map.fold_map.ranges
-          ready = true
-          @workspace.language_ready(@editor, @document)
-          assert_equal [@symbol.range], @editor.display_map.fold_map.ranges
-          @editor.display_map.unfold(0)
-          ready = false
-          @workspace.fold_current
-          @editor.select(1)
-          ready = true
-          @workspace.language_ready(@editor, @document)
-          assert_empty @editor.display_map.fold_map.ranges
+    @workspace.stub(:language_server_options, nil) do
+      @document.stub(:syntax_ready?, -> { ready }) do
+        @document.stub(:pending?, -> { !ready }) do
+          @document.stub(:fold_ranges, -> { ready ? [@symbol.range] : [] }) do
+            @workspace.fold_current
+            assert_empty @editor.display_map.fold_map.ranges
+            ready = true
+            @workspace.language_ready(@editor, @document)
+            assert_equal [@symbol.range], @editor.display_map.fold_map.ranges
+            @editor.display_map.unfold(0)
+            ready = false
+            @workspace.fold_current
+            @editor.select(1)
+            ready = true
+            @workspace.language_ready(@editor, @document)
+            assert_empty @editor.display_map.fold_map.ranges
+          end
         end
       end
     end

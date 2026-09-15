@@ -89,7 +89,11 @@ module Canopus
       end
       def fold_ranges
         return @background.fold_ranges if @background
-        outline.filter_map { |symbol| symbol.range if @buffer.rope.point_at(symbol.range.end).row > @buffer.rope.point_at(symbol.range.begin).row }
+        structure_regions.map do |region|
+          first = @buffer.rope.line_start(region[:start_line]) + @buffer.line(region[:start_line]).bytesize
+          last = @buffer.rope.line_start(region[:end_line]) + @buffer.line(region[:end_line]).bytesize
+          (first...last).freeze
+        end
       end
       def indent_for(offset, tab_size: 4, use_tabs: false)
         row = @buffer.rope.point_at(offset).row

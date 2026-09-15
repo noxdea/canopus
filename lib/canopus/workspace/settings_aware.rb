@@ -55,6 +55,7 @@ module Canopus
       @applied_icon_theme = @settings["icon_theme"]
       invalidate_diagnostics
       invalidate_document_highlights
+      invalidate_folding_ranges
       invalidate_inlay_hints
       invalidate_code_lenses
       invalidate_brackets

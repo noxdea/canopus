@@ -9,6 +9,7 @@
 - Show cached, viewport-scoped language-server inlay hints inline with clickable label locations.
 - Show cached language-server code lenses above source lines and resolve them only when visible.
 - Highlight language-server read, write, and text occurrences for each visible editor caret.
+- Prefer language-server folding ranges with asynchronous Antares structure fallback.
 - Color nested bracket pairs from Antares structure data and draw display-aware active indentation guides.
 - Render configurable space, tab, and ideographic-space markers without changing display coordinates.
 - Keep the active declaration chain visible with cached LSP symbols and an Antares fallback.

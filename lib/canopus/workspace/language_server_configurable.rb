@@ -95,6 +95,7 @@ module Canopus
         @clients.delete(language)
         invalidate_diagnostics
         invalidate_document_highlights(client: client)
+        invalidate_folding_ranges(client: client)
         invalidate_inlay_hints(client: client)
         invalidate_code_lenses(client: client)
         invalidate_sticky_symbols(client: client)

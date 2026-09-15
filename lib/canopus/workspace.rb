@@ -259,6 +259,7 @@ module Canopus
       @sticky_fallback_cache&.delete(current)
       @sticky_context_cache&.clear
       invalidate_document_highlights(editor: current)
+      invalidate_folding_ranges(editor: current)
       invalidate_brackets(current.buffer)
       pane.close(current, discard: discard, activate: @settings["tabs"]["activate_on_close"].to_sym)
       release_buffer(current.buffer, discard: discard)
@@ -704,6 +705,7 @@ module Canopus
       cancel_completion_requests
       cancel_project_search
       invalidate_document_highlights
+      invalidate_folding_ranges
       invalidate_inlay_hints
       @inlay_hint_requests&.clear
       invalidate_code_lenses

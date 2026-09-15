@@ -47,6 +47,12 @@ writes, and textual occurrences at each visible editor's caret. Results are
 kept per split and caret, and are discarded when the caret or document changes,
 the tab closes, or the language server is replaced.
 
+`editor.fold` prefers cached `textDocument/foldingRange` results and folds the
+smallest range containing the caret's source line. Servers without folding
+support, null or failed responses, and unconfigured languages fall back to
+asynchronous Antares structure analysis; the UI thread never waits for either
+source.
+
 Sticky scroll prefers `textDocument/documentSymbol` when the server advertises
 it and uses cached Antares structure regions otherwise. Requests and normalized
 symbol trees are tied to the current buffer version and discarded after edits,

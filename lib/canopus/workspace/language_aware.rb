@@ -8,6 +8,8 @@ module Canopus
     CODE_LENS_REQUEST_LIMIT = 64
     DOCUMENT_HIGHLIGHT_LIMIT = 10_000
     DOCUMENT_HIGHLIGHT_REQUEST_LIMIT = 64
+    FOLDING_RANGE_LIMIT = 10_000
+    FOLDING_RANGE_REQUEST_LIMIT = 64
     DOCUMENT_HIGHLIGHT_STYLES = {
       1 => {color: :selection}.freeze,
       2 => {color: :accent, underline: true, thickness: 2}.freeze,
@@ -543,14 +545,29 @@ module Canopus
     end
     def fold_current
       current, document = editor, editor.language_document
-      ranges = document.fold_ranges
-      if document.syntax_ready?
-        range = ranges.reverse.find { |item| item.cover?(current.primary.head) }
-        current.display_map.fold(range) if range
-      else
-        @pending_fold = [current, document, current.buffer.version, current.primary.head]
-        @message = "Analyzing fold ranges…"
+      buffer, version, cursor = current.buffer, current.buffer.version, current.primary.head
+      language = document.definition.name
+      client = @clients[language]
+      key = folding_range_key(client, buffer, version)
+      cache = @folding_range_cache ||= {}
+      return cache[key] == false ? fold_with_antares(current, document, version, cursor) :
+        apply_fold(current, cache[key], cursor) if cache.key?(key)
+
+      unless buffer.path && !buffer.read_only && (client || language_server_options(language))
+        return fold_with_antares(current, document, version, cursor)
       end
+      unless folding_range_supported?(client) || !client
+        cache_folding_ranges(key, false)
+        return fold_with_antares(current, document, version, cursor)
+      end
+
+      (@pending_folds ||= {})[current] = {document: document, buffer: buffer, version: version,
+        cursor: cursor, source: :lsp, client: client}
+      unless request_folding_ranges(buffer, version, client)
+        @pending_folds.delete(current)
+        return fold_with_antares(current, document, version, cursor)
+      end
+      @message = "Loading fold ranges…"
     end
     def language_ready(current, document)
       if @palette&.dig(:kind) == :outline && @palette[:editor].equal?(current) && @palette[:document].equal?(document)
@@ -576,25 +593,174 @@ module Canopus
           @message = "Outline analysis unavailable"
         end
       end
-      return unless @pending_fold && @pending_fold[0].equal?(current)
-      _, requested_document, version, cursor = @pending_fold
-      unless current.equal?(editor) && requested_document.equal?(document) && version == current.buffer.version && cursor == current.primary.head
-        @pending_fold = nil
+      pending = @pending_folds&.[](current)
+      return unless pending && pending[:source] == :antares
+      unless pending_fold_valid?(current, pending, document)
+        @pending_folds.delete(current)
         return
       end
       return if !document.syntax_ready? && document.pending?
-      @pending_fold = nil
+      @pending_folds.delete(current)
       if document.syntax_ready?
-        range = document.fold_ranges.reverse.find { |item| item.cover?(cursor) }
-        current.display_map.fold(range) if range
-        @message = range ? "Folded" : "No fold at cursor"
-        @window&.request_frame
+        apply_fold(current, document.fold_ranges, pending[:cursor])
       else
         @message = "Fold analysis unavailable"
       end
     end
 
+    def invalidate_folding_ranges(buffer = nil, client: nil, editor: nil)
+      affected = []
+      unless editor && !buffer && !client
+        @folding_range_cache&.delete_if do |key, _value|
+          matches = (!buffer || key[1].equal?(buffer)) && (!client || key[0]&.equal?(client))
+          affected << key[1] if matches
+          matches
+        end
+        @folding_range_requests&.delete_if do |_id, request|
+          matches = (!buffer || request[:buffer].equal?(buffer)) && (!client || request[:client]&.equal?(client))
+          if matches
+            affected << request[:buffer]
+            request[:future]&.cancel
+          end
+          matches
+        end
+      end
+      @pending_folds&.delete_if do |current, pending|
+        (!buffer || pending[:buffer].equal?(buffer)) && (!editor || current.equal?(editor)) &&
+          (!client || pending[:client]&.equal?(client) || affected.any? { |item| item.equal?(pending[:buffer]) })
+      end
+      nil
+    end
+
     private
+
+    def request_folding_ranges(buffer, version, client)
+      requests = @folding_range_requests ||= {}
+      pending = requests.values.any? do |request|
+        request[:buffer].equal?(buffer) && request[:version] == version &&
+          (!client || !request[:client] || request[:client].equal?(client))
+      end
+      return true if pending
+      return false if requests.length >= FOLDING_RANGE_REQUEST_LIMIT
+
+      @folding_range_request_id = @folding_range_request_id.to_i + 1
+      id = @folding_range_request_id
+      request = {client: client, buffer: buffer, version: version, rope: buffer.rope,
+        uri: Sadr::Protocol.uri(buffer.path)}
+      requests[id] = request
+      job = Thread.new do
+        begin
+          owner = language_client(buffer)
+          request[:client] = owner
+          supported = folding_range_supported?(owner)
+          valid = folding_range_request_valid?(id, request, owner)
+          future = owner.folding_range(request[:uri]) if supported && valid
+          request[:future] = future
+          result = future.await(timeout: 10) if future && folding_range_request_valid?(id, request, owner)
+          future&.cancel unless folding_range_request_valid?(id, request, owner)
+          ranges = supported && valid ? normalize_folding_ranges(request[:rope], result) : false
+          ranges = false if ranges.nil?
+          post do
+            next unless @folding_range_requests&.delete(id).equal?(request)
+            accepted = folding_range_result_valid?(request, owner) &&
+              folding_range_supported?(owner) == supported
+            cache_folding_ranges(folding_range_key(owner, buffer, version, supported), ranges) if accepted
+            ranges = false unless accepted
+            finish_pending_folds(buffer, version, ranges)
+          end
+        rescue StandardError
+          post do
+            next unless @folding_range_requests&.delete(id).equal?(request)
+            accepted = owner ? folding_range_result_valid?(request, owner) : fold_context_valid?(request)
+            cache_folding_ranges(folding_range_key(owner, buffer, version), false) if accepted
+            finish_pending_folds(buffer, version, false)
+          end
+        ensure
+          worker = Thread.current
+          post { @language_jobs&.delete(worker) }
+        end
+      end
+      (@language_jobs ||= []) << job
+      @language_jobs.reject! { |thread| !thread.alive? }
+      true
+    end
+
+    def finish_pending_folds(buffer, version, ranges)
+      (@pending_folds || {}).dup.each do |current, pending|
+        next unless pending[:buffer].equal?(buffer) && pending[:version] == version && pending[:source] == :lsp
+        @pending_folds.delete(current)
+        next unless pending_fold_valid?(current, pending)
+
+        if ranges == false
+          fold_with_antares(current, pending[:document], version, pending[:cursor])
+        else
+          apply_fold(current, ranges, pending[:cursor])
+        end
+      end
+    end
+
+    def fold_with_antares(current, document, version, cursor)
+      ranges = document.fold_ranges
+      return apply_fold(current, ranges, cursor) if document.syntax_ready?
+
+      (@pending_folds ||= {})[current] = {document: document, buffer: current.buffer, version: version,
+        cursor: cursor, source: :antares,
+        client: @clients[document.definition.name]}
+      @message = "Analyzing fold ranges…"
+      nil
+    end
+
+    def apply_fold(current, ranges, cursor)
+      row = current.buffer.rope.point_at(cursor).row
+      range = ranges.select do |item|
+        first = current.buffer.rope.point_at(item.begin).row
+        last = current.buffer.rope.point_at(item.end).row
+        row.between?(first, last)
+      end.min_by { |item| [item.end - item.begin, -item.begin] }
+      current.display_map.fold(range) if range
+      @message = range ? "Folded" : "No fold at cursor"
+      @window&.request_frame
+      range
+    end
+
+    def pending_fold_valid?(current, pending, document = pending[:document])
+      !@closed && current.language_document.equal?(document) && current.buffer.equal?(pending[:buffer]) &&
+        current.buffer.version == pending[:version] && current.primary.head == pending[:cursor] &&
+        @panes.any? { |pane| pane.active.equal?(current) }
+    end
+
+    def folding_range_supported?(client)
+      provider = client.capabilities["foldingRangeProvider"] if client&.respond_to?(:capabilities)
+      provider == true || provider.is_a?(Hash)
+    end
+
+    def folding_range_key(client, buffer, version = buffer.version,
+      supported = folding_range_supported?(client))
+      [client, buffer, version, supported]
+    end
+
+    def folding_range_result_valid?(request, owner)
+      fold_context_valid?(request) && @clients.value?(owner) &&
+        @opened_lsp_documents&.key?([owner, request[:buffer]])
+    end
+
+    def folding_range_request_valid?(id, request, owner)
+      @folding_range_requests&.[](id).equal?(request) && folding_range_result_valid?(request, owner)
+    end
+
+    def fold_context_valid?(request)
+      buffer = request[:buffer]
+      !@closed && buffer.version == request[:version] && buffer.path &&
+        Sadr::Protocol.uri(buffer.path) == request[:uri] &&
+        @panes.any? { |pane| pane.editors.any? { |current| current.buffer.equal?(buffer) } }
+    end
+
+    def cache_folding_ranges(key, ranges)
+      cache = @folding_range_cache ||= {}
+      cache.delete_if { |entry, _value| entry[0].equal?(key[0]) && entry[1].equal?(key[1]) }
+      cache.shift while cache.length >= FOLDING_RANGE_REQUEST_LIMIT
+      cache[key] = ranges
+    end
 
     def cache_inlay_hints(client, buffer, version, rows, result, id, settings)
       raise Error, "invalid inlay hints" unless result.nil? || result.is_a?(Array)
@@ -1658,6 +1824,40 @@ module Canopus
       raise Error, "invalid document highlights: #{error.message}"
     end
 
+    def normalize_folding_ranges(rope, result)
+      return nil if result.nil?
+      raise Error, "invalid folding ranges" unless result.is_a?(Array)
+      raise Error, "too many folding ranges" if result.length > FOLDING_RANGE_LIMIT
+
+      result.map do |item|
+        raise Error, "invalid folding range" unless item.is_a?(Hash)
+        first_row, last_row = item.fetch("startLine"), item.fetch("endLine")
+        unless first_row.is_a?(Integer) && last_row.is_a?(Integer) &&
+            first_row.between?(0, 0x7fffffff) && last_row.between?(first_row, 0x7fffffff) &&
+            last_row < rope.line_count
+          raise Error, "invalid folding range lines"
+        end
+        first = folding_position(rope, first_row, item["startCharacter"], item.key?("startCharacter"))
+        last = folding_position(rope, last_row, item["endCharacter"], item.key?("endCharacter"))
+        raise Error, "invalid folding range bounds" unless first < last
+        (first...last).freeze
+      end.uniq.sort_by { |range| [range.begin, -range.end] }.freeze
+    rescue KeyError, RangeError, TypeError, ArgumentError, Sadr::Error => error
+      raise Error, "invalid folding ranges: #{error.message}"
+    end
+
+    def folding_position(rope, row, character, present)
+      point = if !present
+        Sadr::Protocol.position(rope, rope.line_start(row) + rope.line(row).bytesize)
+      else
+        raise Error, "invalid folding range character" unless character.is_a?(Integer) && character.between?(0, 0x7fffffff)
+        Sadr::Position.new(line: row, character: character)
+      end
+      offset = Sadr::Protocol.offset(rope, point)
+      raise Error, "invalid folding range character" unless Sadr::Protocol.position(rope, offset) == point
+      offset
+    end
+
     def document_highlight_supported?(client)
       provider = client.capabilities["documentHighlightProvider"] if client&.respond_to?(:capabilities)
       provider == true || provider.is_a?(Hash)
@@ -1761,6 +1961,7 @@ module Canopus
       @language_document_subscriptions&.delete(key)&.detach
       (@language_document_subscriptions ||= {})[key] = buffer.on_edit do |patch|
         invalidate_document_highlights(buffer)
+        invalidate_folding_ranges(buffer)
         invalidate_inlay_hints(buffer)
         invalidate_code_lenses(buffer)
         invalidate_sticky_symbols(buffer)
@@ -1785,6 +1986,7 @@ module Canopus
       end
       invalidate_diagnostics(buffer)
       invalidate_document_highlights(buffer, client: client)
+      invalidate_folding_ranges(buffer, client: client)
       invalidate_inlay_hints(buffer)
       invalidate_code_lenses(buffer)
       invalidate_sticky_symbols(buffer, client: client)
