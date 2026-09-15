@@ -4,6 +4,7 @@
 
 - Delegate language-server protocol transport and lifecycle handling to Sadr.
 - Delegate terminal emulation and POSIX/Windows PTY handling to Tarazed; the editor UI is unchanged.
+- Delegate project walking and content search to Alkaid while retaining Canopus's search and replace UI.
 
 ## 0.4.0 — 2026-09-15
 

@@ -149,14 +149,14 @@ class SearchPreparationTest < Minitest::Test
 
   def test_stale_error_cannot_replace_newer_search_result_message
     entered, release = Queue.new, Queue.new
-    original = @workspace.project.method(:search)
-    @workspace.project.define_singleton_method(:search) do |pattern, **options|
+    original = @workspace.method(:search_project_paths)
+    @workspace.define_singleton_method(:search_project_paths) do |pattern, generation|
       if pattern.source == "obsolete"
         entered << true
         release.pop
         raise "old search failed"
       end
-      original.call(pattern, **options)
+      original.call(pattern, generation)
     end
     old = @workspace.search_project("obsolete")
     entered.pop
@@ -166,6 +166,15 @@ class SearchPreparationTest < Minitest::Test
     finish
     assert_match(/2 matches/, @workspace.message)
     refute_match(/old search failed/, @workspace.message)
+  end
+
+  def test_buffer_rescan_honors_regexp_timeout
+    pattern = Regexp.new('^(a+)+\1$', timeout: 0.001)
+    rope = Denebola::Rope.new("a" * 20_000 + "!")
+    assert_raises(Regexp::TimeoutError) do
+      @workspace.send(:search_excerpt_ranges, rope, pattern, 10_000,
+        @workspace.instance_variable_get(:@search_generation))
+    end
   end
 
   def test_settings_changes_reprepare_layout_before_installing
@@ -183,8 +192,7 @@ class SearchPreparationTest < Minitest::Test
   def test_canonical_aliases_share_one_source
     skip "symlinks unavailable" if Gem.win_platform?
     File.symlink("a.txt", File.join(@root, "alias.txt"))
-    matches = ["a.txt", "alias.txt"].map { |path| Canopus::Project::Search::Match.new(path: path) }
-    @workspace.project.stub(:search, matches) do
+    @workspace.stub(:search_project_paths, %w[a.txt alias.txt].freeze) do
       prepare
       result = finish
       assert_equal 1, result.excerpts.length

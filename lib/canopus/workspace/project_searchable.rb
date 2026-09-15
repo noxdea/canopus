@@ -68,8 +68,7 @@ module Canopus
     def prepare_project_search(pattern, generation, sources, settings:, paths: nil, async: true)
       work = lambda do
         prepared = nil
-        paths ||= @project.search(pattern, workers: 4, limit: 10_000,
-          cancelled: -> { search_cancelled?(generation) }).map(&:path).uniq.freeze
+        paths ||= search_project_paths(pattern, generation)
         next if search_cancelled?(generation)
         prepared = build_search_preparation(pattern, generation, sources, paths, settings)
         next unless prepared
@@ -93,6 +92,12 @@ module Canopus
         prepared&.close
       end
       async ? @search_job = Thread.new(&work) : work.call
+    end
+
+    def search_project_paths(pattern, generation)
+      Alkaid::Search.new(@root, pattern: pattern, ignore: @project.ignore_matcher, workers: 4,
+        max_file_size: 10 * 1024 * 1024, max_matches: 10_000, hidden: true,
+        cancelled: -> { search_cancelled?(generation) }).run.map(&:path).uniq.freeze
     end
 
     def build_search_preparation(pattern, generation, sources, paths, settings)
@@ -143,15 +148,17 @@ module Canopus
 
     def search_excerpt_ranges(rope, pattern, limit, generation)
       ranges, count = [], 0
-      rope.to_s.to_enum(:scan, pattern).each do
-        break if search_cancelled?(generation)
-        match = Regexp.last_match
-        row, last_row = rope.point_at(match.bytebegin(0)).row, rope.point_at(match.byteend(0)).row
-        first = rope.line_start([row - 1, 0].max)
-        last = last_row + 2 < rope.line_count ? rope.line_start(last_row + 2) : rope.bytesize
-        ranges.last && first <= ranges.last.end ? ranges[-1] = ranges.last.begin...[ranges.last.end, last].max : ranges << (first...last)
-        count += 1
-        break if count >= limit
+      Canopus.with_regexp_timeout(pattern) do
+        rope.to_s.to_enum(:scan, pattern).each do
+          break if search_cancelled?(generation)
+          match = Regexp.last_match
+          row, last_row = rope.point_at(match.bytebegin(0)).row, rope.point_at(match.byteend(0)).row
+          first = rope.line_start([row - 1, 0].max)
+          last = last_row + 2 < rope.line_count ? rope.line_start(last_row + 2) : rope.bytesize
+          ranges.last && first <= ranges.last.end ? ranges[-1] = ranges.last.begin...[ranges.last.end, last].max : ranges << (first...last)
+          count += 1
+          break if count >= limit
+        end
       end
       [ranges, count]
     end

@@ -45,34 +45,46 @@ class ProjectTest < Minitest::Test
     end
   end
 
-  def test_cycles_file_filters_binary_and_utf8_offsets
+  def test_file_filters_and_symlink_cycles
     write("lib/a.rb", "日本 apple\napple apple\n")
     write("b.txt", "apple\n")
     write("binary.rb", "apple\0ignored")
     write("large.rb", "apple" * 500)
     File.symlink(@directory, File.join(@directory, "lib", "loop"))
-    assert_equal %w[lib/a.rb], @project.search("apple", extensions: ["rb"], max_size: 100).map(&:path).uniq
-    hits = @project.search("apple", extensions: ["rb"], max_size: 100, workers: 2)
-    assert_equal [1, 2, 2], hits.map(&:line)
-    assert_equal [4, 1, 7], hits.map(&:column)
-    assert_equal [7, 13, 19], hits.map(&:byte_offset)
+    assert_equal %w[binary.rb lib/a.rb], @project.files(extensions: ["rb"], max_size: 100).to_a
     assert_equal 4, @project.files(follow_symlinks: true).count
-    assert_equal hits, @project.search("APPLE", extensions: ["rb"], max_size: 100, case_sensitive: false)
   end
 
   def test_replace_is_atomic_and_watcher_reconciles_ignore_changes
     write("one.txt", "red red\n")
+    write("omit.txt", "red\n")
+    write(".ignore", "omit.txt\n")
     watcher = @project.watcher
     assert_equal({"one.txt" => 2}, @project.replace("red", "blue"))
     assert_equal "blue blue\n", File.read(File.join(@directory, "one.txt"))
+    assert_equal "red\n", File.read(File.join(@directory, "omit.txt"))
     assert_equal [["one.txt", :modified]], watcher.poll.map { |event| [event.path, event.type] }
     write("two.txt", "new")
     assert_equal :created, watcher.poll.first.type
-    write(".ignore", "two.txt\n")
-    assert_equal [[".ignore", :created], ["two.txt", :deleted]], watcher.poll.map { |event| [event.path, event.type] }
+    write(".ignore", "omit.txt\ntwo.txt\n")
+    assert_equal [[".ignore", :modified], ["two.txt", :deleted]], watcher.poll.map { |event| [event.path, event.type] }
     File.unlink(File.join(@directory, "one.txt"))
     assert_equal :deleted, watcher.poll.first.type
     watcher.close
     assert_raises(ArgumentError) { @project.path("../outside") }
+  end
+
+  def test_replace_keeps_search_visibility_binary_size_and_symlink_rules
+    write(".hidden.txt", "red\n")
+    write(".canopus/trash/deleted.txt", "red\n")
+    write("binary.txt", "red\0ignored")
+    write("large.txt", "red" * 100)
+    File.symlink(File.join(@directory, ".hidden.txt"), File.join(@directory, "link.txt")) unless Gem.win_platform?
+
+    assert_equal({".hidden.txt" => 1}, @project.replace("red", "blue", max_size: 100))
+    assert_equal "blue\n", File.read(File.join(@directory, ".hidden.txt"))
+    assert_equal "red\n", File.read(File.join(@directory, ".canopus/trash/deleted.txt"))
+    assert_equal "red\0ignored", File.binread(File.join(@directory, "binary.txt"))
+    assert_equal "red" * 100, File.read(File.join(@directory, "large.txt"))
   end
 end

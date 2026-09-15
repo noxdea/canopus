@@ -22,6 +22,7 @@ Gem::Specification.new do |spec|
   spec.executables = spec.files.grep(%r{\Aexe/}).map { |path| File.basename(path) }
   spec.require_paths = ["lib"]
   spec.add_dependency "alhena", "~> 0.2.0"
+  spec.add_dependency "alkaid", "~> 0.1.0"
   spec.add_dependency "antares", "~> 0.1.0"
   spec.add_dependency "denebola", "~> 0.1.0"
   spec.add_dependency "kochab", "~> 0.1.0"

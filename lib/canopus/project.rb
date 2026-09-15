@@ -4,6 +4,10 @@ require "set"
 require "fileutils"
 require "tempfile"
 require "thuban"
+require_relative "regexp_compat"
+alkaid_path = ENV["ALKAID_PATH"]
+alkaid_root = File.expand_path("../..", __dir__)
+alkaid_path ? require(File.expand_path("lib/alkaid", File.expand_path(alkaid_path, alkaid_root))) : require("alkaid")
 
 module Canopus
   class Project
@@ -89,14 +93,20 @@ module Canopus
       false
     end
 
-    def search(pattern, **options, &block) = Search.new(self).call(pattern, **options, &block)
+    def ignore_matcher
+      Thuban::IgnoreMatcher.load(root, global: false).add("/.canopus/trash/\n")
+    end
+
     def watcher(**options) = Watcher.new(self, **options)
 
     # Each file is replaced atomically; a concurrent write aborts that file.
-    def replace(pattern, replacement, **options)
-      expression = pattern.is_a?(Regexp) ? pattern : Regexp.new(Regexp.escape(pattern))
-      searcher = Search.new(self)
-      paths = searcher.call(expression, **options).map(&:path).uniq
+    def replace(pattern, replacement, workers: 4, max_size: 10 * 1024 * 1024, extensions: nil, limit: nil,
+      case_sensitive: true, cancelled: nil, paths: nil)
+      expression = pattern.is_a?(Regexp) ? pattern : Regexp.new(Regexp.escape(pattern), case_sensitive ? 0 : Regexp::IGNORECASE)
+      matches = Alkaid::Search.new(root, pattern: expression, ignore: ignore_matcher, workers: workers,
+        max_file_size: max_size, max_matches: limit, extensions: extensions, paths: paths, hidden: true,
+        cancelled: cancelled).run
+      paths = matches.map(&:path).uniq
       paths.to_h do |relative|
         absolute = path(relative)
         before = File.stat(absolute)
@@ -123,5 +133,4 @@ module Canopus
   end
 end
 
-require_relative "project/search"
 require_relative "project/watcher"

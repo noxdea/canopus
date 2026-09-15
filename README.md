@@ -167,12 +167,12 @@ git clone https://github.com/noxdea/canopus.git
 cd canopus
 bundle install
 bundle exec rake test
-bundle exec rbs -I sig -r porrima -r thuban -r alhena -r antares -r denebola -r zaniah -r sadr -r tarazed -r stringio -r strscan validate
+bundle exec rbs -I sig -r porrima -r thuban -r alhena -r antares -r denebola -r zaniah -r sadr -r tarazed -r alkaid -r stringio -r strscan validate
 bundle exec ruby tools/check_dependencies.rb test/type/smoke.rb
 ```
 
 Before component releases are available, use sibling checkouts with
-`SADR_PATH=../sadr TARAZED_PATH=../tarazed bundle install`.
+`SADR_PATH=../sadr TARAZED_PATH=../tarazed ALKAID_PATH=../alkaid bundle install`.
 
 Run `bundle exec rake bench` for performance checks. Contributions can be
 submitted through [GitHub issues and pull requests](https://github.com/noxdea/canopus/issues).

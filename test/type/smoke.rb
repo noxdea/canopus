@@ -49,7 +49,8 @@ Dir.mktmpdir("canopus-public-api-") do |root|
   check(project.files.to_a.include?("file.txt"), "project files enumerator")
   seen = []
   check(project.files { |name| seen << name }.equal?(project) && seen.include?("file.txt"), "project files block")
-  check(project.search("日本", workers: 1).first.byte_offset == 0, "project Unicode search")
+  search = Alkaid::Search.new(root, pattern: "日本", ignore: project.ignore_matcher, workers: 1, hidden: true)
+  check(search.run.first.byte_offset == 0, "project Unicode search")
   rules = Thuban::IgnoreMatcher.new.add("*.tmp\n!keep.tmp\n")
   check(rules.ignored?("skip.tmp") && !rules.ignored?("keep.tmp"), "ignore negation")
   watcher = project.watcher

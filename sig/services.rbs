@@ -10,24 +10,9 @@ module Canopus
     def files: (?include_hidden: bool, ?follow_symlinks: bool, ?include_symlinks: bool, ?include_directories: bool, ?extensions: Array[String]?, ?max_size: Integer?) -> Enumerator[String, self]
              | (?include_hidden: bool, ?follow_symlinks: bool, ?include_symlinks: bool, ?include_directories: bool, ?extensions: Array[String]?, ?max_size: Integer?) { (String) -> void } -> self
     def ignored?: (String relative, ?directory: bool) -> bool
-    def search: (String | Regexp pattern, ?workers: Integer, ?max_size: Integer?, ?extensions: Array[String]?, ?limit: Integer?, ?case_sensitive: bool, ?cancelled: ^() -> bool, ?paths: Array[String]?) ?{ (Search::Match) -> void } -> Array[Search::Match]
+    def ignore_matcher: () -> Thuban::IgnoreMatcher
     def replace: (String | Regexp pattern, String replacement, ?workers: Integer, ?max_size: Integer?, ?extensions: Array[String]?, ?limit: Integer?, ?case_sensitive: bool, ?cancelled: ^() -> bool, ?paths: Array[String]?) -> Hash[String, Integer]
     def watcher: (?interval: Numeric, ?native: _NativeWatcher?) -> Watcher
-
-    class Search
-      DEFAULT_MAX_SIZE: Integer
-      class Match < Struct[untyped]
-        attr_accessor path: String
-        attr_accessor line: Integer
-        attr_accessor column: Integer
-        attr_accessor byte_offset: Integer
-        attr_accessor text: String
-        attr_accessor match: String
-        def self.new: (path: String, line: Integer, column: Integer, byte_offset: Integer, text: String, match: String) -> instance
-      end
-      def initialize: (Project project) -> void
-      def call: (String | Regexp pattern, ?workers: Integer, ?max_size: Integer?, ?extensions: Array[String]?, ?limit: Integer?, ?case_sensitive: bool, ?cancelled: ^() -> bool, ?paths: Array[String]?) ?{ (Match) -> void } -> Array[Match]
-    end
     class Watcher
       class Event < Struct[untyped]
         attr_accessor type: :created | :modified | :deleted

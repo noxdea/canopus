@@ -18,7 +18,10 @@ Dir.mktmpdir("canopus-search-bench-") do |directory|
   {all: {}, ruby: {extensions: ["rb"]}}.each do |name, filters|
     [1, 4].each do |workers|
       matches = nil
-      seconds = Benchmark.realtime { matches = project.search("missing needle", workers: workers, **filters) }
+      seconds = Benchmark.realtime do
+        matches = Alkaid::Search.new(project.root, pattern: "missing needle", ignore: project.ignore_matcher,
+          workers: workers, hidden: true, **filters).run
+      end
       raise "unexpected match" unless matches.empty?
       puts "#{name}: #{count} files, workers=#{workers}, #{seconds.round(3)} s"
     end
