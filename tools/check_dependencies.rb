@@ -13,7 +13,7 @@ smoke = ARGV.first && File.expand_path(ARGV.fetch(0))
 abort "Usage: ruby tools/check_dependencies.rb [smoke.rb]" if ARGV.length > 1 || (smoke && !File.file?(smoke))
 specification = Gem::Specification.load(File.join(root, "#{entry}.gemspec"))
 dependencies = specification.runtime_dependencies.map(&:name).sort
-expected = %w[alhena antares denebola kochab porrima prism rouge sadr spica thuban unicode-display_width zaniah]
+expected = %w[alhena antares denebola kochab porrima prism rouge sadr spica tarazed thuban unicode-display_width zaniah]
 abort "unexpected runtime gem dependencies" unless dependencies == expected
 abort "native extension declaration" unless specification.extensions.empty?
 abort "packaged native binary" if specification.files.any? { |path| path.match?(/\.(?:so|bundle|dll|dylib|a|o)\z/i) }
@@ -32,8 +32,22 @@ Dir.mktmpdir("#{entry}-install-") do |directory|
   gem_command = File.join(RbConfig::CONFIG.fetch("bindir"), "gem")
   environment = ENV.each_key.grep(/\ABUNDLE/).to_h { |key| [key, nil] }.merge(
     "GEM_HOME" => installation, "GEM_PATH" => ([installation] + Gem.path).join(File::PATH_SEPARATOR),
-    "RUBYLIB" => nil, "RUBYOPT" => nil
+    "RUBYLIB" => nil, "RUBYOPT" => nil, "SADR_PATH" => nil, "TARAZED_PATH" => nil
   )
+  {"SADR_PATH" => "sadr", "TARAZED_PATH" => "tarazed"}.each do |variable, name|
+    next unless ENV[variable]
+
+    dependency_root = File.realpath(ENV.fetch(variable))
+    dependency_specification = Gem::Specification.load(File.join(dependency_root, "#{name}.gemspec"))
+    requirement = specification.runtime_dependencies.find { |dependency| dependency.name == name }
+    abort "invalid #{variable}" unless dependency_specification&.name == name &&
+      requirement&.match?(dependency_specification.name, dependency_specification.version)
+    dependency_artifact = File.join(directory, "#{name}.gem")
+    Dir.chdir(dependency_root) { Gem::Package.build(dependency_specification, false, false, dependency_artifact) }
+    output, status = Open3.capture2e(environment, Gem.ruby, gem_command, "install", "--local", "--ignore-dependencies",
+      "--no-document", "--install-dir", installation, dependency_artifact, chdir: directory)
+    abort output unless status.success?
+  end
   output, status = Open3.capture2e(environment, Gem.ruby, gem_command, "install", "--local", "--ignore-dependencies", "--no-document", "--install-dir", installation, artifact, chdir: directory)
   abort output unless status.success?
   installed = File.join(installation, "gems", "#{specification.name}-#{specification.version}")

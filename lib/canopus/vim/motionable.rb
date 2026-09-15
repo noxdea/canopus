@@ -259,7 +259,7 @@ module Canopus
 
     def cell_width(character, column)
       return @editor.tab_size - column % @editor.tab_size if character == "\t"
-      defined?(Terminal::Grid) ? [Terminal::Grid.width(character), 1].max : 1
+      [Tarazed::Grid.width(character), 1].max
     end
 
     def block_columns

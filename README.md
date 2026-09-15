@@ -167,12 +167,12 @@ git clone https://github.com/noxdea/canopus.git
 cd canopus
 bundle install
 bundle exec rake test
-bundle exec rbs -I sig -r porrima -r thuban -r alhena -r antares -r denebola -r zaniah -r sadr -r stringio -r strscan validate
+bundle exec rbs -I sig -r porrima -r thuban -r alhena -r antares -r denebola -r zaniah -r sadr -r tarazed -r stringio -r strscan validate
 bundle exec ruby tools/check_dependencies.rb test/type/smoke.rb
 ```
 
-Before a Sadr release is available, use a sibling checkout with
-`SADR_PATH=../sadr bundle install`.
+Before component releases are available, use sibling checkouts with
+`SADR_PATH=../sadr TARAZED_PATH=../tarazed bundle install`.
 
 Run `bundle exec rake bench` for performance checks. Contributions can be
 submitted through [GitHub issues and pull requests](https://github.com/noxdea/canopus/issues).
@@ -182,6 +182,7 @@ submitted through [GitHub issues and pull requests](https://github.com/noxdea/ca
 - Files larger than 100 MiB use a read-only UTF-8 path without wrapping or folding.
 - Large-file UTF-16 and legacy encodings are unsupported.
 - Git support targets SHA-1 repositories and does not implement every index or object extension.
+- The integrated terminal uses a POSIX PTY on macOS/Linux and ConPTY on 64-bit Windows.
 - Desktop packages are unsigned and do not bundle Ruby or automatic updates.
 
 ## License

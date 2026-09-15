@@ -122,9 +122,9 @@ Dir.mktmpdir("canopus-public-api-") do |root|
   check(repository.blame("tracked.txt").first.commit == commit, "Git blame")
   check(Porrima.unified("a\n", "b\n").include?("+b"), "unified diff")
 
-  grid = Canopus::Terminal::Grid.new(columns: 20, rows: 3, scrollback: 4)
+  grid = Tarazed::Grid.new(columns: 20, rows: 3, scrollback: 4)
   replies = []
-  vt = Canopus::Terminal::VT.new(grid) { |bytes| replies << bytes }
+  vt = Tarazed::VT.new(grid) { |bytes| replies << bytes }
   vt.feed("\e[3m日本\e[0m\r\n\e]8;;https://example.invalid\aLink\e]8;;\a")
   check(grid[0, 0].width == 2 && grid[0, 0].attributes[:italic], "terminal Unicode/italic")
   check(grid.selection([0, 0], [4, 0]) == "日本", "terminal selection")
@@ -134,7 +134,7 @@ Dir.mktmpdir("canopus-public-api-") do |root|
   check(vt.key(:up, control: true) == "\e[1;5A", "terminal modified key")
   check(vt.mouse(button: :left, column: 0, row: 0) == "\e[<0;1;1M", "terminal mouse")
   grid.scroll_up(2)
-  check(grid.scrollback.length == 2 && grid.scrollback.to_a.first.first.text == "日", "tree-backed scrollback")
+  check(grid.scrollback.length == 2 && grid.scrollback.to_a.first.first.text == "日", "bounded terminal scrollback")
   grid.resize(columns: 25, rows: 4)
   check(grid.columns == 25 && grid.rows == 4, "terminal resize")
 

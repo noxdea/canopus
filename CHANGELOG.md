@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Delegate language-server protocol transport and lifecycle handling to Sadr.
+- Delegate terminal emulation and POSIX/Windows PTY handling to Tarazed; the editor UI is unchanged.
 
 ## 0.4.0 — 2026-09-15
 

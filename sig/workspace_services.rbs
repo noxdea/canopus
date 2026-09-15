@@ -34,7 +34,7 @@ module Canopus
     attr_accessor window: Zaniah::Platform::Headless::Window?
     attr_reader palette: palette_state?
     def palette=: (palette_state? value) -> void
-    attr_accessor terminal: Terminal::PTY?
+    attr_accessor terminal: Tarazed::PTY?
     attr_accessor selected_project_path: String?
     attr_reader hover_card: String?
     attr_reader hover_markup: bool?

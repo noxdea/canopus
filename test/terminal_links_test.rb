@@ -8,8 +8,8 @@ class TerminalLinksTest < Minitest::Test
   def with_view(text)
     Dir.mktmpdir("terminal-links-") do |directory|
       workspace = Canopus::Workspace.new(root: directory)
-      grid = Canopus::Terminal::Grid.new(columns: 160, rows: 3)
-      vt = Canopus::Terminal::VT.new(grid)
+      grid = Tarazed::Grid.new(columns: 160, rows: 3)
+      vt = Tarazed::VT.new(grid)
       vt.feed(text)
       workspace.terminal = Struct.new(:grid, :vt).new(grid, vt)
       urls = []

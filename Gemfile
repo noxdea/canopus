@@ -4,6 +4,7 @@ source "https://rubygems.org"
 gemspec
 
 gem "sadr", path: ENV.fetch("SADR_PATH") if ENV["SADR_PATH"]
+gem "tarazed", path: ENV.fetch("TARAZED_PATH") if ENV["TARAZED_PATH"]
 
 group :development, :test do
   gem "rake", "~> 13.0"

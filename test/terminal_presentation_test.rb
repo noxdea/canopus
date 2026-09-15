@@ -6,8 +6,8 @@ class TerminalPresentationTest < Minitest::Test
   class FakeTerminal
     attr_reader :grid, :vt, :written
     def initialize
-      @grid = Canopus::Terminal::Grid.new(columns: 40, rows: 4)
-      @vt = Canopus::Terminal::VT.new(@grid)
+      @grid = Tarazed::Grid.new(columns: 40, rows: 4)
+      @vt = Tarazed::VT.new(@grid)
       @written = +""
     end
     def resize(columns:, rows:) = @grid.resize(columns: columns, rows: rows)

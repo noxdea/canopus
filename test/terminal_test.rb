@@ -4,12 +4,12 @@ ENV["MT_NO_PLUGINS"] = "1"
 gem "minitest", "~> 5.0"
 require "minitest/autorun"
 require "rbconfig"
-require_relative "../lib/canopus/terminal"
+require "tarazed"
 
 class TerminalTest < Minitest::Test
   def setup
-    @grid = Canopus::Terminal::Grid.new(columns: 12, rows: 4, scrollback: 3)
-    @vt = Canopus::Terminal::VT.new(@grid)
+    @grid = Tarazed::Grid.new(columns: 12, rows: 4, scrollback: 3)
+    @vt = Tarazed::VT.new(@grid)
   end
 
   def test_streaming_utf8_wide_combining_wrap_and_scrollback
@@ -17,7 +17,7 @@ class TerminalTest < Minitest::Test
     assert_equal ["line2", "line3", "line4", "line5"], @grid.lines
     assert_equal "日本é", @grid.scrollback[0].map(&:text).join.rstrip
     assert_equal [2, 0, 2, 0, 1], @grid.scrollback[0].first(5).map(&:width)
-    assert @grid.scrollback.tree.check_invariants!
+    assert_equal 1, @grid.scrollback.length
     @vt.feed("\e[2J\e[H123456789012X")
     assert_equal "123456789012", @grid.lines[0]
     assert_equal "X", @grid.lines[1]
@@ -81,7 +81,7 @@ class TerminalTest < Minitest::Test
     assert_equal 2, @grid.cells.length
     assert @grid.cells.all? { |row| row.length == 20 }
     assert @grid.cursor_y.between?(0, 1)
-    assert @grid.scrollback.tree.check_invariants!
+    assert_equal 3, @grid.scrollback.length
   end
 
   def test_pty_real_process_input_resize_and_cleanup
@@ -94,7 +94,7 @@ class TerminalTest < Minitest::Test
       answer = STDIN.gets.chomp
       STDOUT.write("reply:#{answer}\r\n#{STDOUT.winsize.join(' ')}\r\n")
     RUBY
-    terminal = Canopus::Terminal::PTY.new(command: [RbConfig.ruby, "-e", child], columns: 40, rows: 8)
+    terminal = Tarazed::PTY.new(command: [RbConfig.ruby, "-e", child], columns: 40, rows: 8)
     output = +""
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
     until output.include?("ready")
@@ -122,14 +122,14 @@ class TerminalTest < Minitest::Test
   def test_pty_queue_applies_backpressure_without_losing_output
     skip "uses the POSIX reader queue" if RUBY_PLATFORM.match?(/mswin|mingw/)
     size = 100_000
-    terminal = Canopus::Terminal::PTY.new(command: [RbConfig.ruby, "-e", "STDOUT.write('x' * #{size})"],
+    terminal = Tarazed::PTY.new(command: [RbConfig.ruby, "-e", "STDOUT.write(\"\\0\" * #{size})"],
       queue_limit_bytes: 65_536)
     total = 0
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
     while total < size
       chunk = terminal.read(timeout: 0.05, max_bytes: 32_768, max_seconds: 0.004)
       break unless chunk
-      total += chunk.to_s.bytesize
+      total += chunk.count("\0")
       raise "PTY output timed out" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
     end
     assert_equal size, total

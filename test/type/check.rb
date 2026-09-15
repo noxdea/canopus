@@ -18,7 +18,7 @@ RBS.logger_level = :error
 root = File.expand_path("../..", __dir__)
 loader = RBS::EnvironmentLoader.new
 loader.add(library: "strscan")
-%w[porrima thuban alhena antares denebola zaniah sadr].each { |library| loader.add(library: library) }
+%w[porrima thuban alhena antares denebola zaniah sadr tarazed].each { |library| loader.add(library: library) }
 loader.add(path: Pathname(File.join(root, "sig")))
 environment = RBS::Environment.from_loader(loader).resolve_type_names
 tester = RBS::Test::Tester.new(env: environment)
@@ -59,8 +59,8 @@ end
 raise "incomplete public API checks" if checked < 300
 require_relative "smoke"
 begin
-  Canopus::Terminal::Grid.new(columns: "wide")
-  raise "runtime type checker failed to reject an invalid column count"
+  Canopus::Buffer.new.line("zero")
+  raise "runtime type checker failed to reject an invalid row"
 rescue RBS::Test::Tester::TypeError
   # The negative control proves that argument validation hooks really ran.
 end

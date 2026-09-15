@@ -8,8 +8,8 @@ class CloseAndTerminalTabsTest < Minitest::Test
     attr_reader :grid, :vt, :writes, :resizes, :reads
 
     def initialize(output = "")
-      @grid = Canopus::Terminal::Grid.new(columns: 40, rows: 8)
-      @vt = Canopus::Terminal::VT.new(@grid)
+      @grid = Tarazed::Grid.new(columns: 40, rows: 8)
+      @vt = Tarazed::VT.new(@grid)
       @output, @writes, @resizes, @reads = output, +"", [], []
     end
 

@@ -334,7 +334,7 @@ module Canopus
 
     def new_terminal(cwd: terminal_working_directory)
       options = @settings["terminal"]
-      created = Terminal::PTY.new(command: options["shell"] || ENV.fetch("SHELL", "/bin/sh"), cwd: cwd,
+      created = Tarazed::PTY.new(command: options["shell"] || ENV.fetch("SHELL", "/bin/sh"), cwd: cwd,
         columns: 100, rows: 12, env: options["env"], scrollback: options["scrollback_lines"],
         queue_limit_bytes: options["queue_limit_bytes"])
       @terminals << created

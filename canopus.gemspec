@@ -30,6 +30,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "rouge", "~> 5.0"
   spec.add_dependency "sadr", "~> 0.2.0"
   spec.add_dependency "spica", "~> 0.1.0"
+  spec.add_dependency "tarazed", "~> 0.1.0"
   spec.add_dependency "thuban", "~> 0.2.0"
   spec.add_dependency "unicode-display_width", "~> 3.2"
   spec.add_dependency "zaniah", "~> 0.4.0"
