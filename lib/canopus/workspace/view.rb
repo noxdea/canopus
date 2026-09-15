@@ -475,7 +475,7 @@ module Canopus
       element.paint(root.bounds, nil, nil, @cx)
       element
     end
-    def instrumentation_component(value) = value.to_s.gsub(/[:\x00-\x1f\x7f]/, "_")
+    def instrumentation_component(value) = value.to_s
     def ui_text(value) = value.to_s.encode(Encoding::UTF_8)
     def decoration_element(editor, item, width, height)
       style = item.style.is_a?(Hash) ? item.style : {}

@@ -91,7 +91,9 @@ module Canopus
       def normalize(definition)
         raise ArgumentError, "panel definition required" unless definition.is_a?(Definition)
         id, title, icon, dock, build, badge = definition.deconstruct
-        raise ArgumentError, "panel id must not be empty" unless !id.to_s.empty?
+        valid_id = (id.is_a?(String) || id.is_a?(Symbol)) && !id.to_s.empty? &&
+          !id.to_s.include?(":") && !id.to_s.match?(/[\x00-\x1f\x7f]/)
+        raise ArgumentError, "invalid panel id" unless valid_id
         raise ArgumentError, "panel title must be a string" unless title.is_a?(String)
         raise ArgumentError, "invalid dock side" unless DOCKS.include?(dock)
         raise ArgumentError, "panel builder must be callable" unless build.respond_to?(:call)

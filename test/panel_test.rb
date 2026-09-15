@@ -49,6 +49,10 @@ class PanelTest < Minitest::Test
   def test_invalid_definitions_and_known_state_are_rejected
     invalid = Canopus::Panel::Definition.new("bad", "Bad", nil, :center, -> {}, nil)
     assert_raises(ArgumentError) { @registry.register(invalid) }
+    [1, "", "bad:id", "bad\n"].each do |id|
+      invalid = Canopus::Panel::Definition.new(id, "Bad", nil, :left, -> {}, nil)
+      assert_raises(ArgumentError) { @registry.register(invalid) }
+    end
     valid = Canopus::Panel::Definition.new("bad-size", "Bad", nil, :left, -> {}, nil)
     assert_raises(ArgumentError) { @registry.register(valid, size: 0) }
     assert_raises(ArgumentError) { @registry.restore({"terminal" => {"visible" => true, "size" => 0}}) }

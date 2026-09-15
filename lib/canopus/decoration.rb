@@ -95,7 +95,9 @@ module Canopus
       end
 
       def normalize_source(source)
-        raise ArgumentError, "decoration source must be a symbol" unless source.is_a?(Symbol)
+        valid = source.is_a?(Symbol) && !source.to_s.empty? && !source.to_s.include?(":") &&
+          !source.to_s.match?(/[\x00-\x1f\x7f]/)
+        raise ArgumentError, "invalid decoration source" unless valid
 
         source
       end

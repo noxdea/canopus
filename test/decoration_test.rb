@@ -103,6 +103,9 @@ class DecorationTest < Minitest::Test
     registry = Canopus::Decoration::Registry.new
     buffer = Canopus::Buffer.new
     assert_raises(ArgumentError) { registry.register("git") {} }
+    [:"", :"bad:id", :"bad\n"].each do |source|
+      assert_raises(ArgumentError) { registry.register(source) {} }
+    end
     assert_raises(ArgumentError) { registry.items_for(buffer, -1...2) }
     registry.register(:broken) { |_buffer, _rows| nil }
     assert_raises(TypeError) { registry.items_for(buffer, 0...1) }
