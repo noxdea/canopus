@@ -252,7 +252,6 @@ module Canopus
       editor.viewport_rows = [(bounds.height / @line_height).floor, 1].max
       map, first = editor.display_map, editor.scroll_y.floor
       last = [first + editor.viewport_rows + 1, map.row_count].min
-      marks = @workspace.git_gutter_marks(editor.buffer)
       cursor_offset = @workspace.settings["vim_mode"] && active ? @workspace.vim.cursor_position : editor.primary.head
       cursor = map.to_display(cursor_offset)
       if map.wrap_map.width && !editor.buffer.read_only
@@ -270,6 +269,11 @@ module Canopus
         last = [first + editor.viewport_rows + 1, map.row_count].min
         cursor = map.to_display(cursor_offset)
       end
+      visible_source_rows = (first...last).map { |index| map.source_row(index) }
+      visible_rows = visible_source_rows.empty? ? (0...0) : (visible_source_rows.min..visible_source_rows.max)
+      decorations = @workspace.decorations.items_for(editor.buffer, visible_rows, context: editor)
+      gutter_items = decorations.select { |item| item.kind == :gutter }
+      highlight_items = decorations.select { |item| item.kind == :highlight }
       cursor_row = map.row(cursor.row)
       cursor_line = @cx.text_system&.layout_line(cursor_row.text, size: @font_size)
       brackets = []
@@ -296,14 +300,15 @@ module Canopus
           y = bounds.y + (index - editor.scroll_y) * @line_height + 4
           fill(Zaniah::Bounds.new(bounds.x, y - 2, bounds.width, @line_height), :current_line) if cursor.row == index
           source_row = map.source_row(index)
-          change = marks.find do |mark|
-            first = [mark.new_line, 1].max
-            mark.kind == :removed ? source_row + 1 == first : (source_row + 1).between?(first, first + mark.count - 1)
-          end
-          if change
-            color = change.kind == :removed ? @theme[:error] : change.kind == :added ? "#80b987" : @theme[:accent]
-            fill(Zaniah::Bounds.new(bounds.x + 2, y - 1, 3, @line_height), color)
-            region(Zaniah::Bounds.new(bounds.x, y - 1, 10, @line_height), role: :button, label: "Toggle Git hunk", action: [:git_hunk, editor, source_row]) if row.kind == :text
+          gutter_items.each do |item|
+            style = item.style.is_a?(Hash) ? item.style : {color: item.style, rows: 1}
+            next unless source_row.between?(item.row, item.row + style.fetch(:rows, 1) - 1)
+
+            fill(Zaniah::Bounds.new(bounds.x + 2, y - 1, 3, @line_height), style.fetch(:color, :accent))
+            if row.kind == :text && item.on_click
+              region(Zaniah::Bounds.new(bounds.x, y - 1, 10, @line_height), role: :button,
+                label: item.content.to_s, action: [:decoration, item.on_click, editor, source_row])
+            end
           end
           number = editor.relative_line_numbers ? (source_row - editor.buffer.rope.point_at(editor.primary.head).row).abs : source_row + 1
           number = source_row + 1 if number.zero?
@@ -311,7 +316,7 @@ module Canopus
           line = @cx.text_system&.layout_line(row.text, size: @font_size)
           measured_width = [measured_width, line&.width || row.text.length * @font_size * 0.6].max
           @row_layouts[[editor, index]] = line
-          paint_selections(editor, index, row, line, left, y)
+          paint_highlights(editor, index, row, line, left, y, highlight_items)
           brackets.each do |point|
             next unless point.row == index
             x = column_x(row.text, line, point.column)
@@ -346,9 +351,10 @@ module Canopus
       previous_width = @line_widths[editor]
       measured_width = [measured_width, previous_width.last].max if previous_width && previous_width.first == editor.buffer.version
       @line_widths[editor] = [editor.buffer.version, measured_width]
-      paint_scrollbars(editor, bounds, measured_width, marks)
+      overview = @workspace.decorations.items_for(editor.buffer, 0...editor.buffer.line_count, context: editor)
+      paint_scrollbars(editor, bounds, measured_width, overview.select { |item| item.kind == :gutter })
     end
-    def paint_scrollbars(editor, bounds, content_width, marks)
+    def paint_scrollbars(editor, bounds, content_width, gutter_items)
       track = Zaniah::Bounds.new(bounds.right - 9, bounds.y, 9, [bounds.height - 9, 0].max)
       total = editor.display_map.row_count
       maximum = [total - editor.viewport_rows, 0].max
@@ -356,8 +362,8 @@ module Canopus
         height = [24, track.height * editor.viewport_rows / total].max.clamp(0, track.height)
         thumb = Zaniah::Bounds.new(track.x + 2, track.y + (track.height - height) * editor.scroll_y / maximum, 5, height)
         fill(thumb, :muted)
-        marks.first(500).each do |mark|
-          y = track.y + track.height * [mark.new_line - 1, 0].max / [editor.buffer.line_count, 1].max
+        gutter_items.first(500).each do |item|
+          y = track.y + track.height * item.row / [editor.buffer.line_count, 1].max
           fill(Zaniah::Bounds.new(track.x, y, 3, 2), :accent)
         end
         frame_diagnostics(editor.buffer).first(500).each do |diagnostic|
@@ -433,24 +439,25 @@ module Canopus
     def frame_diagnostics(buffer)
       @frame_diagnostics[buffer] ||= @workspace.diagnostics_for(buffer)
     end
-    def paint_selections(editor, index, row, line, left, y)
-      editor.selections.each do |selection|
-        next if selection.empty?
+    def paint_highlights(editor, index, row, line, left, y, items)
+      items.each do |item|
+        range = item.range
+        next unless range
         if editor.buffer.rope.respond_to?(:lazy?)
           base = editor.buffer.rope.line_start(index)
-          first = selection.start - base
-          last = selection.end - base
+          first = range.begin - base
+          last = range.end - base
           next if last < row.offsets.first || first > row.offsets.last
           from = row.offsets.bsearch_index { |offset| offset >= first } || row.text.length
           to = row.offsets.bsearch_index { |offset| offset >= last } || row.text.length
           x = column_x(row.text, line, from)
-          fill(Zaniah::Bounds.new(left + x, y - 1, column_x(row.text, line, to) - x, @line_height), :selection)
+          fill(Zaniah::Bounds.new(left + x, y - 1, column_x(row.text, line, to) - x, @line_height), item.style)
           next
         end
-        span = selection_span(editor, selection, index)
+        span = highlight_span(editor, item, index)
         next unless span
-        before = selection_span(editor, selection, index - 1)
-        after = selection_span(editor, selection, index + 1)
+        before = highlight_span(editor, item, index - 1)
+        after = highlight_span(editor, item, index + 1)
         x, right = span
         # Only exposed convex corners are rounded; no alpha-overlapping bridge
         # and no convex hull that would highlight unselected source text.
@@ -458,11 +465,12 @@ module Canopus
           before && right > before[0] && right <= before[1] ? 0 : 3,
           after && right > after[0] && right <= after[1] ? 0 : 3,
           after && x >= after[0] && x < after[1] ? 0 : 3]
-        @scene.quad(left + x, y - 1, right - x, @line_height, color: @theme[:selection], radius: radii)
+        color = item.style.is_a?(Symbol) ? @theme[item.style] : item.style
+        @scene.quad(left + x, y - 1, right - x, @line_height, color: color, radius: radii)
       end
     end
-    def selection_span(editor, selection, index)
-      cache = @selection_spans[selection] ||= {first: editor.display_map.to_display(selection.start), last: editor.display_map.to_display(selection.end)}
+    def highlight_span(editor, item, index)
+      cache = @selection_spans[item] ||= {first: editor.display_map.to_display(item.range.begin), last: editor.display_map.to_display(item.range.end)}
       return cache[index] if cache.key?(index)
       first, last = cache.values_at(:first, :last)
       return unless index.between?(first.row, last.row)

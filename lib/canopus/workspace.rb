@@ -10,11 +10,12 @@ require_relative "pane"
 require_relative "project/tree"
 require_relative "command"
 require_relative "panel"
+require_relative "decoration"
 
 module Canopus
   class Workspace
     ClosedTab = Data.define(:path, :selections, :scroll_x, :scroll_y, :pane_id, :index)
-    attr_reader :panes, :active_pane, :buffers, :actions, :commands, :settings, :theme, :project, :clients, :root, :docks, :panels
+    attr_reader :panes, :active_pane, :buffers, :actions, :commands, :settings, :theme, :project, :clients, :root, :docks, :panels, :decorations
     attr_reader :terminals, :active_terminal_index
     attr_accessor :window, :terminal_composition, :selected_project_path, :performance
     attr_reader :message, :palette
@@ -40,6 +41,19 @@ module Canopus
       @panels.register(Panel::Definition.new("terminal", "Terminal", nil, :bottom, -> { terminal }, nil))
       @panels.register(Panel::Definition.new("search", "Search", nil, :left, -> { palette_open(:project_search) }, nil))
       @panels.register(Panel::Definition.new("explorer", "Explorer", nil, :left, -> { project_tree }, nil))
+      @decorations = Decoration::Registry.new
+      @decorations.register(:selection_match) do |buffer, rows, current|
+        selections = current.is_a?(Editor) && current.buffer.equal?(buffer) ? current.selections : buffer.selections
+        selections.filter_map do |selection|
+          next if selection.empty?
+          first = buffer.rope.point_at(selection.start).row
+          last = buffer.rope.point_at(selection.end).row
+          next if last < rows.begin || first >= rows.end
+
+          Decoration::Item.new(:highlight, selection.range, nil, nil, :selection, 100, :selection_match, nil)
+        end
+      end
+      @decorations.register(:git) { |buffer, rows| git_decorations(buffer, rows) }
       @languages, @terminals = {}, []
       @active_terminal_index = 0
       @closed_tabs, @terminal_names = [], {}

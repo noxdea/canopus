@@ -30,6 +30,7 @@ module Canopus
     attr_reader project: Project?
     attr_reader docks: Hash[Symbol, {visible: bool, size: Numeric}]
     attr_reader panels: Panel::Registry
+    attr_reader decorations: Decoration::Registry
     attr_accessor window: Zaniah::Platform::Headless::Window?
     attr_reader palette: palette_state?
     def palette=: (palette_state? value) -> void
@@ -69,6 +70,7 @@ module Canopus
     def git_diff: (?Buffer buffer, ?async: bool) -> Porrima::Diff?
     def git_hunks: (?Buffer buffer, ?async: bool) -> Array[Porrima::Hunk]
     def git_gutter_marks: (?Buffer buffer) -> Array[Porrima::Mark]
+    def git_decorations: (Buffer buffer, Range[Integer] rows) -> Array[Decoration::Item]
     def show_git_diff: () -> Language::Document
     def toggle_git_hunk: (?Editor current, ?row: Integer?) -> bool
     def show_git_blame: () -> String

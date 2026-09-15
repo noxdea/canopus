@@ -2,7 +2,9 @@
 
 ## Unreleased
 
+- Route commands and keybindings through one context-aware command registry.
 - Register the explorer, project search, terminal, and plugin panels through one stateful panel registry.
+- Supply Git gutter marks and selection highlights through the decoration registry.
 
 ## 0.3.0 — 2026-09-14
 

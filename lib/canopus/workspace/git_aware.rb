@@ -30,6 +30,7 @@ module Canopus
     def invalidate_git
       @git_generation = (@git_generation || 0) + 1
       @git_status = @git_diff_cache = nil
+      @decorations.invalidate(:git)
       @panes.each do |pane|
         pane.editors.each do |current|
           current.display_map.block_map.blocks.values.each { |block| current.display_map.remove_block(block.id) if block.kind == :git_diff }
@@ -73,7 +74,10 @@ module Canopus
             diff = Porrima.diff(before, snapshot.to_s, context: 0)
             diff.hunks
             diff.marks
-            post { (@git_diff_cache ||= {})[key] = diff } unless @closed
+            post do
+              (@git_diff_cache ||= {})[key] = diff
+              @decorations.invalidate(:git, buffer: buffer)
+            end unless @closed
           rescue StandardError => error
             post { @message = "Git diff: #{error.message}" } unless @closed
           end
@@ -89,6 +93,18 @@ module Canopus
     end
     def git_hunks(buffer = editor.buffer, async: true) = git_diff(buffer, async: async)&.hunks || []
     def git_gutter_marks(buffer = editor.buffer) = git_diff(buffer)&.marks || []
+    def git_decorations(buffer, rows)
+      git_gutter_marks(buffer).filter_map do |mark|
+        first = [mark.new_line, 1].max - 1
+        count = mark.kind == :removed ? 1 : mark.count
+        next if first + count <= rows.begin || first >= rows.end
+
+        color = mark.kind == :removed ? :error : mark.kind == :added ? "#80b987" : :accent
+        style = {color: color, rows: count}.freeze
+        click = ->(current, row) { toggle_git_hunk(current, row: row) }
+        Decoration::Item.new(:gutter, nil, first, "Toggle Git hunk", style, 0, :git, click)
+      end
+    end
     def show_git_diff
       path = git_relative_path
       before = Buffer.decode_bytes(git.blob(path).to_s).first

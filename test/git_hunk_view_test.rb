@@ -55,13 +55,31 @@ class GitHunkViewTest < Minitest::Test
     @window = Zaniah::Platform::Headless::Window.new(width: 640, height: 240)
     controller = Canopus::Controller.new(@workspace, @window)
     controller.tick
-    bounds, action = controller.view.regions.find { |_, target| target.first == :git_hunk }
-    assert_equal [:git_hunk, @editor, 1], action
+    bounds, action = controller.view.regions.find { |_, target| target.first == :decoration }
+    assert_equal [:decoration, action[1], @editor, 1], action
     point = Zaniah::Point.new(bounds.x + 6, bounds.y + 1)
     assert_equal action, controller.view.hit(point)
     controller.input(Zaniah::Input::MouseDown.new(point, :left, [], 1))
     assert @editor.display_map.block_map.blocks.values.any? { |block| block.kind == :git_diff }
     refute @editor.buffer.dirty?
+  end
+
+  def test_gutter_click_in_a_split_updates_only_the_clicked_editor
+    first = @editor
+    @workspace.split
+    second = @workspace.editor
+    @workspace.git_hunks(async: false)
+    @window = Zaniah::Platform::Headless::Window.new(width: 640, height: 240)
+    controller = Canopus::Controller.new(@workspace, @window)
+    controller.tick
+    bounds, = controller.view.regions.find do |_, action|
+      action.first == :decoration && action[2].equal?(second)
+    end
+
+    controller.input(Zaniah::Input::MouseDown.new(Zaniah::Point.new(bounds.x + 6, bounds.y + 1), :left, [], 1))
+
+    assert second.display_map.block_map.blocks.values.any? { |block| block.kind == :git_diff }
+    assert_empty first.display_map.block_map.blocks
   end
 
   def test_deleted_last_line_and_large_hunk_previews_are_bounded

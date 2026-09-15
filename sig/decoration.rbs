@@ -1,0 +1,26 @@
+module Canopus
+  module Decoration
+    type kind = :inline | :block | :gutter | :highlight | :line
+
+    class Item < Data
+      attr_reader kind: kind
+      attr_reader range: Range[Integer]?
+      attr_reader row: Integer?
+      attr_reader content: untyped
+      attr_reader style: untyped
+      attr_reader priority: Numeric
+      attr_reader source: Symbol?
+      attr_reader on_click: (^(Editor, Integer) -> untyped)?
+      def self.new: (kind kind, Range[Integer]? range, Integer? row, untyped content, untyped style, Numeric priority, Symbol? source, (^(Editor, Integer) -> untyped)? on_click) -> instance
+    end
+
+    class Registry
+      attr_reader version: Integer
+      def initialize: () -> void
+      def register: (Symbol source) { (Buffer, Range[Integer], ?Editor) -> Array[Item] } -> Symbol
+      def unregister: (Symbol source) -> Proc?
+      def items_for: (Buffer buffer, Range[Integer] row_range, ?context: Editor?) -> Array[Item]
+      def invalidate: (Symbol source, ?buffer: Buffer?, ?rows: Range[Integer]?) -> nil
+    end
+  end
+end

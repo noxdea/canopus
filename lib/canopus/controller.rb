@@ -436,6 +436,8 @@ module Canopus
       end
       @terminal_focus = [:terminal, :terminal_tab, :terminal_close].include?(kind)
       case kind
+      when :decoration
+        args[0].call(args[1], args[2]) if event.button == :left
       when :git_hunk then @workspace.toggle_git_hunk(args[0], row: args[1]) if event.button == :left
       when :hover_link
         return unless event.button == :left
