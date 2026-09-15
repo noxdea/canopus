@@ -95,6 +95,7 @@ module Canopus
         @clients.delete(language)
         invalidate_diagnostics
         invalidate_inlay_hints(client: client)
+        invalidate_code_lenses(client: client)
         (@retired_language_clients ||= ObjectSpace::WeakMap.new)[client] = true
         @opened_lsp_documents&.keys&.each do |key|
           next unless key.first.equal?(client)
@@ -145,6 +146,7 @@ module Canopus
       end
       replacement.on("textDocument/publishDiagnostics") { |params| accept_diagnostic_notification(replacement, params) }
       replacement.on("workspace/inlayHint/refresh") { invalidate_inlay_hints(client: replacement) }
+      replacement.on("workspace/codeLens/refresh") { invalidate_code_lenses(client: replacement) }
       (@starting_language_clients ||= {})[language] = replacement
       begin
         replacement.start

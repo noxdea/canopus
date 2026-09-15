@@ -59,6 +59,13 @@ class WorkspaceSettingsTest < Minitest::Test
     assert_raises(Canopus::Error) { Canopus::Settings.new("inlay_hints" => {"max_length" => 0}) }
   end
 
+  def test_code_lens_settings_are_defaulted_and_validated
+    assert_equal({"enabled" => true}, @workspace.settings["code_lens"])
+    assert_equal "boolean", Canopus::Settings.schema.dig("properties", "code_lens", "properties", "enabled", "type")
+    assert_raises(Canopus::Error) { Canopus::Settings.new("code_lens" => {"enabled" => "yes"}) }
+    assert_raises(Canopus::Error) { Canopus::Settings.new("code_lens" => []) }
+  end
+
   def test_keymap_values_are_bounded_validated_and_snapshotted
     groups = [{"context" => "Editor && !vim_mode", "bindings" => {"ctrl-k ctrl-s" => "file.save", "cmd-s" => nil}}]
     settings = Canopus::Settings.new("keymap" => groups)

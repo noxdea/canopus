@@ -12,6 +12,7 @@ module Canopus
         "reopen_history_limit" => 20, "confirm_on_close_dirty" => true}.freeze,
       "diagnostics" => {"inline" => true, "inline_max_length" => 80, "severity" => "warning"}.freeze,
       "inlay_hints" => {"enabled" => true, "parameter_names" => true, "types" => true, "max_length" => 30}.freeze,
+      "code_lens" => {"enabled" => true}.freeze,
       "dock" => {"left" => {"size" => 220, "visible" => true}.freeze,
         "right" => {"size" => 260, "visible" => false}.freeze,
         "bottom" => {"size" => 280, "visible" => false}.freeze,
@@ -41,6 +42,8 @@ module Canopus
       "inlay_hints" => {"type" => "object", "required" => %w[enabled parameter_names types max_length], "properties" => {
         "enabled" => {"type" => "boolean"}, "parameter_names" => {"type" => "boolean"}, "types" => {"type" => "boolean"},
         "max_length" => {"type" => "integer", "minimum" => 1, "maximum" => 10_000}}},
+      "code_lens" => {"type" => "object", "required" => ["enabled"], "properties" => {
+        "enabled" => {"type" => "boolean"}}},
       "dock" => {"type" => "object", "properties" => {
         "left" => {"$ref" => "#/$defs/dock"}, "right" => {"$ref" => "#/$defs/dock"},
         "bottom" => {"$ref" => "#/$defs/dock"}, "panels" => {"type" => "object", "maxProperties" => 1000,
@@ -119,6 +122,7 @@ module Canopus
       validate_terminal!
       validate_diagnostics!
       validate_inlay_hints!
+      validate_code_lens!
       validate_dock!
       @values["languages"] = @values["languages"].to_h do |name, layer|
         raise Error, "language settings must be objects" unless name.is_a?(String) && layer.is_a?(Hash)
@@ -203,6 +207,12 @@ module Canopus
       end
       length = hints["max_length"]
       raise Error, "invalid inlay_hints.max_length" unless length.is_a?(Integer) && length.between?(1, 10_000)
+    end
+
+    def validate_code_lens!
+      lens = @values["code_lens"]
+      raise Error, "code_lens must be an object" unless lens.is_a?(Hash)
+      raise Error, "code_lens.enabled must be true or false" unless [true, false].include?(lens["enabled"])
     end
 
     def validate_dock!

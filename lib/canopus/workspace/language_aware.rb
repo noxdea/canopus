@@ -5,6 +5,8 @@ module Canopus
     DIAGNOSTIC_SEVERITIES = {"error" => 1, "warning" => 2, "information" => 3, "hint" => 4}.freeze
     DIAGNOSTIC_COLORS = {1 => :"diagnostic.error", 2 => :"diagnostic.warning",
       3 => :"diagnostic.information", 4 => :"diagnostic.hint"}.freeze
+    CODE_LENS_REQUEST_LIMIT = 64
+    CODE_LENS_RESOLVE_LIMIT = 32
 
     attr_reader :hover_card, :hover_markup, :semantic_styles
     def dismiss_hover = @hover_card = nil
@@ -511,6 +513,135 @@ module Canopus
       nil
     end
 
+    def cache_code_lenses(client, buffer, version, result, generation)
+      raise Error, "invalid code lenses" unless result.nil? || result.is_a?(Array)
+      lenses = result || []
+      raise Error, "too many code lenses" if lenses.length > 10_000
+
+      entries = lenses.each_with_index.map { |lens, index| validate_code_lens_entry(buffer, lens, index) }.freeze
+      cache = @code_lens_cache ||= {}
+      cache.delete_if { |key, _| key[0].equal?(client) && key[1].equal?(buffer) && key[2] == version }
+      cache.shift while cache.length >= 64
+      cache[[client, buffer, version]] = {generation: generation, entries: entries}
+      @decorations.invalidate(:code_lens, buffer: buffer)
+      @window&.request_frame
+    end
+
+    def validate_code_lens_entry(buffer, value, index)
+      raise Error, "invalid code lens" unless value.is_a?(Hash)
+      encoded = JSON.generate(value)
+      raise Error, "code lens exceeds 1 MiB" if encoded.bytesize > 1 << 20
+      lens = JSON.parse(encoded)
+      range = Sadr::Protocol.range_value(lens.fetch("range"))
+      first = Sadr::Protocol.offset(buffer.rope, range.start)
+      last = Sadr::Protocol.offset(buffer.rope, range.end)
+      unless last >= first && Sadr::Protocol.position(buffer.rope, first) == range.start &&
+          Sadr::Protocol.position(buffer.rope, last) == range.end
+        raise Error, "invalid code lens range"
+      end
+      command = validate_code_lens_command(lens["command"])
+      disabled = lens["disabled"] || command&.[]("disabled")
+      unless disabled.nil? || disabled.is_a?(Hash) && bounded_code_lens_string(disabled["reason"], "disabled reason", empty: true)
+        raise Error, "invalid code lens disabled reason"
+      end
+      {lens: lens.freeze, range: range, row: range.start.line, index: index, command: command,
+       disabled: !!disabled, state: command ? :ready : :unresolved}
+    rescue JSON::GeneratorError, JSON::ParserError, JSON::NestingError, KeyError, RangeError, TypeError, Sadr::Error => error
+      raise Error, "invalid code lens: #{error.message}"
+    end
+
+    def validate_code_lens_command(command)
+      return unless command
+      raise Error, "invalid code lens command" unless command.is_a?(Hash)
+      title = bounded_code_lens_string(command["title"], "command title")
+      title = title.gsub(/\s+/, " ").strip
+      raise Error, "invalid code lens command title" if title.empty?
+      title = truncate_diagnostic_message(title, 120).freeze
+      name = bounded_code_lens_string(command["command"], "command name")
+      arguments = command.fetch("arguments", [])
+      raise Error, "too many code lens arguments" unless arguments.is_a?(Array) && arguments.length <= 1_000
+      raise Error, "code lens arguments exceed 1 MiB" if JSON.generate(arguments).bytesize > 1 << 20
+      command.merge("title" => title, "command" => name, "arguments" => arguments.freeze).freeze
+    rescue JSON::GeneratorError, JSON::NestingError => error
+      raise Error, "invalid code lens arguments: #{error.message}"
+    end
+
+    def bounded_code_lens_string(value, name, empty: false)
+      valid = value.is_a?(String) && value.valid_encoding? && value.bytesize <= 4_096 && !value.include?("\0")
+      valid &&= !value.empty? unless empty
+      raise Error, "invalid code lens #{name}" unless valid
+      value.freeze
+    end
+
+    def resolve_code_lens_entry(key, cache, entry)
+      client, buffer, version = key
+      provider = client.capabilities["codeLensProvider"]
+      unless provider.is_a?(Hash) && provider["resolveProvider"]
+        entry[:state] = :unavailable
+        return
+      end
+      entry[:state] = :resolving
+      generation = cache[:generation]
+      job = Thread.new do
+        begin
+          result = client.resolve_code_lens(entry[:lens]).await(timeout: 10)
+          post do
+            current = @code_lens_cache&.[](key)
+            next unless current.equal?(cache) && current[:generation] == generation &&
+              buffer.version == version && @clients.value?(client)
+
+            begin
+              resolved = validate_code_lens_entry(buffer, entry[:lens].merge(result || {}), entry[:index])
+              raise Error, "resolved code lens moved" unless resolved[:range] == entry[:range]
+              entry.replace(resolved)
+              entry[:state] = :unavailable unless entry[:command]
+              @decorations.invalidate(:code_lens, buffer: buffer)
+              @window&.request_frame
+            rescue StandardError => error
+              entry[:state] = :failed
+              @message = error.message
+              @decorations.invalidate(:code_lens, buffer: buffer)
+              @window&.request_frame
+            end
+          end
+        rescue StandardError => error
+          post do
+            current = @code_lens_cache&.[](key)
+            if current.equal?(cache) && current[:generation] == generation
+              entry[:state] = :failed
+              @message = error.message unless @retired_language_clients&.[](client)
+              @decorations.invalidate(:code_lens, buffer: buffer)
+              @window&.request_frame
+            end
+          end
+        ensure
+          worker = Thread.current
+          post { @language_jobs&.delete(worker) }
+        end
+      end
+      (@language_jobs ||= []) << job
+      @language_jobs.reject! { |thread| !thread.alive? }
+    end
+
+    def execute_code_lens(key, generation, command)
+      client, buffer, version = key
+      cache = @code_lens_cache&.[](key)
+      return false unless cache && cache[:generation] == generation &&
+        buffer.version == version && @clients.value?(client) && @settings.for_language(definition_for(buffer.path).name)["code_lens"]["enabled"]
+
+      job = Thread.new do
+        client.execute_command(command.fetch("command"), arguments: command.fetch("arguments", [])).await(timeout: 10)
+      rescue StandardError => error
+        post { @message = error.message unless @retired_language_clients&.[](client) }
+      ensure
+        worker = Thread.current
+        post { @language_jobs&.delete(worker) }
+      end
+      (@language_jobs ||= []) << job
+      @language_jobs.reject! { |thread| !thread.alive? }
+      true
+    end
+
     public
 
     def inlay_hint_decorations(buffer, rows)
@@ -606,14 +737,7 @@ module Canopus
     end
 
     def visible_inlay_hint_ranges(current, display_rows)
-      map = current.display_map
-      rows = display_rows.flat_map do |index|
-        row = map.row(index)
-        ending = map.to_buffer(DisplayPoint.new(index, row.text.length))
-        [map.source_row(index), current.buffer.rope.point_at(ending).row]
-      end
-      rows.sort.uniq.slice_when { |left, right| right - left > 101 }
-        .map { |group| group.first...(group.last + 1) }
+      visible_language_ranges(current, display_rows, gap: 101)
     end
 
     def invalidate_inlay_hints(buffer = nil, client: nil)
@@ -626,7 +750,166 @@ module Canopus
       nil
     end
 
+    def code_lens_decorations(buffer, rows)
+      active = @clients.values
+      caches = (@code_lens_cache || {}).select do |key, _cache|
+        key[1].equal?(buffer) && key[2] == buffer.version && active.include?(key[0])
+      end
+      caches.flat_map do |key, cache|
+        cache[:entries].filter_map do |entry|
+          next unless rows.cover?(entry[:row])
+          command = entry[:command]
+          next unless command
+
+          click = unless entry[:disabled]
+            ->(_editor, _offset) { execute_code_lens(key, cache[:generation], command) }
+          end
+          Decoration::Item.new(:block, nil, entry[:row], command.fetch("title"),
+            {position: :above, color: entry[:disabled] ? :muted : :accent},
+            30 + entry[:index], :code_lens, click)
+        end
+      end.sort_by { |item| [item.row, item.priority] }.freeze
+    end
+
+    private def resolve_visible_code_lenses(key, cache, rows)
+      return unless cache[:entries].any? { |entry| rows.cover?(entry[:row]) && entry[:state] == :unresolved }
+
+      client = key.first
+      resolving = (@code_lens_cache || {}).sum do |candidate, value|
+        candidate.first.equal?(client) ? value[:entries].count { |entry| entry[:state] == :resolving } : 0
+      end
+      cache[:entries].each do |entry|
+        next unless rows.cover?(entry[:row]) && entry[:state] == :unresolved
+        break if resolving >= CODE_LENS_RESOLVE_LIMIT
+
+        resolve_code_lens_entry(key, cache, entry)
+        resolving += 1
+      end
+    end
+
+    def request_code_lenses(current, visible_rows, start: false)
+      @language_jobs&.reject! { |thread| !thread.alive? }
+      buffer = current.buffer
+      return false unless buffer.path && !buffer.read_only
+      unless visible_rows.is_a?(Range) && visible_rows.begin.is_a?(Integer) && visible_rows.end.is_a?(Integer)
+        raise ArgumentError, "code lens rows must be an integer range"
+      end
+      first = visible_rows.begin.clamp(0, buffer.line_count)
+      last = (visible_rows.exclude_end? ? visible_rows.end : visible_rows.end + 1).clamp(first, buffer.line_count)
+      return false if first == last
+
+      language = current.language_document.definition.name
+      client = @clients[language]
+      return false unless client || start
+      provider = client&.capabilities&.[]("codeLensProvider")
+      return false if client && provider != true && !provider.is_a?(Hash)
+      return false unless @settings.for_language(language)["code_lens"]["enabled"]
+      cached = (@code_lens_cache || {}).find do |key, _cache|
+        client && key[0].equal?(client) && key[1].equal?(buffer) && key[2] == buffer.version
+      end
+      generation = @code_lens_generation.to_i
+      pending = (@code_lens_requests || {}).values.any? do |entry|
+        entry[:buffer].equal?(buffer) && entry[:version] == buffer.version &&
+          (!client || !entry[:client] || entry[:client].equal?(client))
+      end
+      if cached
+        resolve_visible_code_lenses(*cached, first...last)
+        return false
+      end
+      return false if pending || (@code_lens_requests || {}).length >= CODE_LENS_REQUEST_LIMIT
+      unless client
+        options = language_server_options(language)
+        attempts = @code_lens_start_attempts ||= {}
+        return false if attempts.key?(language) && attempts[language] == options
+        attempts[language] = options
+        return false unless options
+      end
+
+      @code_lens_request_id = @code_lens_request_id.to_i + 1
+      id, version = @code_lens_request_id, buffer.version
+      request = {client: client, buffer: buffer, version: version, generation: generation}
+      (@code_lens_requests ||= {})[id] = request
+      job = Thread.new do
+        begin
+          owner = language_client(buffer)
+          request[:client] = owner
+          capability = owner.capabilities["codeLensProvider"]
+          supported = capability == true || capability.is_a?(Hash)
+          valid = buffer.version == version && @clients.value?(owner) && @code_lens_requests&.[](id).equal?(request)
+          result = owner.code_lens(Sadr::Protocol.uri(buffer.path)).await(timeout: 10) if supported && valid
+          post do
+            pending = @code_lens_requests&.delete(id)
+            @language_jobs&.reject! { |thread| !thread.alive? }
+            next unless pending.equal?(request) && supported && valid && @clients.value?(owner)
+            next unless buffer.version == version && @panes.any? { |pane| pane.editors.any? { |editor| editor.buffer.equal?(buffer) } }
+
+            begin
+              cache_code_lenses(owner, buffer, version, result, generation)
+            rescue StandardError => error
+              cache_code_lenses(owner, buffer, version, [], generation)
+              @message = error.message
+            end
+          end
+        rescue StandardError => error
+          post do
+            pending = @code_lens_requests&.delete(id)
+            @language_jobs&.reject! { |thread| !thread.alive? }
+            @code_lens_start_attempts&.delete(language) unless client
+            if pending.equal?(request) && owner && @clients.value?(owner) && buffer.version == version &&
+                @panes.any? { |pane| pane.editors.any? { |editor| editor.buffer.equal?(buffer) } }
+              cache_code_lenses(owner, buffer, version, [], generation)
+            end
+            @message = error.message if pending.equal?(request) && !(owner && @retired_language_clients&.[](owner))
+          end
+        ensure
+          worker = Thread.current
+          post { @language_jobs&.delete(worker) }
+        end
+      end
+      (@language_jobs ||= []) << job
+      @language_jobs.reject! { |thread| !thread.alive? }
+      true
+    end
+
+    def request_visible_code_lenses(current = editor)
+      @code_lens_start_attempts&.delete(current.language_document.definition.name)
+      map = current.display_map
+      first = current.scroll_y.floor.clamp(0, map.row_count - 1)
+      last = [first + current.viewport_rows, map.row_count - 1].min
+      visible_code_lens_ranges(current, first...(last + 1)).map do |rows|
+        request_code_lenses(current, rows, start: true)
+      end.any?
+    end
+
+    def visible_code_lens_ranges(current, display_rows)
+      visible_language_ranges(current, display_rows, gap: 1)
+    end
+
+    def invalidate_code_lenses(buffer = nil, client: nil)
+      @code_lens_generation = @code_lens_generation.to_i + 1
+      @code_lens_cache&.delete_if do |key, _|
+        (!buffer || key[1].equal?(buffer)) && (!client || key[0].equal?(client))
+      end
+      @code_lens_requests&.delete_if do |_id, entry|
+        (!buffer || entry[:buffer].equal?(buffer)) && (!client || entry[:client]&.equal?(client))
+      end
+      @decorations.invalidate(:code_lens, buffer: buffer)
+      @window&.request_frame unless @closed
+      nil
+    end
+
     private
+
+    def visible_language_ranges(current, display_rows, gap:)
+      map = current.display_map
+      rows = display_rows.flat_map do |index|
+        row = map.row(index)
+        ending = map.to_buffer(DisplayPoint.new(index, row.text.length))
+        [map.source_row(index), current.buffer.rope.point_at(ending).row]
+      end
+      rows.sort.uniq.slice_when { |left, right| right - left > gap }
+        .map { |group| group.first...(group.last + 1) }
+    end
 
     def open_language_document(client, buffer, language_id)
       uri = Sadr::Protocol.uri(buffer.path)
@@ -635,6 +918,7 @@ module Canopus
       @language_document_subscriptions&.delete(key)&.detach
       (@language_document_subscriptions ||= {})[key] = buffer.on_edit do |patch|
         invalidate_inlay_hints(buffer)
+        invalidate_code_lenses(buffer)
         sync_language_document(client, uri, buffer, patch)
       end
       (@opened_lsp_documents ||= {})[key] = true
@@ -656,6 +940,7 @@ module Canopus
       end
       invalidate_diagnostics(buffer)
       invalidate_inlay_hints(buffer)
+      invalidate_code_lenses(buffer)
     end
 
     def sync_language_document(client, uri, buffer, patch)

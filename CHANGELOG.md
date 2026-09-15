@@ -7,6 +7,7 @@
 - Delegate project walking and content search to Alkaid while retaining Canopus's search and replace UI.
 - Show language-server diagnostics as severity-colored wave underlines and optional line-end messages.
 - Show cached, viewport-scoped language-server inlay hints inline with clickable label locations.
+- Show cached language-server code lenses above source lines and resolve them only when visible.
 
 ## 0.4.0 — 2026-09-15
 

@@ -112,6 +112,7 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
   "use_tabs": false,
   "diagnostics": { "inline": true, "inline_max_length": 80, "severity": "warning" },
   "inlay_hints": { "enabled": true, "parameter_names": true, "types": true, "max_length": 30 },
+  "code_lens": { "enabled": true },
   "tabs": { "activate_on_close": "history", "reopen_history_limit": 20 },
   "terminal": { "working_directory": "project", "scrollback_lines": 10000 },
   "dock": {

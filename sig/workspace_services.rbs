@@ -66,6 +66,11 @@ module Canopus
     def request_visible_inlay_hints: (?Editor editor) -> bool
     def visible_inlay_hint_ranges: (Editor editor, Range[Integer] display_rows) -> Array[Range[Integer]]
     def invalidate_inlay_hints: (?Buffer? buffer, ?client: Sadr::Client?) -> nil
+    def code_lens_decorations: (Buffer buffer, Range[Integer] rows) -> Array[Decoration::Item]
+    def request_code_lenses: (Editor editor, Range[Integer] visible_rows, ?start: bool) -> bool
+    def request_visible_code_lenses: (?Editor editor) -> bool
+    def visible_code_lens_ranges: (Editor editor, Range[Integer] display_rows) -> Array[Range[Integer]]
+    def invalidate_code_lenses: (?Buffer? buffer, ?client: Sadr::Client?) -> nil
     def accept_language_result: (palette_state palette, Integer index) -> void
     def show_diagnostics: () -> void
     def show_outline: () -> void

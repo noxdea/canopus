@@ -37,6 +37,11 @@ type and parameter-name hints, or their display limit, with `inlay_hints.types`,
 `inlay_hints.parameter_names`, and `inlay_hints.max_length`; set
 `inlay_hints.enabled` to `false` to disable requests.
 
+Code lenses are cached for each document version and shown above their source
+line. Unresolved lenses are resolved only as they enter the viewport; click a
+lens to execute its server command. Set `code_lens.enabled` to `false` to
+disable requests and hide cached lenses.
+
 Editor positions use UTF-8 byte offsets internally and are converted to LSP
 UTF-16 positions. Servers selecting another position encoding are rejected.
 Messages are limited to 32 MiB, crashes fail pending requests, and a connection

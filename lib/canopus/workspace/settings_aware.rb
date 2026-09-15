@@ -55,6 +55,7 @@ module Canopus
       @applied_icon_theme = @settings["icon_theme"]
       invalidate_diagnostics
       invalidate_inlay_hints
+      invalidate_code_lenses
       reload_language_servers(servers)
       @window&.request_frame
     end

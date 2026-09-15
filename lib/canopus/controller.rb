@@ -236,11 +236,15 @@ module Canopus
               cached[2] == editor.buffer.version && cached[3] == first && cached[4] == last
             rows = (first..last).map { |row| map.source_row(row) }.uniq.sort
             document.request(rows: rows)
-            ranges = @workspace.visible_inlay_hint_ranges(editor, first...(last + 1))
-            cached = @language_viewports[editor] = [document, map.tree, editor.buffer.version, first, last, ranges]
+            inlay_ranges = @workspace.visible_inlay_hint_ranges(editor, first...(last + 1))
+            lens_ranges = @workspace.visible_code_lens_ranges(editor, first...(last + 1))
+            cached = @language_viewports[editor] = [document, map.tree, editor.buffer.version, first, last, inlay_ranges, lens_ranges]
           end
           cached[5].each do |rows|
             @workspace.request_inlay_hints(editor, rows, start: true)
+          end
+          cached[6].each do |rows|
+            @workspace.request_code_lenses(editor, rows, start: true)
           end
         end
         changed = document.poll
