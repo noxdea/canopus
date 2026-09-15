@@ -1,12 +1,10 @@
 # frozen_string_literal: true
 
 require_relative "test_helper"
-require_relative "../lib/canopus/lsp"
 require "stringio"
 require "rbconfig"
 
 class LSPRobustnessTest < Minitest::Test
-  LSP = Canopus::LSP
   SERVER = <<~'RUBY'
     require "json"
     STDIN.binmode
@@ -53,7 +51,8 @@ class LSPRobustnessTest < Minitest::Test
   RUBY
 
   def client(**options)
-    instance = LSP::Client.new(command: [RbConfig.ruby, "-e", SERVER], restart: false, **options).start(timeout: 3)
+    instance = Sadr::Client.new(command: [RbConfig.ruby, "-e", SERVER], restart: false, **options)
+    instance.start(timeout: 3)
     yield instance
   ensure
     instance&.stop
@@ -69,7 +68,7 @@ class LSPRobustnessTest < Minitest::Test
 
   def test_future_callbacks_are_bounded_detachable_and_cancellation_is_once
     cancelled, completed = [], []
-    future = LSP::Future.new(9) { |id| cancelled << id }
+    future = Sadr::Future.new(9) { |id| cancelled << id }
     subscription = future.on_complete { completed << :detached }
     subscription.detach
     40.times { future.then { raise "失敗" * 1000 } }
@@ -81,8 +80,8 @@ class LSPRobustnessTest < Minitest::Test
     assert_equal [:finished], completed
     assert_equal 32, future.callback_errors.length
     assert future.callback_errors.all? { |error| error.message.bytesize <= 2048 }
-    assert_raises(LSP::Error) { future.await }
-    fulfilled = LSP::Future.new(1) { flunk "completed request cancelled" }
+    assert_raises(Sadr::Error) { future.await }
+    fulfilled = Sadr::Future.new(1) { flunk "completed request cancelled" }
     fulfilled.fulfill(42)
     refute fulfilled.cancel
     assert_equal 42, fulfilled.await(timeout: 0)
@@ -91,7 +90,7 @@ class LSPRobustnessTest < Minitest::Test
 
   def test_future_wait_yields_the_foreground_fiber_and_timeout_cancels
     executor = Zaniah::TaskExecutor.new(workers: 1)
-    future, events = LSP::Future.new(1), []
+    future, events = Sadr::Future.new(1), []
     task = executor.spawn { events << :waiting; events << future.await(timeout: 1) }
     executor.post { events << :responsive }
     executor.drain
@@ -102,12 +101,12 @@ class LSPRobustnessTest < Minitest::Test
     assert_equal [:waiting, :responsive, :value], events
     assert task.done?
     cancellations = []
-    pending = LSP::Future.new(2) { |id| cancellations << id }
+    pending = Sadr::Future.new(2) { |id| cancellations << id }
     timed = executor.spawn { pending.await(timeout: 0.005) }
     executor.drain
     sleep(0.01)
     executor.drain
-    assert_raises(LSP::Timeout) { timed.await }
+    assert_raises(Sadr::Timeout) { timed.await }
     assert_equal [2], cancellations
   ensure
     executor&.shutdown
@@ -120,30 +119,30 @@ class LSPRobustnessTest < Minitest::Test
       {"jsonrpc" => "2.0", "id" => 1},
       {"jsonrpc" => "2.0", "id" => 1, "result" => nil, "error" => {}},
       {"jsonrpc" => "2.0", "id" => 1, "error" => {"code" => "bad", "message" => 1}}].each do |value|
-      assert_raises(LSP::Error) { LSP::Transport.validate_message(value) }
+      assert_raises(Sadr::Error) { Sadr::Transport.validate_message(value) }
     end
     ["Content-Length: 2\r\nContent-Length: 2\r\n\r\n{}", "Content-Length: 2\r\nContent-Type: application/vscode-jsonrpc; charset=latin1\r\n\r\n{}", "Content-Length: 1\r\n\r\n\xff".b, "Content-Length: 1\r\n\r\n{"].each do |frame|
-      assert_raises(LSP::Error) { LSP::Transport.read_message(StringIO.new(frame)) }
+      assert_raises(Sadr::Error) { Sadr::Transport.read_message(StringIO.new(frame)) }
     end
-    assert_raises(ArgumentError) { LSP::Transport.new(["bad\0command"]) {} }
+    assert_raises(ArgumentError) { Sadr::Transport.new(["bad\0command"]) {} }
   end
 
   def test_utf16_positions_and_semantic_values_are_checked
     rope = Denebola::Rope.new("🙂a\n日本")
     [-1, "0", nil].each do |bad|
-      assert_raises(LSP::Error) { LSP::Protocol.offset(rope, {"line" => 0, "character" => bad}) }
+      assert_raises(Sadr::Error) { Sadr::Protocol.offset(rope, {"line" => 0, "character" => bad}) }
     end
-    assert_raises(RangeError) { LSP::Protocol.offset(rope, {"line" => 0, "character" => 1}) }
-    assert_equal 5, LSP::Protocol.offset(rope, {"line" => 0, "character" => 1000})
+    assert_raises(RangeError) { Sadr::Protocol.offset(rope, {"line" => 0, "character" => 1}) }
+    assert_equal 5, Sadr::Protocol.offset(rope, {"line" => 0, "character" => 1000})
     [[0, 0, 0, 0, 0], [0, 0, 1, -1, 0], [0, 0, 1, 0, 1 << 31], [1]].each do |data|
-      assert_raises(LSP::Error) { LSP::Protocol.semantic_tokens(data) }
+      assert_raises(Sadr::Error) { Sadr::Protocol.semantic_tokens(data) }
     end
-    assert_raises(LSP::Error) { LSP::Protocol.semantic_tokens([0, 0, 1, 2, 0], legend: {"tokenTypes" => ["type"], "tokenModifiers" => []}) }
-    assert_raises(LSP::Error) { LSP::Protocol.semantic_delta([], [{"start" => nil}]) }
-    assert_raises(LSP::Error) { LSP::Protocol.path("file:///tmp/x%00") }
-    assert_raises(LSP::Error) { LSP::Protocol.path("file:///tmp/x?query") }
-    assert_raises(LSP::Error) { LSP::Protocol.diagnostics([{"message" => "bad", "range" => {}}]) }
-    assert_raises(LSP::Error) { LSP::Protocol.diagnostics([{"message" => "bad", "range" => {"start" => {"line" => 1, "character" => 0}, "end" => {"line" => 0, "character" => 0}}}]) }
+    assert_raises(Sadr::Error) { Sadr::Protocol.semantic_tokens([0, 0, 1, 2, 0], legend: {"tokenTypes" => ["type"], "tokenModifiers" => []}) }
+    assert_raises(Sadr::Error) { Sadr::Protocol.semantic_delta([], [{"start" => nil}]) }
+    assert_raises(Sadr::Error) { Sadr::Protocol.path("file:///tmp/x%00") }
+    assert_raises(Sadr::Error) { Sadr::Protocol.path("file:///tmp/x?query") }
+    assert_raises(Sadr::Error) { Sadr::Protocol.diagnostics([{"message" => "bad", "range" => {}}]) }
+    assert_raises(Sadr::Error) { Sadr::Protocol.diagnostics([{"message" => "bad", "range" => {"start" => {"line" => 1, "character" => 0}, "end" => {"line" => 0, "character" => 0}}}]) }
   end
 
   def test_handler_and_callback_failures_do_not_break_the_reader
@@ -162,16 +161,16 @@ class LSPRobustnessTest < Minitest::Test
       assert instance.request("probe").await.is_a?(Array)
       assert_equal :running, instance.state
       assert_operator instance.errors.length, :>=, 2
-      assert_raises(LSP::Error) { instance.start }
+      assert_raises(Sadr::Error) { instance.start }
       assert_equal :running, instance.state
-      instance.request("never").tap { |future| assert_raises(LSP::Timeout) { future.await(timeout: 0.01) } }
+      instance.request("never").tap { |future| assert_raises(Sadr::Timeout) { future.await(timeout: 0.01) } }
       assert instance.request("probe").await.any? { |message| message["method"] == "$/cancelRequest" }
     end
   end
 
   def test_deferred_handlers_and_unsupported_methods_receive_responses
     client do |instance|
-      deferred = LSP::Future.new(nil)
+      deferred = Sadr::Future.new(nil)
       instance.on("deferred") { deferred }
       instance.request("server_request", method: "deferred").await
       deferred.fulfill(false)
@@ -185,11 +184,14 @@ class LSPRobustnessTest < Minitest::Test
   def test_synchronization_semantic_delta_and_stale_diagnostics
     client do |instance|
       buffer = Canopus::Buffer.new("🙂a", path: File.expand_path("test.rb"))
-      uri = instance.open_document(buffer, language_id: "ruby")
-      assert_equal 1, instance.semantic_tokens(buffer).first[:length]
-      buffer.edit([[4...5, "new"]])
-      assert_equal 2, instance.semantic_tokens(buffer).first[:length]
-      instance.save_document(uri)
+      uri = Sadr::Protocol.uri(buffer.path)
+      instance.open(Sadr::Document.new(uri: uri, language_id: "ruby", version: buffer.version, text: buffer.text))
+      assert_equal 1, instance.semantic_tokens(uri, version: buffer.version).first.length
+      patch = buffer.edit([[4...5, "new"]])
+      change = Sadr::ContentChange.new(range: Sadr::Protocol.range(patch.before, patch.edits.first.old_range), text: "new")
+      instance.change(uri, buffer.version, [change])
+      assert_equal 2, instance.semantic_tokens(uri, version: buffer.version).first.length
+      instance.save(uri)
       messages = instance.request("probe").await
       change = messages.find { |message| message["method"] == "textDocument/didChange" }
       assert_equal({"line" => 0, "character" => 2}, change.dig("params", "contentChanges", 0, "range", "start"))
@@ -214,13 +216,15 @@ class LSPRobustnessTest < Minitest::Test
   def test_crash_restarts_process_and_reopens_documents
     client(restart: true) do |instance|
       buffer = Canopus::Buffer.new("hello", path: File.expand_path("test.rb"))
-      uri = instance.open_document(buffer, language_id: "ruby")
+      uri = Sadr::Protocol.uri(buffer.path)
+      instance.open(Sadr::Document.new(uri: uri, language_id: "ruby", version: buffer.version, text: buffer.text))
       pid = instance.transport.pid
-      assert_raises(LSP::Error) { instance.request("crash").await }
+      assert_raises(Sadr::Error) { instance.request("crash").await }
       wait_until { instance.state == :running && instance.transport.pid != pid }
       messages = instance.request("probe").await
       assert messages.any? { |message| message["method"] == "textDocument/didOpen" && message.dig("params", "textDocument", "uri") == uri }
       buffer.edit([[0...0, "x"]])
+      instance.change(uri, buffer.version, [Sadr::ContentChange.new(range: nil, text: buffer.text)])
       assert_equal 1, instance.request("probe").await.count { |message| message["method"] == "textDocument/didChange" }
     end
   end

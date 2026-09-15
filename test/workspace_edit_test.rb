@@ -18,7 +18,7 @@ class WorkspaceEditTest < Minitest::Test
   end
 
   def change(row, first, last, text, version: nil, path: @path)
-    {"textDocument" => {"uri" => Canopus::LSP::Protocol.uri(path), "version" => version},
+    {"textDocument" => {"uri" => Sadr::Protocol.uri(path), "version" => version},
      "edits" => [{"range" => {"start" => {"line" => row, "character" => first}, "end" => {"line" => row, "character" => last}}, "newText" => text}]}
   end
 
@@ -81,7 +81,7 @@ class WorkspaceEditTest < Minitest::Test
 
   def test_resource_operations_and_read_only_edits_are_rejected_without_mutation
     assert_raises(Canopus::Error) do
-      apply(change(0, 0, 1, "new"), {"kind" => "delete", "uri" => Canopus::LSP::Protocol.uri(@path)})
+      apply(change(0, 0, 1, "new"), {"kind" => "delete", "uri" => Sadr::Protocol.uri(@path)})
     end
     @editor.buffer.instance_variable_set(:@read_only, true)
     assert_raises(Canopus::Error) { apply(change(0, 0, 1, "new")) }

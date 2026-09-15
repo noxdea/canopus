@@ -28,7 +28,7 @@ class CompletionUITest < Minitest::Test
     Dir.mktmpdir("canopus-resolve-") do |root|
       workspace = Canopus::Workspace.new(root: root)
       editor = workspace.new_buffer
-      future = Canopus::LSP::Future.new(1)
+      future = Sadr::Future.new(1)
       client = Object.new
       client.define_singleton_method(:capabilities) { {"completionProvider" => {"resolveProvider" => true}} }
       client.define_singleton_method(:resolve_completion) { |_| future }

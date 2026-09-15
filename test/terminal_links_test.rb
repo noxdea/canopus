@@ -54,7 +54,7 @@ class TerminalLinksTest < Minitest::Test
       File.write(path, "file")
       File.write(File.join(directory, "javascript"), "must not be treated as a path")
       vt = workspace.terminal.vt
-      uri = Canopus::LSP::Protocol.uri(path) + "#L1"
+      uri = Sadr::Protocol.uri(path) + "#L1"
       vt.feed("\e]8;;#{uri}\e\\open\e]8;;\e\\")
       assert_equal path, view.terminal_link_at(Zaniah::Point.new(5, 5)).target
       %w[javascript:alert(1) javascript:123 file://remote/private ftp://example.com/file].each do |unsafe|

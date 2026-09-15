@@ -142,7 +142,7 @@ Dir.mktmpdir("canopus-public-api-") do |root|
   check(plan.apply["applied"], "preflighted workspace edit")
   plan.close
 
-  future = Canopus::LSP::Future.new(1)
+  future = Sadr::Future.new(1)
   future.fulfill(42)
   check(future.await == 42, "LSP future")
   check(Kochab.parse('{/* comment */"a":1,}').value == {"a" => 1}, "JSONC dependency")

@@ -534,8 +534,8 @@ module Canopus
     def paint_diagnostics(editor, index, row, line, left, y)
       frame_diagnostics(editor.buffer).each do |diagnostic|
         range = diagnostic["range"]
-        first = editor.display_map.to_display(LSP::Protocol.offset(editor.buffer.rope, range.fetch("start")))
-        last = editor.display_map.to_display(LSP::Protocol.offset(editor.buffer.rope, range.fetch("end")))
+        first = editor.display_map.to_display(Sadr::Protocol.offset(editor.buffer.rope, range.fetch("start")))
+        last = editor.display_map.to_display(Sadr::Protocol.offset(editor.buffer.rope, range.fetch("end")))
         next unless index.between?(first.row, last.row)
         from = index == first.row ? first.column : 0
         to = index == last.row ? last.column : row.text.length

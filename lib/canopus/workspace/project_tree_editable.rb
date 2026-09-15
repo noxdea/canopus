@@ -45,7 +45,9 @@ module Canopus
           close_language_documents(buffer)
         rescue StandardError => error
           @message = "Path moved; language server close failed: #{error.message}"
-          @opened_lsp_documents&.delete_if { |(_, document), _| document.equal?(buffer) }
+          @opened_lsp_documents&.keys&.each do |client, document|
+            forget_language_document(client, document) if document.equal?(buffer)
+          end
         end
         buffer.relocate(new_path)
         @buffers[new_path] = buffer

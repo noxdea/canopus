@@ -315,7 +315,7 @@ module Canopus
     attr_reader settings: Settings
     attr_reader theme: Theme
     attr_reader root: String
-    attr_reader clients: Hash[String, LSP::Client]
+    attr_reader clients: Hash[String, Sadr::Client]
     attr_accessor message: String
     def notify: (String text, ?now: Numeric) -> Integer
     def notifications: () -> Array[{id: Integer, text: String, expires: Numeric}]
@@ -370,13 +370,13 @@ module Canopus
     def show_snippet_choices: (?Editor current) -> untyped
     def update_palette: () -> void
     def palette_accept: () -> void
-    def connect_server: (String language, Array[String] command) -> LSP::Client
-    def language_client: (?Buffer buffer) -> LSP::Client
+    def connect_server: (String language, Array[String] command) -> Sadr::Client
+    def language_client: (?Buffer buffer) -> Sadr::Client
     def language_request: (Symbol kind, **json options) -> void
-    def diagnostics_for: (Buffer buffer) -> Array[LSP::object]
-    def apply_workspace_edit: (LSP::object edit, ?confirmed: bool) -> LSP::object
-    def resource_workspace_edit?: (LSP::object edit) -> bool
-    def confirm_workspace_edit: (LSP::object edit, ?label: String, ?response: LSP::Future?, ?on_applied: ^() -> void) -> untyped
+    def diagnostics_for: (Buffer buffer) -> Array[Sadr::object]
+    def apply_workspace_edit: (Sadr::object edit, ?confirmed: bool) -> Sadr::object
+    def resource_workspace_edit?: (Sadr::object edit) -> bool
+    def confirm_workspace_edit: (Sadr::object edit, ?label: String, ?response: Sadr::Future?, ?on_applied: ^() -> void) -> untyped
     def post: () { () -> void } -> void
     def drain: () -> void
     def close: () -> void

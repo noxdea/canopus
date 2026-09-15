@@ -2,10 +2,11 @@
 
 require "json"
 require "fileutils"
+sadr_path = ENV["SADR_PATH"]
+sadr_path ? require(File.expand_path("lib/sadr", sadr_path)) : require("sadr")
 require_relative "settings"
 require_relative "theme"
 require_relative "vim"
-require_relative "lsp"
 require_relative "pane"
 require_relative "project/tree"
 require_relative "command"
@@ -166,9 +167,8 @@ module Canopus
         # Close the old URI before registering this buffer under its new path.
         @opened_lsp_documents&.keys&.each do |client, document|
           next unless document.equal?(buffer)
-          @opened_lsp_documents.delete([client, document])
           begin
-            client.close_document(LSP::Protocol.uri(previous)) if previous
+            close_language_document(client, document, uri: Sadr::Protocol.uri(previous)) if previous
           rescue StandardError => error
             @message = "File saved; language server close failed: #{error.message}"
           end
@@ -187,7 +187,7 @@ module Canopus
       @opened_lsp_documents&.each_key do |client, document|
         next unless document.equal?(buffer)
         begin
-          client.save_document(LSP::Protocol.uri(buffer.path))
+          client.save(Sadr::Protocol.uri(buffer.path))
         rescue StandardError => error
           self.message = "File saved; language server notification failed: #{error.message}"
         end

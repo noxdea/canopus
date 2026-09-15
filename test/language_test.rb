@@ -62,7 +62,7 @@ class LanguageTest < Minitest::Test
       first = workspace.open(paths.first).buffer
       second = workspace.open(paths.last).buffer
       changes = paths.to_h do |path|
-        [Canopus::LSP::Protocol.uri(path), [{"range" => {"start" => {"line" => 0, "character" => 0}, "end" => {"line" => path == paths.first ? 0 : 500, "character" => 5}}, "newText" => "new"}]]
+        [Sadr::Protocol.uri(path), [{"range" => {"start" => {"line" => 0, "character" => 0}, "end" => {"line" => path == paths.first ? 0 : 500, "character" => 5}}, "newText" => "new"}]]
       end
       assert_raises(RangeError) { workspace.apply_workspace_edit({"changes" => changes}) }
       assert_equal "hello", first.text
@@ -77,15 +77,15 @@ class LanguageTest < Minitest::Test
 
   def test_file_uri_roundtrip_reserved_characters
     path = File.expand_path("日本 #1%?test.rb")
-    uri = Canopus::LSP::Protocol.uri(path)
+    uri = Sadr::Protocol.uri(path)
     assert_includes uri, "%23"
     assert_includes uri, "%3F"
-    assert_equal path, Canopus::LSP::Protocol.path(uri)
-    assert_raises(Canopus::LSP::Error) { Canopus::LSP::Protocol.path("file://example.com/remote.rb") }
+    assert_equal path, Sadr::Protocol.path(uri)
+    assert_raises(Sadr::Error) { Sadr::Protocol.path("file://example.com/remote.rb") }
   end
 
   def test_future_callbacks_before_and_after_fulfillment
-    future, values = Canopus::LSP::Future.new(1), []
+    future, values = Sadr::Future.new(1), []
     future.then { |value, error| values << [value, error] }
     future.fulfill(42)
     future.fulfill(99)

@@ -8,10 +8,10 @@ module Canopus
       @opened_lsp_documents&.keys&.each do |key|
         client, document = key
         next if buffer && !document.equal?(buffer)
-        @opened_lsp_documents.delete(key)
         begin
-          client.close_document(LSP::Protocol.uri(document.path)) if document.path
+          close_language_document(client, document) if document.path
         rescue StandardError => error
+          forget_language_document(client, document)
           self.message = "Language server close failed: #{error.message}"
         end
       end
@@ -43,8 +43,7 @@ module Canopus
         client = ensure_language_server(language.name, options)
         @opened_lsp_documents ||= {}
         unless @opened_lsp_documents[[client, buffer]]
-          client.open_document(buffer, language_id: language.name)
-          @opened_lsp_documents[[client, buffer]] = true
+          open_language_document(client, buffer, language.name)
         end
         client
       end
@@ -55,18 +54,23 @@ module Canopus
       (@language_jobs ||= []) << Thread.new do
         begin
           client = language_client(buffer)
+          uri = Sadr::Protocol.uri(buffer.path)
+          position = Sadr::Protocol.position(buffer.rope, offset)
           result = case kind
           when :completion, :hover, :definition, :typeDefinition, :implementation, :signatureHelp
-            client.public_send(kind, buffer, offset).await
-          when :references then client.references(buffer, offset, context: {includeDeclaration: true}).await
-          when :rename then client.rename(buffer, offset, newName: options.fetch(:name)).await
-          when :formatting then client.formatting(buffer, options: {tabSize: current.tab_size, insertSpaces: !current.use_tabs}).await
+            method = {typeDefinition: :type_definition, signatureHelp: :signature_help}.fetch(kind, kind)
+            client.public_send(method, uri, position).await(timeout: 10)
+          when :references then client.references(uri, position, include_declaration: true).await(timeout: 10)
+          when :rename then client.rename(uri, position, options.fetch(:name)).await(timeout: 10)
+          when :formatting then client.formatting(uri, {tabSize: current.tab_size, insertSpaces: !current.use_tabs}).await(timeout: 10)
           when :codeAction
-            client.codeAction(buffer, range: LSP::Protocol.range(buffer.rope, current.primary.range), context: {diagnostics: diagnostics_for(buffer)}).await
-          when :documentSymbol, :codeLens, :diagnostic then client.public_send(kind, buffer).await
-          when :inlayHint then client.inlayHint(buffer, range: LSP::Protocol.range(buffer.rope, 0...buffer.rope.bytesize)).await
-          when :semantic_tokens then client.semantic_tokens(buffer)
-          when :workspace_symbols then client.workspace_symbols(options.fetch(:query, "")).await
+            client.code_action(uri, Sadr::Protocol.range(buffer.rope, current.primary.range), {diagnostics: diagnostics_for(buffer)}).await(timeout: 10)
+          when :documentSymbol then client.document_symbol(uri).await(timeout: 10)
+          when :codeLens then client.code_lens(uri).await(timeout: 10)
+          when :diagnostic then client.diagnostic(uri).await(timeout: 10)
+          when :inlayHint then client.inlay_hint(uri, Sadr::Protocol.range(buffer.rope, 0...buffer.rope.bytesize)).await(timeout: 10)
+          when :semantic_tokens then client.semantic_tokens(uri, version: buffer.version)
+          when :workspace_symbols then client.workspace_symbols(options.fetch(:query, "")).await(timeout: 10)
           else raise Error, "unknown language request #{kind}"
           end
           post do
@@ -87,7 +91,7 @@ module Canopus
     end
     def diagnostics_for(buffer)
       return [] if !buffer.path || @clients.empty?
-      uri = LSP::Protocol.uri(buffer.path)
+      uri = Sadr::Protocol.uri(buffer.path)
       @clients.values.flat_map { |client| client.diagnostics.fetch(uri, []) }
     end
     def resource_workspace_edit?(edit)
@@ -102,7 +106,7 @@ module Canopus
         paths = change["kind"] == "rename" ? change.values_at("oldUri", "newUri") : [change["uri"]]
         raise Error, "resource URI is too long" unless paths.all? { |uri| uri.is_a?(String) && uri.bytesize <= 16_384 }
         suffix = change.dig("options", "overwrite") ? " (overwrite; backup retained)" : ""
-        "#{change['kind']}: #{paths.map { |uri| LSP::Protocol.path(uri) }.join(' → ')}#{suffix}"
+        "#{change['kind']}: #{paths.map { |uri| Sadr::Protocol.path(uri) }.join(' → ')}#{suffix}"
       end
       self.palette = {kind: :workspace_edit, query: label.to_s.slice(0, 1_024), index: details.empty? ? 0 : 1, matches: ["Apply changes", "Cancel"],
         edit: edit, response: response, on_applied: on_applied, details: details}
@@ -133,7 +137,7 @@ module Canopus
       pending, snapshots, originals = {}, {}, {}
       plans = documents.map do |document, edits|
         raise Error, "invalid text document edit" unless document.is_a?(Hash) && edits.is_a?(Array)
-        path = canonical_path(LSP::Protocol.path(document.fetch("uri")))
+        path = canonical_path(Sadr::Protocol.path(document.fetch("uri")))
         raise Error, "language server edit is outside project" unless path.start_with?(@root + File::SEPARATOR)
         actual = File.exist?(path) ? File.realpath(path) : path
         raise Error, "language server edit follows a link outside project" unless actual.start_with?(@root + File::SEPARATOR)
@@ -150,7 +154,7 @@ module Canopus
             raise Error, "invalid LSP text edit"
           end
           range = entry.fetch("range")
-          [LSP::Protocol.offset(rope, range.fetch("start"))...LSP::Protocol.offset(rope, range.fetch("end")), entry.fetch("newText")]
+          [Sadr::Protocol.offset(rope, range.fetch("start"))...Sadr::Protocol.offset(rope, range.fetch("end")), entry.fetch("newText")]
         end
         # Repeated TextDocumentEdits address the preceding staged snapshot.
         snapshots[buffer] = [rope.apply_edits(changes), version + (changes.empty? ? 0 : 1)]
@@ -185,7 +189,7 @@ module Canopus
       capability = client&.capabilities&.fetch(provider, nil) if provider && client.respond_to?(:capabilities)
       if !palette[:resolved] && capability.is_a?(Hash) && capability["resolveProvider"]
         (@language_jobs ||= []) << Thread.new do
-          resolved = client.public_send(resolver, item).await
+          resolved = client.public_send(resolver, item).await(timeout: 10)
           post do
             items = palette[:items].dup
             items[index] = item.merge(resolved || {})
@@ -202,7 +206,7 @@ module Canopus
         text_edit = item["textEdit"]
         range = if text_edit
           range = text_edit["range"] || text_edit["replace"] || text_edit.fetch("insert")
-          LSP::Protocol.offset(editor.buffer.rope, range.fetch("start"))...LSP::Protocol.offset(editor.buffer.rope, range.fetch("end"))
+          Sadr::Protocol.offset(editor.buffer.rope, range.fetch("start"))...Sadr::Protocol.offset(editor.buffer.rope, range.fetch("end"))
         else
           editor.primary.range
         end
@@ -211,7 +215,7 @@ module Canopus
         variables = editor.snippet_variables(workspace_root: @root, clipboard: @window.respond_to?(:clipboard) ? @window.clipboard : nil) if snippet
         expanded = snippet ? Snippet.new(value, variables: variables).text : value
         additional = item.fetch("additionalTextEdits", []).map do |entry|
-          [LSP::Protocol.offset(editor.buffer.rope, entry.fetch("range").fetch("start"))...LSP::Protocol.offset(editor.buffer.rope, entry.fetch("range").fetch("end")), entry.fetch("newText")]
+          [Sadr::Protocol.offset(editor.buffer.rope, entry.fetch("range").fetch("start"))...Sadr::Protocol.offset(editor.buffer.rope, entry.fetch("range").fetch("end")), entry.fetch("newText")]
         end.sort_by { |entry| entry.first.begin }
         editor.buffer.rope.apply_edits((additional + [[range, expanded]]).sort_by { |entry| entry.first.begin })
         editor.buffer.begin_undo_group
@@ -227,10 +231,10 @@ module Canopus
         client.execute_command(command.fetch("command"), arguments: command.fetch("arguments", [])) if command && client
       when :locations, :symbols
         location = item["location"] || item
-        path = LSP::Protocol.path(location["uri"] || location.fetch("targetUri"))
+        path = Sadr::Protocol.path(location["uri"] || location.fetch("targetUri"))
         opened = open(path)
         range = location["range"] || location.fetch("targetSelectionRange")
-        opened.select(LSP::Protocol.offset(opened.buffer.rope, range.fetch("start")))
+        opened.select(Sadr::Protocol.offset(opened.buffer.rope, range.fetch("start")))
         opened.reveal_cursor
       when :code_actions
         raise Error, item["disabled"]["reason"].to_s if item["disabled"]
@@ -254,7 +258,7 @@ module Canopus
           row = diagnostic.dig("range", "start", "line")
           next unless row.is_a?(Integer)
           labels << "#{File.basename(buffer.path)}:#{row + 1} #{diagnostic['message']}"
-          items << {"uri" => LSP::Protocol.uri(buffer.path), "range" => diagnostic.fetch("range")}
+          items << {"uri" => Sadr::Protocol.uri(buffer.path), "range" => diagnostic.fetch("range")}
         end
       end
       self.palette = {kind: :locations, query: +"", index: 0, matches: labels, items: items}
@@ -325,6 +329,43 @@ module Canopus
     end
 
     private
+
+    def open_language_document(client, buffer, language_id)
+      uri = Sadr::Protocol.uri(buffer.path)
+      client.open(Sadr::Document.new(uri: uri, language_id: language_id, version: buffer.version, text: buffer.text))
+      key = [client, buffer]
+      @language_document_subscriptions&.delete(key)&.detach
+      (@language_document_subscriptions ||= {})[key] = buffer.on_edit do |patch|
+        sync_language_document(client, uri, buffer, patch)
+      end
+      (@opened_lsp_documents ||= {})[key] = true
+      uri
+    end
+
+    def close_language_document(client, buffer, uri: Sadr::Protocol.uri(buffer.path))
+      forget_language_document(client, buffer)
+      client.close(uri)
+    end
+
+    def forget_language_document(client, buffer)
+      key = [client, buffer]
+      @opened_lsp_documents&.delete(key)
+      @language_document_subscriptions&.delete(key)&.detach
+    end
+
+    def sync_language_document(client, uri, buffer, patch)
+      changes = if patch.is_a?(Patch)
+        patch.edits.reverse.map do |edit|
+          Sadr::ContentChange.new(range: Sadr::Protocol.range(patch.before, edit.old_range), text: edit.new_text)
+        end
+      else
+        [Sadr::ContentChange.new(range: nil, text: buffer.text)]
+      end
+      client.change(uri, buffer.version, changes)
+    rescue Sadr::Error => error
+      self.message = "Language server change failed: #{error.message}"
+    end
+
     def display_language_result(kind, result, client, current)
       case kind
       when :completion
@@ -356,7 +397,7 @@ module Canopus
           location = item["location"] || item
           uri = location["uri"] || location["targetUri"]
           range = location["range"] || location["targetSelectionRange"]
-          "#{item['name']} #{File.basename(LSP::Protocol.path(uri))}:#{range.fetch('start').fetch('line') + 1}"
+          "#{item['name']} #{File.basename(Sadr::Protocol.path(uri))}:#{range.fetch('start').fetch('line') + 1}"
         end
         self.palette = {kind: :locations, query: +"", index: 0, matches: labels, items: items}
       when :rename
@@ -365,7 +406,7 @@ module Canopus
         elsif result
           apply_workspace_edit(result)
         end
-      when :formatting then client.apply_text_edits(current.buffer, result || [])
+      when :formatting then current.buffer.edit(Sadr::Protocol.text_edits(current.buffer.rope, result || []), kind: :lsp)
       when :codeAction, :codeLens
         items = Array(result)
         self.palette = {kind: :code_actions, query: +"", index: 0, matches: items.map { |item| item["title"] || item.dig("command", "title") || "Code lens" }, items: items, client: client, editor: current, version: current.buffer.version, lens: kind == :codeLens}
@@ -379,15 +420,15 @@ module Canopus
           end
         end
         collect.call(Array(result), 0)
-        uri = LSP::Protocol.uri(current.buffer.path)
+        uri = Sadr::Protocol.uri(current.buffer.path)
         self.palette = {kind: :symbols, query: +"", index: 0, matches: symbols.map { |symbol| "#{'  ' * symbol['_depth']}#{symbol['name']}" },
           items: symbols.map { |symbol| symbol.merge("uri" => uri, "range" => symbol["selectionRange"] || symbol["range"]) }}
       when :diagnostic
-        client.diagnostics[LSP::Protocol.uri(current.buffer.path)] = result.fetch("items", []) if result
+        client.diagnostics[Sadr::Protocol.uri(current.buffer.path)] = result.fetch("items", []) if result
       when :semantic_tokens
         types = client.capabilities.dig("semanticTokensProvider", "legend", "tokenTypes") || []
         @semantic_styles ||= {}
-        @semantic_styles[current.buffer] = [current.buffer.version, result.map { |token| token.merge(name: types[token[:type]]) }]
+        @semantic_styles[current.buffer] = [current.buffer.version, result.map { |token| token.to_h.merge(name: types[token[:type]]) }]
       when :inlayHint
         hints = result || []
         raise Error, "invalid inlay hints" unless hints.is_a?(Array)

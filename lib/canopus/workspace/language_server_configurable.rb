@@ -86,7 +86,7 @@ module Canopus
       @client_options ||= {}
       previous, client = @client_options[language], @clients[language]
       if client && previous && options && previous.except(:configuration) == options.except(:configuration)
-        client.notify("workspace/didChangeConfiguration", {settings: options[:configuration]}) if previous[:configuration] != options[:configuration]
+        client.did_change_configuration(options[:configuration]) if previous[:configuration] != options[:configuration]
         @client_options[language] = options
         return client
       end
@@ -96,9 +96,9 @@ module Canopus
         (@retired_language_clients ||= ObjectSpace::WeakMap.new)[client] = true
         @opened_lsp_documents&.keys&.each do |key|
           next unless key.first.equal?(client)
-          @opened_lsp_documents.delete(key)
-          client.close_document(LSP::Protocol.uri(key.last.path)) if key.last.path
-        rescue LSP::Error
+          close_language_document(client, key.last) if key.last.path
+        rescue Sadr::Error
+          forget_language_document(client, key.last)
           nil
         end
         client.stop
@@ -123,7 +123,7 @@ module Canopus
       return unless options
       raise Error, "Workspace closed" if @closed
       dispatcher = ->(&block) { @window ? (@main_queue ||= Queue.new) << block : block.call }
-      replacement = LSP::Client.new(**options, root: @root, dispatch: dispatcher)
+      replacement = Sadr::Client.new(**options, root: @root, dispatch: dispatcher)
       replacement.on("error") { |error| @message = error.message if @clients[language].equal?(replacement) }
       replacement.on("workspace/configuration") do |params|
         configured = @client_options.fetch(language).fetch(:configuration)
@@ -137,7 +137,7 @@ module Canopus
         end
       end
       replacement.on("workspace/applyEdit") do |params|
-        future = LSP::Future.new(nil)
+        future = Sadr::Future.new(nil)
         if @closed || @retired_language_clients&.[](replacement)
           future.fulfill({"applied" => false, "failureReason" => "Language server stopped"})
         else
@@ -155,14 +155,15 @@ module Canopus
         @opened_lsp_documents ||= {}
         @buffers.values.uniq.each do |buffer|
           next unless buffer.path && !buffer.read_only && definition_for(buffer.path).name == language
-          replacement.open_document(buffer, language_id: language)
-          @opened_lsp_documents[[replacement, buffer]] = true
+          open_language_document(replacement, buffer, language)
         end
         replacement
       rescue StandardError
         replacement.stop
         @clients.delete(language) if @clients[language].equal?(replacement)
-        @opened_lsp_documents&.delete_if { |(owner, _), _| owner.equal?(replacement) }
+        @opened_lsp_documents&.keys&.each do |owner, buffer|
+          forget_language_document(owner, buffer) if owner.equal?(replacement)
+        end
         raise
       ensure
         @starting_language_clients.delete(language)
@@ -172,6 +173,9 @@ module Canopus
     def stop_language_servers
       @starting_language_clients&.values&.each(&:stop)
       (@client_lock ||= Mutex.new).synchronize do
+        @language_document_subscriptions&.each_value(&:detach)
+        @language_document_subscriptions&.clear
+        @opened_lsp_documents&.clear
         @clients.each_value(&:stop)
         @clients.clear
       end

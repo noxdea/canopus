@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require_relative "test_helper"
-require_relative "../lib/canopus/lsp"
 require "stringio"
 require "rbconfig"
 
@@ -13,20 +12,20 @@ class LSPTest < Minitest::Test
   def test_framing_utf8_multiple_messages_and_malformed_input
     message = {"jsonrpc" => "2.0", "id" => 1, "result" => "日本🙂"}
     io = StringIO.new(frame(message) * 2)
-    assert_equal message, Canopus::LSP::Transport.read_message(io)
-    assert_equal message, Canopus::LSP::Transport.read_message(io)
-    assert_nil Canopus::LSP::Transport.read_message(io)
+    assert_equal message, Sadr::Transport.read_message(io)
+    assert_equal message, Sadr::Transport.read_message(io)
+    assert_nil Sadr::Transport.read_message(io)
     ["Content-Length: -1\r\n\r\n", "Content-Length: 999999999999\r\n\r\n", "Bad\r\n\r\n", "Content-Length: 10\r\n\r\n{}"].each do |invalid|
-      assert_raises(Canopus::LSP::Error) { Canopus::LSP::Transport.read_message(StringIO.new(invalid)) }
+      assert_raises(Sadr::Error) { Sadr::Transport.read_message(StringIO.new(invalid)) }
     end
   end
   def test_utf16_and_semantic_token_deltas
     rope = Denebola::Rope.new("a🙂日\nnext")
-    assert_equal({line: 0, character: 3}, Canopus::LSP::Protocol.position(rope, 5))
-    assert_equal 5, Canopus::LSP::Protocol.offset(rope, {"line" => 0, "character" => 3})
-    data = Canopus::LSP::Protocol.semantic_delta([0, 0, 3, 0, 0], [{"start" => 5, "deleteCount" => 0, "data" => [1, 2, 4, 1, 0]}])
-    assert_equal [0, 1], Canopus::LSP::Protocol.semantic_tokens(data).map { |t| t[:line] }
-    assert_raises(Canopus::LSP::Error) { Canopus::LSP::Protocol.semantic_delta(data, [{"start" => -1, "deleteCount" => 2}]) }
+    assert_equal Sadr::Position.new(line: 0, character: 3), Sadr::Protocol.position(rope, 5)
+    assert_equal 5, Sadr::Protocol.offset(rope, {"line" => 0, "character" => 3})
+    data = Sadr::Protocol.semantic_delta([0, 0, 3, 0, 0], [{"start" => 5, "deleteCount" => 0, "data" => [1, 2, 4, 1, 0]}])
+    assert_equal [0, 1], Sadr::Protocol.semantic_tokens(data).map(&:line)
+    assert_raises(Sadr::Error) { Sadr::Protocol.semantic_delta(data, [{"start" => -1, "deleteCount" => 2}]) }
   end
   def test_real_child_process_initialize_notifications_request_and_shutdown
     server = <<~'RUBY'
@@ -54,17 +53,25 @@ class LSPTest < Minitest::Test
         STDOUT.write("Content-Length: #{body.bytesize}\r\n\r\n#{body}")
       end
     RUBY
-    client = Canopus::LSP::Client.new(command: [RbConfig.ruby, "-e", server], restart: false).start(timeout: 3)
+    client = Sadr::Client.new(command: [RbConfig.ruby, "-e", server], restart: false)
+    client.start(timeout: 3)
     assert_equal :running, client.state
     buffer = Canopus::Buffer.new("日本", path: "/private/tmp/lsp test.rb")
-    uri = client.open_document(buffer, language_id: "ruby")
+    uri = Sadr::Protocol.uri(buffer.path)
+    client.open(Sadr::Document.new(uri: uri, language_id: "ruby", version: buffer.version, text: buffer.text))
     assert_includes uri, "lsp%20test.rb"
     buffer.edit([[0...0, "x"]])
-    assert_equal "hover 日本", client.hover(buffer, 1).await.fetch("contents")
-    client.close_document(uri)
+    client.change(uri, buffer.version, [Sadr::ContentChange.new(range: nil, text: buffer.text)])
+    assert_equal "hover 日本", client.hover(uri, Sadr::Protocol.position(buffer.rope, 1)).await.fetch("contents")
+    client.close(uri)
     client.stop
     assert_equal :stopped, client.state
   ensure
     client&.stop
+  end
+
+  def test_editor_exposes_sadr_without_a_protocol_adapter
+    assert defined?(Sadr::Client)
+    refute Canopus.const_defined?(:LSP, false)
   end
 end

@@ -24,7 +24,7 @@ class ConfirmationLayoutTest < Minitest::Test
   def test_every_cjk_target_character_can_be_read_by_paging_at_minimum_size
     @window.resize(100, 100)
     path = File.join(@root, "日本" * 40 + ".txt")
-    @workspace.confirm_workspace_edit({"documentChanges" => [{"kind" => "delete", "uri" => Canopus::LSP::Protocol.uri(path)}]})
+    @workspace.confirm_workspace_edit({"documentChanges" => [{"kind" => "delete", "uri" => Sadr::Protocol.uri(path)}]})
     @controller.tick
     palette = @workspace.palette
     lines = palette[:detail_lines]

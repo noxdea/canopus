@@ -294,7 +294,7 @@ class WorkspaceTest < Minitest::Test
     original = @workspace.open(path)
     assert_same original.buffer, @workspace.open("alias.rb").buffer
     client = Object.new
-    client.define_singleton_method(:close_document) { |_| raise IOError, "closed pipe" }
+    client.define_singleton_method(:close) { |_| raise IOError, "closed pipe" }
     @workspace.instance_variable_set(:@opened_lsp_documents, {[client, original.buffer] => true})
     @workspace.close_editor(original)
     refute_includes @workspace.buffers.values, original.buffer
@@ -316,12 +316,12 @@ class WorkspaceTest < Minitest::Test
     assert_equal "precious draft", draft.buffer.text
     notifications = []
     client = Object.new
-    client.define_singleton_method(:save_document) { |uri| notifications << uri }
-    client.define_singleton_method(:close_document) { |_| }
+    client.define_singleton_method(:save) { |uri| notifications << uri }
+    client.define_singleton_method(:close) { |_| }
     @workspace.instance_variable_set(:@opened_lsp_documents, {[client, original.buffer] => true})
     original.insert_text("saved ")
     @workspace.save_buffer(original.buffer)
-    assert_equal [Canopus::LSP::Protocol.uri(File.realpath(path))], notifications
+    assert_equal [Sadr::Protocol.uri(File.realpath(path))], notifications
   end
 
   def test_new_path_cannot_overwrite_an_existing_file

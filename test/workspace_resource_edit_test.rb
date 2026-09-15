@@ -15,7 +15,7 @@ class WorkspaceResourceEditTest < Minitest::Test
   end
 
   def path(name) = File.join(@directory, name)
-  def uri(name) = Canopus::LSP::Protocol.uri(path(name))
+  def uri(name) = Sadr::Protocol.uri(path(name))
   def create(name, **options) = {"kind" => "create", "uri" => uri(name), "options" => options.transform_keys(&:to_s)}
   def rename(from, to, **options) = {"kind" => "rename", "oldUri" => uri(from), "newUri" => uri(to), "options" => options.transform_keys(&:to_s)}
   def delete(name, **options) = {"kind" => "delete", "uri" => uri(name), "options" => options.transform_keys(&:to_s)}
@@ -145,7 +145,7 @@ class WorkspaceResourceEditTest < Minitest::Test
   end
 
   def test_confirmation_lists_targets_and_defaults_to_cancel
-    future = Canopus::LSP::Future.new(nil)
+    future = Sadr::Future.new(nil)
     @workspace.confirm_workspace_edit({"documentChanges" => [create("a.rb", overwrite: true)]}, response: future)
     assert_equal 1, @workspace.palette[:index]
     assert_includes @workspace.palette[:details].first, path("a.rb")
@@ -188,13 +188,13 @@ class WorkspaceResourceEditTest < Minitest::Test
   def test_confirmation_resolves_request_and_only_runs_code_action_command_after_success
     window = Zaniah::Platform.open_window(backend: :headless, width: 300, height: 200)
     controller = Canopus::Controller.new(@workspace, window)
-    future = Canopus::LSP::Future.new(nil)
+    future = Sadr::Future.new(nil)
     @workspace.confirm_workspace_edit({"documentChanges" => [create("cancelled.rb")]}, response: future)
     controller.input(Zaniah::Input::KeyDown.new("enter", false))
     assert_equal false, future.await["applied"]
     refute File.exist?(path("cancelled.rb"))
 
-    accepted = Canopus::LSP::Future.new(nil)
+    accepted = Sadr::Future.new(nil)
     @workspace.confirm_workspace_edit({"documentChanges" => [create("accepted.rb")]}, response: accepted)
     controller.input(Zaniah::Input::KeyDown.new("up", false))
     controller.input(Zaniah::Input::KeyDown.new("enter", false))

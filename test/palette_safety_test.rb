@@ -20,8 +20,8 @@ class PaletteSafetyTest < Minitest::Test
   end
 
   def confirm(name = "created.txt")
-    future = Canopus::LSP::Future.new(nil)
-    edit = {"documentChanges" => [{"kind" => "create", "uri" => Canopus::LSP::Protocol.uri(File.join(@root, name))}]}
+    future = Sadr::Future.new(nil)
+    edit = {"documentChanges" => [{"kind" => "create", "uri" => Sadr::Protocol.uri(File.join(@root, name))}]}
     @workspace.confirm_workspace_edit(edit, response: future)
     future
   end

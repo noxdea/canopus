@@ -20,27 +20,32 @@ class LanguageServerConfigurationTest < Minitest::Test
       self
     end
     def on(name, &block) = @handlers[name] = block
-    def open_document(buffer, language_id:)
-      @events << [:open, buffer.path, language_id]
-      @documents[Canopus::LSP::Protocol.uri(buffer.path)] = buffer.on_edit { |patch| @events << [:change, buffer.path, patch.after.to_s] }
+    def open(document)
+      @events << [:open, Sadr::Protocol.path(document.uri), document.language_id]
+      @documents[document.uri] = document
     end
-    def close_document(uri)
+    def change(uri, version, changes)
+      document = @documents.fetch(uri)
+      @events << [:change, Sadr::Protocol.path(uri), changes.last.text]
+      @documents[uri] = document.with(version: version, text: changes.last.text)
+    end
+    def close(uri)
       @events << [:close, uri]
-      @documents.delete(uri)&.detach
+      @documents.delete(uri)
       @diagnostics.delete(uri)
     end
     def stop
       @before_stop&.call
       @before_stop = nil
-      @documents.each_value(&:detach)
       @documents.clear
       @diagnostics.clear
-      @pending&.fulfill(error: Canopus::LSP::Error.new("language server stopped"))
+      @pending&.fulfill(error: Sadr::Error.new("language server stopped"))
       @state = :stopped
       @events << [:stop]
     end
     def notify(name, payload) = @events << [name, payload]
-    def hover(*) = @pending ||= Canopus::LSP::Future.new(1)
+    def did_change_configuration(settings) = notify("workspace/didChangeConfiguration", settings: settings)
+    def hover(*) = @pending ||= Sadr::Future.new(1)
     def capabilities = {}
   end
 
@@ -58,7 +63,7 @@ class LanguageServerConfigurationTest < Minitest::Test
   end
 
   def with_clients(&block)
-    Canopus::LSP::Client.stub(:new, ->(**options) { FakeClient.new(**options).tap { |client| @created << client } }, &block)
+    Sadr::Client.stub(:new, ->(**options) { FakeClient.new(**options).tap { |client| @created << client } }, &block)
   end
 
   def wait_until
@@ -86,14 +91,14 @@ class LanguageServerConfigurationTest < Minitest::Test
     with_clients do
       old = @workspace.language_client(@editor.buffer)
       assert_equal 2, old.events.count { |event| event.first == :open }
-      old.pending = Canopus::LSP::Future.new(9)
+      old.pending = Sadr::Future.new(9)
       configure(["server-b"])
       current = @workspace.clients.fetch("ruby")
       refute_same old, current
       assert_equal ["server-b"], current.options[:command]
       assert_equal 2, old.events.count { |event| event.first == :close }
       assert_equal 2, current.events.count { |event| event.first == :open }
-      assert_raises(Canopus::LSP::Error) { old.pending.await(timeout: 0) }
+      assert_raises(Sadr::Error) { old.pending.await(timeout: 0) }
       second.insert_text("value", auto_indent: false)
       refute old.events.any? { |event| event.first == :change }
       assert_equal 1, current.events.count { |event| event.first == :change }
@@ -247,7 +252,7 @@ class LanguageServerConfigurationTest < Minitest::Test
         end
       end
     end
-    Canopus::LSP::Client.stub(:new, factory) do
+    Sadr::Client.stub(:new, factory) do
       @workspace.language_client
       @settings.merge!("language_servers" => {"ruby" => ["server-b"]})
       @workspace.apply_settings

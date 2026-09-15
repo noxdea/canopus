@@ -40,7 +40,7 @@ module Canopus
 
       def local_path(uri)
         raise Error, "resource URI is too long" unless uri.is_a?(String) && uri.bytesize <= 16_384
-        path = File.expand_path(LSP::Protocol.path(uri))
+        path = File.expand_path(Sadr::Protocol.path(uri))
         raise Error, "resource path is too long" if path.bytesize > 4_096
         unless path.start_with?(@root + File::SEPARATOR)
           parent, pieces = File.dirname(path), [File.basename(path)]
@@ -159,7 +159,7 @@ module Canopus
           @edit_count += 1
           raise Error, "workspace edit text exceeds safety limits" if @text_bytes > (32 << 20) || @edit_count > 100_000
           range = entry.fetch("range")
-          [LSP::Protocol.offset(node.rope, range.fetch("start"))...LSP::Protocol.offset(node.rope, range.fetch("end")), entry.fetch("newText")]
+          [Sadr::Protocol.offset(node.rope, range.fetch("start"))...Sadr::Protocol.offset(node.rope, range.fetch("end")), entry.fetch("newText")]
         end
         node.rope = node.rope.apply_edits(changes)
         node.version += 1 unless changes.empty?
