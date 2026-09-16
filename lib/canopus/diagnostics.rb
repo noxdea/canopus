@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
-require "sadr"
+require "sadr" unless defined?(Sadr::Protocol) && defined?(Sadr::Error)
 
 module Canopus
   module Diagnostics
