@@ -296,7 +296,7 @@ module Canopus
 
     def start_language_client(language, options, index:, timeout: nil)
       raise Error, "Workspace closed" if @closed
-      dispatcher = ->(&block) { @window ? (@main_queue ||= Queue.new) << block : block.call }
+      dispatcher = ->(&block) { @window ? @main_queue << block : block.call }
       replacement = Sadr::Client.new(**options.except(:features, :legacy), root: @root, dispatch: dispatcher)
       replacement.on("error") { |error| @message = error.message if language_client_active?(replacement) }
       replacement.on("workspace/configuration") do |params|

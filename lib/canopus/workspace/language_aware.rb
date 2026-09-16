@@ -74,7 +74,7 @@ module Canopus
     end
 
     def post(&block)
-      (@main_queue ||= Queue.new) << block
+      @main_queue << block
       @window&.request_frame
     end
     def language_clients(buffer = editor.buffer, feature: nil, timeout: nil)

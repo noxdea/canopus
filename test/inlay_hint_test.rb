@@ -68,6 +68,27 @@ class InlayHintTest < Minitest::Test
     end
   end
 
+  def test_simultaneous_first_posts_reuse_the_initialized_main_queue
+    initialized = @workspace.instance_variable_get(:@main_queue)
+    ready, release = Queue.new, Queue.new
+    callbacks = []
+    workers = 2.times.map do |index|
+      Thread.new do
+        ready << true
+        release.pop
+        @workspace.post { callbacks << index }
+      end
+    end
+    2.times { ready.pop }
+    2.times { release << true }
+    workers.each(&:join)
+    @workspace.drain
+
+    refute_nil initialized
+    assert_same initialized, @workspace.instance_variable_get(:@main_queue)
+    assert_equal [0, 1], callbacks.sort
+  end
+
   def test_ruby_lsp_style_parts_become_ordered_inline_hints_with_padding_and_location_click
     hint = {"position" => position(85, 8), "kind" => 1, "paddingLeft" => true, "paddingRight" => true,
       "label" => [{"value" => ": "}, {"value" => "String", "location" => location}]}

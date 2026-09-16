@@ -40,6 +40,7 @@ module Canopus
     def initialize(root: Dir.pwd, settings: nil)
       @root = File.realpath(root)
       @settings = settings || Settings.new(Settings.user_path, File.join(@root, ".canopus", "settings.jsonc"))
+      @main_queue = Queue.new
       @panes, @buffers = [Pane.new], {}
       @active_pane = @panes.first
       @layout = {pane: @active_pane}
