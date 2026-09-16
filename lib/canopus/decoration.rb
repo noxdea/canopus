@@ -65,7 +65,7 @@ module Canopus
           end
           supplied
         end
-        items.sort_by { |item| item.priority }.freeze
+        items.each_with_index.sort_by { |item, index| [item.priority, index] }.map!(&:first).freeze
       end
 
       def invalidate(source, buffer: nil, rows: nil)

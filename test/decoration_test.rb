@@ -20,6 +20,15 @@ class DecorationTest < Minitest::Test
     assert items.frozen?
   end
 
+  def test_registry_preserves_supplier_order_for_equal_priorities
+    registry = Canopus::Decoration::Registry.new
+    buffer = Canopus::Buffer.new("one\n")
+    registry.register(:first) { |_buffer, _rows| [item(source: :first), item(source: :first)] }
+    registry.register(:second) { |_buffer, _rows| [item(source: :second)] }
+
+    assert_equal %i[first first second], registry.items_for(buffer, 0...1).map(&:source)
+  end
+
   def test_cache_tracks_edits_and_selection_changes_and_can_be_invalidated
     registry = Canopus::Decoration::Registry.new
     buffer = Canopus::Buffer.new("one\ntwo\n")
