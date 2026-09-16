@@ -9,7 +9,7 @@ module Canopus
     Link = Data.define(:kind, :target, :line, :column)
 
     def terminal_link_at(point)
-      return unless @terminal_bounds&.contains?(point) && @workspace.terminal
+      return unless @terminal_bounds&.contains?(point) && displayed_terminal
       column, row = terminal_point(point)
       cells = terminal_row(@terminal_first + row)
       column -= 1 while column.positive? && cells[column].width.zero?
@@ -63,13 +63,13 @@ module Canopus
       format("#%02x%02x%02x", ramp[index / 36], ramp[index / 6 % 6], ramp[index % 6])
     end
     def terminal_point(point)
-      grid = @workspace.terminal.grid
+      grid = displayed_terminal.grid
       column = ((point.x - @terminal_bounds.x) / @terminal_cell_width).floor.clamp(0, grid.columns - 1)
       row = ((point.y - @terminal_bounds.y) / (@terminal_line_height || @line_height)).floor.clamp(0, grid.rows - 1)
       [column, row]
     end
     def terminal_scroll(delta)
-      @terminal_scroll = ((@terminal_scroll || 0) - delta).clamp(0, @workspace.terminal.grid.scrollback.length)
+      @terminal_scroll = ((@terminal_scroll || 0) - delta).clamp(0, displayed_terminal.grid.scrollback.length)
       @terminal_selection = nil
     end
     def terminal_select(point, extend: false)
@@ -113,7 +113,7 @@ module Canopus
       if (location = value.match(/\A(.+?)(?::(\d+)(?::(\d+))?|\((\d+)(?:,(\d+))?\))\z/))
         value, line, column = location[1], (location[2] || location[4]).to_i, (location[3] || location[5])&.to_i
       end
-      directory = @workspace.terminal.vt.cwd
+      directory = displayed_terminal.vt.cwd
       directory = @workspace.root unless directory && File.directory?(directory)
       path = File.expand_path(value, directory)
       Link.new(:file, path, line, column) if File.file?(path)
@@ -131,31 +131,48 @@ module Canopus
     end
 
     def terminal_row(index)
-      grid = @workspace.terminal.grid
+      grid = displayed_terminal.grid
       index < grid.scrollback.length ? grid.scrollback[index] : grid.cells[index - grid.scrollback.length]
     end
+    def displayed_terminal = @terminal_owner || @workspace.terminal
     def render_terminal(bounds)
+      render_pty_panel(bounds, entries: @workspace.terminals, active: @workspace.terminal,
+        title: ->(item) { @workspace.terminal_title(item) }, prefix: :terminal,
+        empty: "No terminals — Ctrl+Shift+` to create one") { |item| item }
+    end
+
+    def render_task_output(bounds)
+      render_pty_panel(bounds, entries: @workspace.task_outputs, active: @workspace.task_output,
+        title: ->(item) { @workspace.task_output_title(item) }, prefix: :task_output,
+        empty: "No task output — run task with Cmd/Ctrl+Shift+B") { |item| item.terminal }
+    end
+
+    def render_pty_panel(bounds, entries:, active:, title:, prefix:, empty:, &terminal_for)
       fill(bounds, :panel)
       @terminal_bounds = nil
-      terminal = @workspace.terminal
+      terminal = active && terminal_for.call(active)
       unless terminal
-        text("No terminals — Ctrl+Shift+` to create one", bounds.x + 12, bounds.y + 8, color: :muted, size: 12)
+        @terminal_owner = nil
+        text(empty, bounds.x + 12, bounds.y + 8, color: :muted, size: 12)
         return
       end
       if @terminal_owner != terminal
         @terminal_owner, @terminal_scroll, @terminal_selection = terminal, 0, nil
       end
       x = bounds.x
-      @workspace.terminals.each_with_index do |current, index|
-        label = @workspace.terminal_title(current)
+      entries.each_with_index do |current, index|
+        label = title.call(current)
         width = [[label.length * 7.5 + 42, 100].max, 220].min
         tab = Zaniah::Bounds.new(x, bounds.y, width, 28)
-        fill(tab, :active_tab) if current.equal?(terminal)
-        text(label, tab.x + 10, tab.y + 6, color: current.equal?(terminal) ? :foreground : :muted, size: 12)
-        region(tab, role: :tab, label: label, action: [:terminal_tab, index])
+        fill(tab, :active_tab) if current.equal?(active)
+        text(label, tab.x + 10, tab.y + 6, color: current.equal?(active) ? :foreground : :muted, size: 12)
+        tab_action = prefix == :terminal ? :terminal_tab : :task_output_tab
+        region(tab, role: :tab, label: label, action: [tab_action, index])
         close = Zaniah::Bounds.new(tab.right - 25, tab.y, 25, tab.height)
-        text("×", close.x + 6, close.y + 5, color: :muted, size: 12)
-        region(close, role: :button, label: "Close #{label}", action: [:terminal_close, index])
+        running = prefix == :task_output && @workspace.task_runner.running?(current)
+        text(running ? "■" : "×", close.x + 6, close.y + 5, color: :muted, size: 12)
+        close_action = prefix == :terminal ? :terminal_close : :task_output_close
+        region(close, role: :button, label: "#{running ? 'Stop' : 'Close'} #{label}", action: [close_action, index])
         x += width
       end
       @terminal_font_size = @workspace.settings["terminal"]["font_size"] || @font_size
@@ -163,7 +180,7 @@ module Canopus
       @terminal_cell_width = @cx.text_system&.layout_line("M", size: @terminal_font_size)&.width || @terminal_font_size * 0.6
       columns = [(bounds.width - 24) / @terminal_cell_width, @workspace.settings["terminal"]["min_cols"]].max.floor
       rows = [(bounds.height - 40) / @terminal_line_height, @workspace.settings["terminal"]["min_rows"]].max.floor
-      @workspace.resize_terminal(columns, rows)
+      prefix == :terminal ? @workspace.resize_terminal(columns, rows) : @workspace.resize_task_output(columns, rows)
       grid = terminal.grid
       @terminal_bounds = Zaniah::Bounds.new(bounds.x + 12, bounds.y + 32, columns * @terminal_cell_width, rows * @terminal_line_height).intersect(bounds)
       @terminal_scroll = (@terminal_scroll || 0).clamp(0, grid.scrollback.length)
@@ -216,10 +233,11 @@ module Canopus
       end
       if terminal.respond_to?(:status) && terminal.status
         code = terminal.status.exited? ? terminal.status.exitstatus : "signal #{terminal.status.termsig}"
-        text("Process exited with #{code} — press Enter to restart", @terminal_bounds.x + 4,
+        hint = prefix == :terminal ? "Process exited with #{code} — press Enter to restart" : "Task exited with #{code}"
+        text(hint, @terminal_bounds.x + 4,
           [@terminal_bounds.bottom - @terminal_line_height, @terminal_bounds.y].max, color: :muted, size: 11)
       end
-      region(@terminal_bounds, role: :terminal, label: "Terminal", action: [:terminal])
+      region(@terminal_bounds, role: :terminal, label: prefix == :terminal ? "Terminal" : "Task output", action: [prefix])
     end
   end
 end

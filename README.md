@@ -47,6 +47,7 @@ installable.
 - Nested bracket colors and active indentation guides backed by Antares structure analysis
 - Optional GPU minimap with shared line textures, viewport navigation, and overview markers
 - Resizable integrated terminal with multiple tabs, scrollback, selection, colors, and clickable links
+- Bounded JSONC project tasks with color-preserving, interactive Output tabs
 - Git diff, blame, hunk reversal, and branch switching
 - Editable project-wide search results and safe project file operations
 - Optional Vim-compatible modes, motions, operators, registers, macros, and Ex commands
@@ -106,6 +107,7 @@ plugin options.
 | Close / reopen tab | Cmd-W / Cmd-Shift-T | Ctrl-W / Ctrl-Shift-T |
 | New terminal tab | Ctrl-Shift-Backtick | Ctrl-Shift-Backtick |
 | Next / previous terminal | Ctrl-Shift-] / Ctrl-Shift-[ | Ctrl-Shift-] / Ctrl-Shift-[ |
+| Run task | Cmd-Shift-B | Ctrl-Shift-B |
 
 The command palette also exposes Git operations, language actions (including
 `language.linked_editing`, `language.call_hierarchy`, and
@@ -221,6 +223,11 @@ selected frame.
 Breakpoint files use an atomic rename
 for normal same-user workspace consistency; concurrent malicious workspace
 mutation is outside that guarantee.
+
+Project task definitions, variables, Output tabs, and reveal behavior are
+described in [Tasks](docs/tasks.md). `task.run` opens the task picker,
+`task.stop` stops the selected running Output tab, and `panel.output` toggles
+the panel.
 
 Plugins require explicit trust and permissions:
 

@@ -382,7 +382,7 @@ module Canopus
     def register_action: (String name, ?description: String, ?category: String, ?condition: String, ?keybinding: Command::keybinding) { (*untyped) -> untyped } -> Command::Definition
     def definition_for: (String? path) -> Language::Definition
     def register_language: (String name, extensions: Array[String], ?lexer: String, ?comment: String, ?indent_open: String, ?indent_close: String, ?servers: Array[Array[String]]) -> untyped
-    def command_context: (?terminal: bool) -> Command::context
+    def command_context: (?terminal: bool, ?task_output: bool) -> Command::context
     def call: (String name, *untyped arguments, ?context: Command::context?) -> untyped
     def save_session: (String path) -> void
     def restore_session: (String path) -> self

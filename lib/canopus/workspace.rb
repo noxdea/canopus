@@ -63,6 +63,7 @@ module Canopus
       @panels.register(Panel::Definition.new("problems", "Problems", nil, :right, -> { problems_tree }, nil), visible: false)
       @panels.register(Panel::Definition.new("debug", "Debug", nil, :left, -> { debug_tree }, nil), visible: false)
       @panels.register(Panel::Definition.new("debug_console", "Debug Console", nil, :bottom, -> { debug_console_tree }, nil), visible: false)
+      @panels.register(Panel::Definition.new("output", "Output", nil, :bottom, -> { task_output }, nil), visible: false)
       @panels.hide("hierarchy")
       @decorations = Decoration::Registry.new
       @decorations.register(:selection_match) do |buffer, rows, current|
@@ -93,6 +94,7 @@ module Canopus
       @languages, @terminals = {}, []
       @active_terminal_index = 0
       @closed_tabs, @terminal_names = [], {}
+      initialize_tasks
       register_actions
     end
     def editor = @active_pane.active
@@ -102,7 +104,12 @@ module Canopus
     end
     def terminal_visible = @panels.visible?("terminal") && @docks[:bottom][:visible]
     def terminal_visible=(visible)
-      visible ? @panels.show("terminal") : @panels.hide("terminal")
+      if visible
+        @panels.hide("output") if @panels.visible?("output")
+        @panels.show("terminal")
+      else
+        @panels.hide("terminal")
+      end
     end
     def terminal = @terminals[@active_terminal_index]
     def terminal=(value)
@@ -557,8 +564,8 @@ module Canopus
         end
       end
     end
-    def command_context(terminal: false)
-      {"Terminal" => terminal, "Editor" => !!editor,
+    def command_context(terminal: false, task_output: false)
+      {"Terminal" => terminal, "TaskOutput" => task_output, "Editor" => !!editor,
        "vim_mode" => @settings["vim_mode"] && editor ? vim.mode.to_s : false}
     end
     def call(name, *args, context: nil)
@@ -643,7 +650,7 @@ module Canopus
         return
       end
       if [:locations, :symbols, :code_actions, :outline, :branches, :settings_keys, :snippet_choices,
-          :breadcrumbs, :hierarchy_roots, :language_servers, :debug_configurations, :debug_watch_remove].include?(@palette[:kind])
+          :breadcrumbs, :hierarchy_roots, :language_servers, :debug_configurations, :debug_watch_remove, :tasks].include?(@palette[:kind])
         labels = @palette[:all_matches] ||= @palette[:matches].dup
         index = @palette[:kind] == :language_servers ? Spica::Index.new(labels, tie_break: :index) : Spica::Index.new(labels)
         session = @palette[:search] ||= index.session
@@ -667,6 +674,7 @@ module Canopus
       @palette[:index] = @palette[:index].clamp(0, [@palette[:matches].length - 1, 0].max)
     end
     def palette_accept
+      return accept_task_palette if @palette[:kind] == :tasks
       return accept_breakpoint_palette if [:breakpoint_actions, :breakpoint_edit].include?(@palette[:kind])
       return accept_debug_watch_palette if [:debug_watch_add, :debug_watch_remove].include?(@palette[:kind])
       return accept_debug_console_palette if @palette[:kind] == :debug_console
@@ -837,6 +845,7 @@ module Canopus
       cleanup.call { @minimap.close }
       cleanup.call { @watcher&.close }
       cleanup.call { stop_language_servers }
+      cleanup.call { close_tasks }
       terminal_closers = @terminals.filter_map do |current|
         Thread.new { current.close } if current.respond_to?(:close)
       end
@@ -866,6 +875,8 @@ module Canopus
       register_action("debug.watch.add", description: "Add Debug Watch") { show_debug_watch_add }
       register_action("debug.watch.remove", description: "Remove Debug Watch") { show_debug_watch_remove }
       register_action("debug.console.evaluate", description: "Evaluate in Debug Console") { show_debug_console }
+      register_action("task.run", description: "Run Task") { show_tasks }
+      register_action("task.stop", description: "Stop Task", condition: "TaskOutput") { stop_task }
       register_action("file.find") { palette_open(:files) }
       register_action("project.new_file") { project_prompt(:create_file) }
       register_action("project.new_folder") { project_prompt(:create_folder) }
@@ -924,6 +935,7 @@ module Canopus
       register_action("panel.problems") { @panels.toggle("problems") }
       register_action("panel.debug") { @panels.toggle("debug") }
       register_action("panel.debug_console") { @panels.toggle("debug_console") }
+      register_action("panel.output") { toggle_task_output }
       register_action("problems.filter") { show_problem_filter }
       [:left, :right, :bottom].each { |side| register_action("view.dock_#{side}") { toggle_dock(side) } }
       register_action("view.wrap") { editor.display_map.wrap_width = editor.display_map.wrap_map.width ? nil : 100 }
@@ -1057,6 +1069,7 @@ require_relative "workspace/project_searchable"
 require_relative "workspace/settings_aware"
 require_relative "workspace/file_previewable"
 require_relative "workspace/debug_aware"
+require_relative "workspace/task_aware"
 Canopus::Workspace.include Canopus::Workspace::SessionPersistable
 Canopus::Workspace.include Canopus::Workspace::ProjectTreeEditable
 Canopus::Workspace.include Canopus::Workspace::FileChangeAware
@@ -1069,3 +1082,4 @@ Canopus::Workspace.include Canopus::Workspace::ProjectSearchable
 Canopus::Workspace.include Canopus::Workspace::SettingsAware
 Canopus::Workspace.include Canopus::Workspace::FilePreviewable
 Canopus::Workspace.include Canopus::Workspace::DebugAware
+Canopus::Workspace.include Canopus::Workspace::TaskAware

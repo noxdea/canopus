@@ -8,8 +8,8 @@ module Canopus
     def initialize(workspace, window)
       @workspace, @window, @view = workspace, window, Workspace::View.new(workspace)
       workspace.window = window
-      workspace.register_action("terminal.copy", condition: "Terminal") { terminal_copy }
-      workspace.register_action("terminal.paste", condition: "Terminal") do
+      workspace.register_action("terminal.copy", condition: "Terminal || TaskOutput") { terminal_copy }
+      workspace.register_action("terminal.paste", condition: "Terminal || TaskOutput") do
         terminal_paste(@window.respond_to?(:clipboard) ? @window.clipboard.to_s : @clipboard)
       end
       reload_keymap
@@ -19,6 +19,7 @@ module Canopus
       window.on_appearance { |_| workspace.apply_settings if workspace.settings["theme"] == "auto" } if window.respond_to?(:on_appearance)
       window.on_tick do
         workspace.drain_terminals
+        workspace.drain_task_outputs
         workspace.drain
         workspace.poll_changes
         workspace.poll_settings
@@ -29,7 +30,7 @@ module Canopus
         poll_scroll
         window.request_frame if @view.tick
       end
-      @clipboard, @terminal_focus = "", false
+      @clipboard, @terminal_focus = "", nil
       workspace.new_buffer unless workspace.editor
     end
     def input(event)
@@ -55,7 +56,7 @@ module Canopus
       when Zaniah::Input::TextInput
         input_text(event.text)
       when Zaniah::Input::Composition
-        if @terminal_focus && @workspace.terminal_visible
+        if focused_terminal
           @workspace.terminal_composition = event
         else
           @workspace.new_buffer unless @workspace.editor
@@ -75,9 +76,11 @@ module Canopus
         scroll_drag(event.position) if @scroll_drag
         if @terminal_drag
           @terminal_drag == :selection ? @view.terminal_select(event.position, extend: true) : terminal_mouse(event, :move)
-        elsif !(@drag || @resize_drag || @scroll_drag || @drag_file || @drag_tab) &&
-            @workspace.terminal_visible && @workspace.terminal&.vt&.modes&.[](1003) && @view.hit(event.position)&.first == :terminal
-          terminal_mouse(event, :move)
+        elsif !(@drag || @resize_drag || @scroll_drag || @drag_file || @drag_tab)
+          target = @view.hit(event.position)&.first
+          terminal = target == :terminal ? (@workspace.terminal if @workspace.terminal_visible) :
+            (@workspace.task_terminal if target == :task_output && @workspace.task_output_visible)
+          terminal_mouse(event, :move, terminal: terminal) if terminal&.vt&.modes&.[](1003)
         end
         unless @drag || @resize_drag || @scroll_drag || @minimap_drag || @drag_file || @drag_tab || @terminal_drag
           target = @view.hit(event.position)
@@ -140,9 +143,9 @@ module Canopus
           :breakpoint_actions].include?(@workspace.palette[:kind])
         @workspace.palette[:query] << text
         @workspace.update_palette
-      elsif @terminal_focus && @workspace.terminal_visible
+      elsif (terminal = focused_terminal)
         @workspace.terminal_composition = nil
-        @workspace.terminal.write(text)
+        terminal.write(text)
       else
         @workspace.new_buffer unless @workspace.editor
         if @workspace.settings["vim_mode"]
@@ -159,15 +162,16 @@ module Canopus
       stroke = Zaniah::Input::Keystroke.normalize(stroke)
       return palette_key(stroke) if @workspace.palette
       return if @composing && (stroke.split("-") & %w[ctrl cmd]).empty?
-      if stroke == "cmd-q" || stroke == "ctrl-q" && !(@terminal_focus && @workspace.terminal_visible)
+      if stroke == "cmd-q" || stroke == "ctrl-q" && !focused_terminal
         return @window.close
       end
-      if @terminal_focus && @workspace.terminal_visible && @workspace.terminal
-        if stroke == "enter" && @workspace.terminal.respond_to?(:alive?) && !@workspace.terminal.alive?
+      if (terminal = focused_terminal)
+        if terminal_focused? && stroke == "enter" && terminal.respond_to?(:alive?) && !terminal.alive?
           return @workspace.restart_terminal
         end
         mode = @workspace.settings["vim_mode"] && @workspace.editor ? @workspace.vim.mode.to_s : false
-        context = @workspace.command_context(terminal: true).merge("Editor" => false, "vim_mode" => mode)
+        context = @workspace.command_context(terminal: terminal_focused?,
+          task_output: @terminal_focus == :task_output).merge("Editor" => false, "vim_mode" => mode)
         action = @keymap.dispatch(stroke, context: context)
         if action && action != :pending
           @drag_terminal_tab = nil if action == "terminal.close"
@@ -181,7 +185,7 @@ module Canopus
         name = parts.pop
         return if (name.length == 1 || name == "space") && (parts & %w[ctrl alt cmd]).empty?
         name = {"esc" => "escape", "pageup" => "page_up", "pagedown" => "page_down", "space" => " "}.fetch(name, name)
-        return @workspace.terminal.key(name, control: parts.include?("ctrl"), alt: parts.include?("alt"), shift: parts.include?("shift"))
+        return terminal.key(name, control: parts.include?("ctrl"), alt: parts.include?("alt"), shift: parts.include?("shift"))
       end
       return @workspace.settings_completions if stroke == "ctrl-space" && @workspace.editor && @workspace.settings_document?(@workspace.editor.buffer)
       mode = @workspace.settings["vim_mode"] && @workspace.editor ? @workspace.vim.mode.to_s : false
@@ -443,8 +447,9 @@ module Canopus
           @workspace.close_terminal(index) if palette[:index].zero? && index
         elsif palette[:kind] == :confirm_terminal_paste
           value = palette[:text]
+          terminal = palette[:terminal]
           @workspace.palette = nil
-          @workspace.terminal&.paste(value) if palette[:index].zero?
+          terminal&.paste(value) if palette[:index].zero?
         elsif palette[:kind] == :terminal_rename
           @workspace.rename_terminal(palette[:query])
           @workspace.palette = nil
@@ -467,7 +472,11 @@ module Canopus
           return
         end
       end
-      @terminal_focus = [:terminal, :terminal_tab, :terminal_close].include?(kind)
+      @terminal_focus = if [:terminal, :terminal_tab, :terminal_close].include?(kind)
+        :terminal
+      elsif [:task_output, :task_output_tab, :task_output_close].include?(kind)
+        :task_output
+      end
       case kind
       when :decoration, :context_decoration
         if event.button == :left
@@ -497,9 +506,9 @@ module Canopus
           @workspace.focus(pane)
           @minimap_drag = [pane, editor]
         end
-      when :terminal
+      when :terminal, :task_output
         return if event.button == :left && @view.terminal_open_link(event.position, modifiers: event.modifiers)
-        tracking = [1000, 1002, 1003].any? { |mode| @workspace.terminal.vt.modes[mode] }
+        tracking = [1000, 1002, 1003].any? { |mode| focused_terminal.vt.modes[mode] }
         if tracking && !event.modifiers.map(&:to_s).include?("shift")
           @terminal_drag = event.button
           terminal_mouse(event, :press)
@@ -512,6 +521,13 @@ module Canopus
         @drag_terminal_tab = [args.first, event.position] if event.button == :left
       when :terminal_close
         @workspace.request_terminal_close(args.first) if event.button == :left
+      when :task_output_tab
+        @workspace.activate_task_output(args.first)
+      when :task_output_close
+        output = @workspace.task_outputs[args.first]
+        if event.button == :left && output
+          @workspace.task_runner.running?(output) ? @workspace.stop_task(output) : @workspace.close_task_output(args.first)
+        end
       when :file then @workspace.open(args.first)
       when :directory then @workspace.project_tree.toggle(args.first)
       when :tab
@@ -579,10 +595,11 @@ module Canopus
         end
       elsif [:file, :directory].include?(action&.first)
         @view.project_scroll(event.delta.y / 24.0)
-      elsif action&.first == :terminal
-        if [1000, 1002, 1003].any? { |mode| @workspace.terminal.vt.modes[mode] }
+      elsif [:terminal, :task_output].include?(action&.first)
+        terminal = action.first == :terminal ? @workspace.terminal : @workspace.task_terminal
+        if [1000, 1002, 1003].any? { |mode| terminal.vt.modes[mode] }
           column, row = @view.terminal_point(event.position)
-          @workspace.terminal.mouse(button: event.delta.y.positive? ? :wheel_down : :wheel_up, column: column, row: row)
+          terminal.mouse(button: event.delta.y.positive? ? :wheel_down : :wheel_up, column: column, row: row)
         else
           @view.terminal_scroll(event.delta.y / 20.0)
         end
@@ -598,25 +615,32 @@ module Canopus
         editor.scroll(dx: fraction.clamp(0, 1) * maximum - editor.scroll_x)
       end
     end
-    def terminal_mouse(event, action)
+    def terminal_mouse(event, action, terminal: focused_terminal)
+      return unless terminal
       column, row = @view.terminal_point(event.position)
       modifiers = event.modifiers.map(&:to_s)
-      @workspace.terminal.mouse(button: @terminal_drag, column: column, row: row, action: action,
+      terminal.mouse(button: @terminal_drag, column: column, row: row, action: action,
         shift: modifiers.include?("shift"), alt: modifiers.include?("alt"), control: modifiers.include?("ctrl"))
     end
 
     def terminal_paste(text)
       if @workspace.settings["terminal"]["confirm_multiline_paste"] && text.match?(/[\r\n].*[\r\n]?/m)
         @workspace.palette = {kind: :confirm_terminal_paste, query: "Paste multiple lines into the terminal?", index: 1,
-          matches: ["Paste", "Cancel"], text: text}
+          matches: ["Paste", "Cancel"], text: text, terminal: focused_terminal}
       else
-        @workspace.terminal.paste(text)
+        focused_terminal&.paste(text)
       end
     end
     def terminal_copy
       @clipboard = @view.terminal_selected_text
       @window.clipboard = @clipboard if @window.respond_to?(:clipboard=)
     end
+    def focused_terminal
+      return @workspace.terminal if terminal_focused? && @workspace.terminal_visible
+      return @workspace.task_terminal if @terminal_focus == :task_output && @workspace.task_output_visible
+      nil
+    end
+    def terminal_focused? = @terminal_focus == :terminal || @terminal_focus == true
     def resize_drag(point)
       kind, target, bounds = @resize_drag
       if kind == :split_resize

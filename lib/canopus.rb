@@ -34,6 +34,8 @@ require_relative "canopus/debug/console"
 tarazed_path = ENV["TARAZED_PATH"]
 tarazed_root = File.expand_path("..", __dir__)
 tarazed_path ? require(File.expand_path("lib/tarazed", File.expand_path(tarazed_path, tarazed_root))) : require("tarazed")
+require_relative "canopus/task/configuration"
+require_relative "canopus/task/runner"
 require_relative "canopus/workspace"
 require_relative "canopus/plugins"
 require_relative "canopus/controller"

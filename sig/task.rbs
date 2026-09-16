@@ -1,0 +1,73 @@
+module Canopus::Task
+  type definition = Hash[String, Canopus::json]
+
+  class Configuration
+    RELATIVE_PATH: String
+    MAX_BYTES: Integer
+    MAX_TASKS: Integer
+    MAX_DEPTH: Integer
+    MAX_COLLECTION_SIZE: Integer
+    MAX_STRING_BYTES: Integer
+    MAX_EXPANDED_BYTES: Integer
+    MAX_ENVIRONMENT_BYTES: Integer
+    VARIABLE: Regexp
+
+    attr_reader root: String
+    attr_reader tasks: Array[definition]
+    def initialize: (root: String, ?environment: untyped) -> void
+    def resolve: (String | definition task, ?file: String?, ?line_number: Integer?, ?selected_text: String?) -> definition
+  end
+
+  class Runner
+    class Output < Data
+      attr_reader id: Integer
+      attr_reader label: String
+      attr_reader terminal: Tarazed::PTY
+      attr_reader presentation: definition
+      def self.new: (Integer id, String label, Tarazed::PTY terminal, definition presentation) -> instance
+    end
+
+    MAX_OUTPUTS: Integer
+    MAX_CLOSERS: Integer
+    STOP_GRACE_SECONDS: Float
+
+    attr_reader active_index: Integer
+    def initialize: (scrollback: Integer, queue_limit_bytes: Integer, ?terminal_factory: untyped, ?report: untyped) -> void
+    def entries: () -> Array[Output]
+    def active: () -> Output?
+    def terminal: () -> Tarazed::PTY?
+    def run: (definition task) -> Output
+    def activate: (Integer index) -> Output
+    def remove: (?Integer index) -> Output?
+    def stop: (?Output? output) -> bool
+    def running?: (?Output? output) -> bool
+    def completed: () -> Array[Output]
+    def drain: (max_bytes: Integer, ?max_seconds: Numeric) -> bool
+    def pending?: () -> bool
+    def resize: (Integer columns, Integer rows) -> void
+    def close: () -> nil
+  end
+end
+
+module Canopus
+  class Workspace
+    attr_reader task_runner: Task::Runner
+    def initialize_tasks: () -> Task::Runner
+    def task_outputs: () -> Array[Task::Runner::Output]
+    def task_output: () -> Task::Runner::Output?
+    def task_terminal: () -> Tarazed::PTY?
+    def task_output_visible: () -> bool
+    def show_tasks: () -> (nil | false)
+    def run_task: (String | Task::definition task) -> Task::Runner::Output
+    def accept_task_palette: () -> Task::Runner::Output?
+    def show_task_output: (?Task::Runner::Output? output) -> Task::Runner::Output?
+    def toggle_task_output: () -> untyped
+    def activate_task_output: (Integer index) -> Task::Runner::Output
+    def close_task_output: (?Integer index) -> Task::Runner::Output?
+    def stop_task: (?Task::Runner::Output? output) -> bool
+    def drain_task_outputs: () -> bool
+    def resize_task_output: (Integer columns, Integer rows) -> void
+    def task_output_title: (Task::Runner::Output output) -> String
+    def close_tasks: () -> nil
+  end
+end

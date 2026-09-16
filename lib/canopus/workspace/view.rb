@@ -48,7 +48,7 @@ module Canopus
       fill(bounds, :background)
       left_panels = drawable_panels(:left)
       bottom_panels = drawable_panels(:bottom)
-      bottom_visible = @workspace.docks[:bottom][:visible] && (@workspace.terminal_visible || !bottom_panels.empty?)
+      bottom_visible = @workspace.docks[:bottom][:visible] && (@workspace.task_output_visible || @workspace.terminal_visible || !bottom_panels.empty?)
       bottom = bottom_visible ? [bounds.height * 0.7, @workspace.docks[:bottom][:size]].min : 0
       left_visible = @workspace.docks[:left][:visible] && (@workspace.show_project || !left_panels.empty?)
       sidebar = left_visible && bounds.width >= 620 ? [@workspace.docks[:left][:size], bounds.width * 0.4].min : 0
@@ -65,7 +65,13 @@ module Canopus
       paint_layout(@workspace.layout, body)
       if bottom.positive?
         area = Zaniah::Bounds.new(sidebar, body.height, body.width, bottom)
-        @workspace.terminal_visible ? paint_terminal(area) : paint_panels(:bottom, area)
+        if @workspace.task_output_visible
+          paint_task_output(area)
+        elsif @workspace.terminal_visible
+          paint_terminal(area)
+        else
+          paint_panels(:bottom, area)
+        end
       end
       paint_panels(:right, Zaniah::Bounds.new(bounds.width - right, 0, right, bounds.height - 26)) if right.positive?
       region(Zaniah::Bounds.new(sidebar - 3, 0, 6, body.height), role: :separator, label: "Resize left dock", action: [:dock_resize, :left, bounds]) if sidebar.positive?
@@ -211,7 +217,7 @@ module Canopus
       end
     end
     def drawable_panels(side)
-      @workspace.panels.active(side).reject { |definition| %w[terminal explorer search].include?(definition.id) }
+      @workspace.panels.active(side).reject { |definition| %w[terminal output explorer search].include?(definition.id) }
     end
     def paint_layout(node, bounds)
       return paint_pane(node[:pane], bounds) if node[:pane]
@@ -887,6 +893,9 @@ module Canopus
     end
     def paint_terminal(bounds)
       render_terminal(bounds)
+    end
+    def paint_task_output(bounds)
+      render_task_output(bounds)
     end
     def paint_status(bounds)
       fill(bounds, :status)
