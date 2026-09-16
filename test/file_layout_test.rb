@@ -7,7 +7,7 @@ class FileLayoutTest < Minitest::Test
   LAYOUT_EXCEPTIONS = %w[data_compat.rb match_data_compat.rb regexp_compat.rb].freeze
   VAGUE_SUFFIX = /(?:Services|Actions|Methods|Mixin|Concern|Module)\z/
   MIXED_ACRONYM = /(?:\A|[a-z\d])(?:Api|Cli|Lsp|Odb|Pty|Ui|Vt)(?:\z|[A-Z])/
-  ACRONYMS = {"api" => "API", "cli" => "CLI", "lsp" => "LSP", "pty" => "PTY", "vt" => "VT"}.freeze
+  ACRONYMS = {"api" => "API", "cli" => "CLI", "lsp" => "LSP", "pty" => "PTY", "rspec" => "RSpec", "vt" => "VT"}.freeze
 
   def test_production_constants_have_focused_names_and_matching_files
     Dir[File.expand_path("../lib/**/*.rb", __dir__)].sort.each do |path|
@@ -53,6 +53,9 @@ class FileLayoutTest < Minitest::Test
   end
 
   def underscore(name)
+    acronym = ACRONYMS.key(name)
+    return acronym if acronym
+
     name.gsub(/([A-Z\d]+)([A-Z][a-z])/, '\\1_\\2').gsub(/([a-z\d])([A-Z])/, '\\1_\\2').downcase
   end
 

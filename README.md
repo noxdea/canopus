@@ -230,6 +230,10 @@ described in [Tasks](docs/tasks.md). `task.run` opens the task picker,
 the panel. Single-line, multi-line, and watch problem matchers publish task
 output into the shared Problems panel and editor diagnostics.
 
+The [Test explorer](docs/testing.md) discovers Minitest and RSpec declarations
+with a bounded Alkaid walk and Prism AST inspection. `panel.test` opens the
+tree, `test.refresh` rescans it, and selecting a test opens its declaration.
+
 Plugins require explicit trust and permissions:
 
 ```sh
@@ -245,6 +249,7 @@ network privileges.
 
 - [Language servers](docs/lsp.md)
 - [Debug configurations](docs/debugging.md)
+- [Test explorer](docs/testing.md)
 - [Vim mode](docs/vim.md)
 - [Snippets](docs/snippets.md)
 - [Completion providers](docs/providers.md)

@@ -37,6 +37,7 @@ tarazed_path ? require(File.expand_path("lib/tarazed", File.expand_path(tarazed_
 require_relative "canopus/task/configuration"
 require_relative "canopus/task/problem_matcher"
 require_relative "canopus/task/runner"
+require_relative "canopus/test_runner"
 require_relative "canopus/workspace"
 require_relative "canopus/plugins"
 require_relative "canopus/controller"

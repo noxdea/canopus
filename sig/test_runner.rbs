@@ -1,0 +1,81 @@
+module Canopus::TestRunner
+  MAX_PATH_BYTES: Integer
+
+  def self.normalize_path: (untyped path) -> String?
+  def self.framework_for: (untyped path) -> (:minitest | :rspec)?
+
+  interface _Adapter
+    def candidate?: (String path) -> bool
+    def discover: (untyped root, path: String, limit: Integer, cancelled: ^() -> bool) -> Array[Test]
+  end
+
+  class Test < Data
+    attr_reader framework: :minitest | :rspec
+    attr_reader path: String
+    attr_reader name: String
+    attr_reader groups: Array[String]
+    attr_reader line: Integer
+    attr_reader column: Integer
+    attr_reader offset: Integer
+    def self.new: (:minitest | :rspec framework, String path, String name, Array[String] groups,
+      Integer line, Integer column, Integer offset) -> instance
+  end
+
+  class Minitest
+    MAX_NODES: Integer
+    MAX_GROUP_DEPTH: Integer
+    MAX_NAME_BYTES: Integer
+    SPEC_GROUPS: Array[Symbol]
+    SPEC_TESTS: Array[Symbol]
+    def candidate?: (String path) -> bool
+    def discover: (untyped root, path: String, limit: Integer, cancelled: ^() -> bool) -> Array[Test]
+  end
+
+  class BoundedIgnore
+    MAX_FILES: Integer
+    MAX_FILE_BYTES: Integer
+    MAX_TOTAL_BYTES: Integer
+    MAX_LINES: Integer
+    MAX_LINE_BYTES: Integer
+    MAX_GIT_POINTER_BYTES: Integer
+    def initialize: (String root, ?delegate: untyped, ?cancelled: ^() -> bool) -> void
+    def ignored?: (untyped path, ?directory: bool) -> bool
+  end
+
+  class RSpec
+    MAX_NODES: Integer
+    MAX_GROUP_DEPTH: Integer
+    MAX_NAME_BYTES: Integer
+    GROUPS: Array[Symbol]
+    EXAMPLES: Array[Symbol]
+    def candidate?: (String path) -> bool
+    def discover: (untyped root, path: String, limit: Integer, cancelled: ^() -> bool) -> Array[Test]
+  end
+
+  class Discovery
+    MAX_FILES: Integer
+    MAX_TEST_FILES: Integer
+    MAX_FILE_BYTES: Integer
+    MAX_TESTS: Integer
+    MAX_DEPTH: Integer
+    MAX_PATH_BYTES: Integer
+    MAX_ADAPTERS: Integer
+    MAX_NAME_BYTES: Integer
+    MAX_GROUPS: Integer
+    attr_reader root: String
+    def initialize: (root: String, ?ignore: untyped, ?adapters: Array[_Adapter]) -> void
+    def discover: (?cancelled: ^() -> bool) -> Array[Test]
+  end
+end
+
+module Canopus
+  class Workspace
+    attr_reader tests: Array[TestRunner::Test]
+    def initialize_tests: () -> nil
+    def test_tree: () -> Zaniah::UI::TreeView
+    def refresh_tests: () -> Thread
+    def test_discovery_pending?: () -> bool
+    def toggle_tests: () -> nil
+    def close_tests: () -> nil
+  end
+end

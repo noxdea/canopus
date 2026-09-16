@@ -64,6 +64,7 @@ module Canopus
       @panels.register(Panel::Definition.new("debug", "Debug", nil, :left, -> { debug_tree }, nil), visible: false)
       @panels.register(Panel::Definition.new("debug_console", "Debug Console", nil, :bottom, -> { debug_console_tree }, nil), visible: false)
       @panels.register(Panel::Definition.new("output", "Output", nil, :bottom, -> { task_output }, nil), visible: false)
+      @panels.register(Panel::Definition.new("test", "Tests", nil, :left, -> { test_tree }, nil), visible: false)
       @panels.hide("hierarchy")
       @decorations = Decoration::Registry.new
       @decorations.register(:selection_match) do |buffer, rows, current|
@@ -95,6 +96,7 @@ module Canopus
       @active_terminal_index = 0
       @closed_tabs, @terminal_names = [], {}
       initialize_tasks
+      initialize_tests
       register_actions
     end
     def editor = @active_pane.active
@@ -167,6 +169,7 @@ module Canopus
     def refresh_files
       @files = @project_tree = @project_entries = nil
       @finder_index = nil
+      refresh_tests if @test_discovery_started && !@closed
       if @palette && @palette[:kind] == :files
         @palette.delete(:search)
         update_palette
@@ -845,6 +848,7 @@ module Canopus
       cleanup.call { @minimap.close }
       cleanup.call { @watcher&.close }
       cleanup.call { stop_language_servers }
+      cleanup.call { close_tests }
       cleanup.call { close_tasks }
       terminal_closers = @terminals.filter_map do |current|
         Thread.new { current.close } if current.respond_to?(:close)
@@ -877,6 +881,7 @@ module Canopus
       register_action("debug.console.evaluate", description: "Evaluate in Debug Console") { show_debug_console }
       register_action("task.run", description: "Run Task") { show_tasks }
       register_action("task.stop", description: "Stop Task", condition: "TaskOutput") { stop_task }
+      register_action("test.refresh", description: "Refresh Tests") { refresh_tests }
       register_action("file.find") { palette_open(:files) }
       register_action("project.new_file") { project_prompt(:create_file) }
       register_action("project.new_folder") { project_prompt(:create_folder) }
@@ -936,6 +941,7 @@ module Canopus
       register_action("panel.debug") { @panels.toggle("debug") }
       register_action("panel.debug_console") { @panels.toggle("debug_console") }
       register_action("panel.output") { toggle_task_output }
+      register_action("panel.test") { toggle_tests }
       register_action("problems.filter") { show_problem_filter }
       [:left, :right, :bottom].each { |side| register_action("view.dock_#{side}") { toggle_dock(side) } }
       register_action("view.wrap") { editor.display_map.wrap_width = editor.display_map.wrap_map.width ? nil : 100 }
@@ -1070,6 +1076,7 @@ require_relative "workspace/settings_aware"
 require_relative "workspace/file_previewable"
 require_relative "workspace/debug_aware"
 require_relative "workspace/task_aware"
+require_relative "workspace/test_aware"
 Canopus::Workspace.include Canopus::Workspace::SessionPersistable
 Canopus::Workspace.include Canopus::Workspace::ProjectTreeEditable
 Canopus::Workspace.include Canopus::Workspace::FileChangeAware
@@ -1083,3 +1090,4 @@ Canopus::Workspace.include Canopus::Workspace::SettingsAware
 Canopus::Workspace.include Canopus::Workspace::FilePreviewable
 Canopus::Workspace.include Canopus::Workspace::DebugAware
 Canopus::Workspace.include Canopus::Workspace::TaskAware
+Canopus::Workspace.include Canopus::Workspace::TestAware

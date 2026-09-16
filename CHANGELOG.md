@@ -19,6 +19,8 @@
 - Evaluate selected-frame REPL and hover expressions and show bounded, ordered adapter output in the Debug Console.
 - Run bounded JSONC project tasks through Tarazed PTYs in interactive, color-preserving Output tabs.
 - Publish bounded single-line, multi-line, and watch task problem matches through the shared diagnostics registry.
+- Keep regex-backed task diagnostics responsive on Ruby 3.1 with one deferred complete-line retry before fail-closed disabling.
+- Discover bounded Minitest and RSpec declarations with Alkaid and Prism and browse them in the Tests panel.
 - Preserve registration order for equal-priority decorations across Ruby versions and platforms.
 - Show cached, viewport-scoped language-server inlay hints inline with clickable label locations.
 - Show cached language-server code lenses above source lines and resolve them only when visible.
