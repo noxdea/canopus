@@ -6,6 +6,7 @@
 - Delegate terminal emulation and POSIX/Windows PTY handling to Tarazed; the editor UI is unchanged.
 - Delegate project walking and content search to Alkaid while retaining Canopus's search and replace UI.
 - Show language-server diagnostics as severity-colored wave underlines and optional line-end messages.
+- Collect LSP, task, and test diagnostics in one bounded registry with a filterable Problems panel and status counts.
 - Show cached, viewport-scoped language-server inlay hints inline with clickable label locations.
 - Show cached language-server code lenses above source lines and resolve them only when visible.
 - Highlight language-server read, write, and text occurrences for each visible editor caret.

@@ -15,11 +15,12 @@ require_relative "panel"
 require_relative "decoration"
 require_relative "provider"
 require_relative "minimap"
+require_relative "diagnostics"
 
 module Canopus
   class Workspace
     ClosedTab = Data.define(:path, :selections, :scroll_x, :scroll_y, :pane_id, :index)
-    attr_reader :panes, :active_pane, :buffers, :actions, :commands, :settings, :theme, :project, :clients, :root, :docks, :panels, :decorations, :providers, :minimap
+    attr_reader :panes, :active_pane, :buffers, :actions, :commands, :settings, :theme, :project, :clients, :root, :docks, :panels, :decorations, :providers, :minimap, :diagnostics
     attr_reader :terminals, :active_terminal_index
     attr_accessor :window, :terminal_composition, :selected_project_path, :performance
     attr_reader :message, :palette
@@ -46,6 +47,7 @@ module Canopus
       @panels.register(Panel::Definition.new("search", "Search", nil, :left, -> { palette_open(:project_search) }, nil))
       @panels.register(Panel::Definition.new("explorer", "Explorer", nil, :left, -> { project_tree }, nil))
       @panels.register(Panel::Definition.new("hierarchy", "Hierarchy", nil, :right, -> { hierarchy_tree }, nil), visible: false)
+      @panels.register(Panel::Definition.new("problems", "Problems", nil, :right, -> { problems_tree }, nil), visible: false)
       @panels.hide("hierarchy")
       @decorations = Decoration::Registry.new
       @decorations.register(:selection_match) do |buffer, rows, current|
@@ -67,6 +69,9 @@ module Canopus
       @decorations.register(:code_lens) { |buffer, rows| code_lens_decorations(buffer, rows) }
       @decorations.register(:bracket) { |buffer, rows, current| bracket_decorations(buffer, rows, current) }
       @minimap = Minimap.new
+      @diagnostics = Diagnostics::Registry.new do |uri|
+        @window ? post { diagnostics_changed(uri) } : diagnostics_changed(uri)
+      end
       @providers = Provider::Registry.new
       @providers.register_completion(:lsp, priority: 100) { |buffer, offset, context| lsp_completions(buffer, offset, context) }
       @languages, @terminals = {}, []
@@ -645,6 +650,10 @@ module Canopus
         index = current[:indices] ? current[:indices][current[:index]] : current[:index]
         self.palette = nil
         return accept_hierarchy_root(current, index)
+      elsif @palette[:kind] == :problem_filter
+        query = @palette[:query]
+        self.palette = nil
+        return apply_problem_filter(query)
       elsif @palette[:kind] == :rename && @palette[:rename]
         current = @submitting_rename_palette = @palette
         begin
@@ -833,6 +842,8 @@ module Canopus
       register_action("panel.search") { @panels.fetch("search").build.call }
       register_action("panel.terminal") { @terminals.empty? ? new_terminal : @panels.toggle("terminal") }
       register_action("panel.hierarchy") { @panels.toggle("hierarchy") if @hierarchy_state }
+      register_action("panel.problems") { @panels.toggle("problems") }
+      register_action("problems.filter") { show_problem_filter }
       [:left, :right, :bottom].each { |side| register_action("view.dock_#{side}") { toggle_dock(side) } }
       register_action("view.wrap") { editor.display_map.wrap_width = editor.display_map.wrap_map.width ? nil : 100 }
       register_action("view.theme") { self.theme = @theme.name.include?("Dark") ? "Canopus Light" : "Canopus Dark" }
@@ -958,6 +969,7 @@ require_relative "workspace/file_change_aware"
 require_relative "workspace/language_server_configurable"
 require_relative "workspace/language_aware"
 require_relative "workspace/hierarchy_aware"
+require_relative "workspace/problems_aware"
 require_relative "workspace/git_aware"
 require_relative "workspace/project_searchable"
 require_relative "workspace/settings_aware"
@@ -968,6 +980,7 @@ Canopus::Workspace.include Canopus::Workspace::FileChangeAware
 Canopus::Workspace.include Canopus::Workspace::LanguageServerConfigurable
 Canopus::Workspace.include Canopus::Workspace::LanguageAware
 Canopus::Workspace.include Canopus::Workspace::HierarchyAware
+Canopus::Workspace.include Canopus::Workspace::ProblemsAware
 Canopus::Workspace.include Canopus::Workspace::GitAware
 Canopus::Workspace.include Canopus::Workspace::ProjectSearchable
 Canopus::Workspace.include Canopus::Workspace::SettingsAware

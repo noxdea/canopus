@@ -1,0 +1,26 @@
+module Canopus
+  module Diagnostics
+    type source = :lsp | :task | :test
+    type severity = :error | :warning | :information | :hint
+
+    SOURCES: Array[source]
+    SEVERITIES: Hash[severity, Integer]
+
+    class Entry < Data
+      attr_reader source: source
+      attr_reader uri: String
+      attr_reader diagnostic: Sadr::object
+      def self.new: (source source, String uri, Sadr::object diagnostic) -> instance
+    end
+
+    class Registry
+      attr_reader version: Integer
+      def initialize: () -> void
+                    | () { (String) -> void } -> void
+      def publish: (source source, String uri, Array[Sadr::object] diagnostics) -> Array[Sadr::object]
+      def for_uri: (String uri) -> Array[Entry]
+      def all: (?severity: Integer | severity?, ?source: source?) -> Array[Entry]
+      def counts: () -> {error: Integer, warning: Integer, information: Integer, hint: Integer}
+    end
+  end
+end

@@ -34,6 +34,7 @@ installable.
 - Native GPU windows on macOS, Linux, and Windows, plus TUI and headless modes
 - Persistent buffers, tabs, splits, sessions, and explicit save-conflict handling
 - LSP completion, diagnostics, hover, symbols, formatting, prevalidated rename, and code actions
+- Filterable Problems tree for LSP, task, and test diagnostics, with error and warning status counts
 - Automatic read, write, and text highlights for the symbol at each visible editor's caret
 - Clickable LSP document links with on-demand resolution and safe HTTP or local-file navigation
 - LSP folding ranges with an asynchronous Antares fallback
@@ -106,9 +107,11 @@ plugin options.
 
 The command palette also exposes Git operations, language actions (including
 `language.linked_editing`, `language.call_hierarchy`, and
-`language.type_hierarchy`), project file
-operations, settings, themes, docks, and Vim mode. Project deletion moves files
-to `.canopus/trash` instead of deleting them immediately.
+`language.type_hierarchy`), project file operations, settings, themes, docks,
+Vim mode, `panel.problems`, and `problems.filter`. The problem filter accepts
+free text plus optional `severity:error` and `source:lsp` terms (`warning`,
+`information`, `hint`, `task`, and `test` are also accepted). Project deletion
+moves files to `.canopus/trash` instead of deleting them immediately.
 
 ## Configuration
 

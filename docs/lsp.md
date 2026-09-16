@@ -31,6 +31,16 @@ severe message on each line is also shown at line end by default. Configure this
 with `diagnostics.inline`, `diagnostics.inline_max_length`, and the minimum
 `diagnostics.severity` (`error`, `warning`, `information`, or `hint`).
 
+The Problems panel groups validated local-file diagnostics by file and also
+accepts task and test sources through the diagnostics registry. Selecting a
+problem opens its exact source position. `problems.filter` filters the tree by
+free text and optional terms such as `severity:warning` and `source:task`; the
+status bar shows current error and warning totals.
+
+Task and test integrations publish the same validated LSP-shaped records with
+`workspace.diagnostics.publish(:task, uri, diagnostics)` or `:test`. Publishing
+an empty array removes that source's records for the URI.
+
 Inlay hints are fetched for the visible source lines plus 50 lines of context and
 shown inline. Label parts with a server-provided location are clickable. Configure
 type and parameter-name hints, or their display limit, with `inlay_hints.types`,

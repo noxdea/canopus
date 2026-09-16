@@ -291,15 +291,15 @@ module Canopus
     end
     private :request_completions, :cancel_completion_requests, :lsp_completions
     def diagnostics_for(buffer)
-      return [] if !buffer.path || @clients.empty?
+      return [] unless buffer.path
       uri = Sadr::Protocol.uri(buffer.path)
-      @clients.values.flat_map do |client|
-        key = [client, buffer]
-        next [] unless @opened_lsp_documents&.key?(key)
-        version = @diagnostic_versions&.dig(client, uri)
-        next [] if version && version != buffer.version
-
-        client.diagnostics.fetch(uri, [])
+      @diagnostics.for_uri(uri).filter_map do |entry|
+        if entry.source == :lsp
+          client = @diagnostic_owners&.[](uri)
+          next unless client && @opened_lsp_documents&.key?([client, buffer])
+          next if @diagnostic_versions&.dig(client, uri) != buffer.version
+        end
+        entry.diagnostic
       end
     end
 
@@ -781,16 +781,12 @@ module Canopus
       end
     end
     def show_diagnostics
-      items, labels = [], []
-      @buffers.each_value.uniq.each do |buffer|
-        next unless buffer.path
-        diagnostics_for(buffer).each do |diagnostic|
-          row = diagnostic.dig("range", "start", "line")
-          next unless row.is_a?(Integer)
-          labels << "#{File.basename(buffer.path)}:#{row + 1} #{diagnostic['message']}"
-          items << {"uri" => Sadr::Protocol.uri(buffer.path), "range" => diagnostic.fetch("range")}
-        end
+      entries = @diagnostics.all
+      labels = entries.map do |entry|
+        row = entry.diagnostic.dig("range", "start", "line")
+        "#{File.basename(Sadr::Protocol.path(entry.uri))}:#{row + 1} #{entry.diagnostic['message']}"
       end
+      items = entries.map { |entry| {"uri" => entry.uri, "range" => entry.diagnostic.fetch("range")} }
       self.palette = {kind: :locations, query: +"", index: 0, matches: labels, items: items}
       update_palette
     end
@@ -1625,10 +1621,12 @@ module Canopus
       version = params["version"]
       return if version && version != buffer.version
 
+      @diagnostics.publish(:lsp, uri, params.fetch("diagnostics"))
       (@diagnostic_versions ||= {}).tap { |versions| (versions[client] ||= {})[uri] = buffer.version }
+      (@diagnostic_owners ||= {})[uri] = client
       invalidate_diagnostics(buffer)
       @window&.request_frame
-    rescue KeyError, Sadr::Error
+    rescue ArgumentError, KeyError, Sadr::Error
       nil
     end
 
@@ -3157,7 +3155,12 @@ module Canopus
         versions.delete(uri)
         @diagnostic_versions.delete(client) if versions.empty?
       end
-      invalidate_diagnostics(buffer)
+      if uri && @diagnostic_owners&.[](uri).equal?(client)
+        @diagnostic_owners.delete(uri)
+        @diagnostics.publish(:lsp, uri, [])
+      else
+        invalidate_diagnostics(buffer)
+      end
       invalidate_document_highlights(buffer, client: client)
       invalidate_document_links(buffer, client: client)
       invalidate_folding_ranges(buffer, client: client)
@@ -3170,6 +3173,9 @@ module Canopus
     end
 
     def sync_language_document(client, uri, buffer, patch)
+      if @diagnostic_owners&.[](uri).equal?(client) && @diagnostics.for_uri(uri).any? { |entry| entry.source == :lsp }
+        @diagnostics.publish(:lsp, uri, [])
+      end
       changes = if patch.is_a?(Patch)
         patch.edits.reverse.map do |edit|
           Sadr::ContentChange.new(range: Sadr::Protocol.range(patch.before, edit.old_range), text: edit.new_text)
@@ -3289,8 +3295,8 @@ module Canopus
       when :diagnostic
         if result
           uri = Sadr::Protocol.uri(current.buffer.path)
-          client.diagnostics[uri] = result.fetch("items", [])
-          accept_diagnostic_notification(client, {"uri" => uri, "version" => current.buffer.version})
+          accept_diagnostic_notification(client, {"uri" => uri, "version" => current.buffer.version,
+            "diagnostics" => result.fetch("items", [])})
         end
       when :semantic_tokens
         types = client.capabilities.dig("semanticTokensProvider", "legend", "tokenTypes") || []

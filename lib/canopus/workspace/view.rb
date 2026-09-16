@@ -894,11 +894,12 @@ module Canopus
       branch = @workspace.git&.branch
       left = "#{branch}    #{left}" if branch
       left = ":#{@workspace.vim.command_line}" if @workspace.settings["vim_mode"] && @workspace.vim.command_line
-      diagnostics = @workspace.decorations.items_for(editor.buffer, 0...editor.buffer.line_count)
-        .count { |item| item.source == :diagnostics && item.kind == :highlight }
+      diagnostic_counts = @workspace.diagnostics.counts
+      diagnostics = "#{diagnostic_counts[:error].zero? ? '' : "E#{diagnostic_counts[:error]} "}" \
+        "#{diagnostic_counts[:warning].zero? ? '' : "W#{diagnostic_counts[:warning]} "}"
       language = editor.language_document.definition.name
       lsp = @workspace.clients[language]
-      right = "#{diagnostics.zero? ? '' : "!#{diagnostics}  "}#{language}#{lsp ? " LSP:#{lsp.state}" : ''}   #{point.row + 1}:#{point.column + 1}   #{editor.use_tabs ? 'Tab' : 'Spaces'}:#{editor.tab_size}   #{editor.buffer.encoding.name}"
+      right = "#{diagnostics}#{language}#{lsp ? " LSP:#{lsp.state}" : ''}   #{point.row + 1}:#{point.column + 1}   #{editor.use_tabs ? 'Tab' : 'Spaces'}:#{editor.tab_size}   #{editor.buffer.encoding.name}"
       @scene.clip(bounds) do
         text(left, 12, bounds.y + 6, color: :foreground, size: 12)
         text(right, [bounds.width - right.length * 7.2 - 16, bounds.width * 0.5].max, bounds.y + 6, color: :muted, size: 12)

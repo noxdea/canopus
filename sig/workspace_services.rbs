@@ -32,6 +32,7 @@ module Canopus
     attr_reader panels: Panel::Registry
     attr_reader decorations: Decoration::Registry
     attr_reader providers: Provider::Registry
+    attr_reader diagnostics: Diagnostics::Registry
     attr_accessor window: Zaniah::Platform::Headless::Window?
     attr_reader palette: palette_state?
     def palette=: (palette_state? value) -> void
@@ -74,6 +75,9 @@ module Canopus
     def invalidate_code_lenses: (?Buffer? buffer, ?client: Sadr::Client?) -> nil
     def accept_language_result: (palette_state palette, Integer index) -> void
     def show_diagnostics: () -> void
+    def problems_tree: () -> Zaniah::UI::TreeView
+    def filter_problems: (?severity: Integer | Diagnostics::severity?, ?source: Diagnostics::source?, ?text: String?) -> Hash[Symbol, untyped]
+    def show_problem_filter: () -> void
     def show_outline: () -> void
     def git: () -> Thuban::Repository?
     def git_status: () -> Hash[String, String]
