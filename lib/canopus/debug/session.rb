@@ -36,6 +36,17 @@ module Canopus
         handler
       end
 
+      def stopped_thread_id = @lock.synchronize { @stopped_thread_id }
+
+      def stack_frames(levels: 100)
+        client, thread_id = inspection_state
+        client.stack_trace(thread_id, start: 0, levels: levels)
+      end
+
+      def scopes(frame_id) = inspection_client.scopes(frame_id)
+      def variables(reference) = inspection_client.variables(reference)
+      def evaluate(expression, frame_id:) = inspection_client.evaluate(expression, frame_id: frame_id, context: "watch")
+
       def start
         deadline = monotonic_time + @timeout
         initialized = Queue.new
@@ -43,9 +54,9 @@ module Canopus
         install_client(client)
         client.on(:initialized) { initialized << true }
         client.on(:stopped) { |event| stopped(client, event) }
-        client.on(:continued) { emit(:continued) }
-        client.on(:terminated) { emit(:terminated) }
-        client.on(:exited) { emit(:terminated) }
+        client.on(:continued) { clear_stopped_thread; emit(:continued) }
+        client.on(:terminated) { clear_stopped_thread; emit(:terminated) }
+        client.on(:exited) { clear_stopped_thread; emit(:terminated) }
 
         capabilities = client.start(adapter_id: adapter_id, timeout: remaining(deadline))
         request = request_start(client)
@@ -102,6 +113,18 @@ module Canopus
       end
 
       private
+
+      def inspection_state
+        @lock.synchronize do
+          raise Error, "debug session is not stopped" if @closed || !@client || !@stopped_thread_id
+
+          [@client, @stopped_thread_id]
+        end
+      end
+
+      def inspection_client = inspection_state.first
+
+      def clear_stopped_thread = @lock.synchronize { @stopped_thread_id = nil }
 
       def build_client(deadline)
         command = @adapter.fetch("command")
@@ -237,11 +260,23 @@ module Canopus
         thread_id = event["threadId"] || event[:threadId]
         raise Error, "debug stop event has no thread" unless thread_id.is_a?(Integer) && thread_id.positive?
 
+        generation = client.generation
         frame = client.stack_trace(thread_id, start: 0, levels: 1).await(timeout: @timeout).first
         raise Error, "debug stop event has no stack frame" unless frame
+        return unless client.state == :stopped && client.generation == generation
+
+        accepted = @lock.synchronize do
+          next false if @closed || client.state != :stopped || client.generation != generation
+
+          @stopped_thread_id = thread_id
+          true
+        end
+        return unless accepted
 
         emit(:stopped, frame)
       rescue StandardError => error
+        return if generation && (client.state != :stopped || client.generation != generation)
+
         emit(:error, debug_error(error))
       end
 

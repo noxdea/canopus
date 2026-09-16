@@ -61,6 +61,7 @@ module Canopus
       @panels.register(Panel::Definition.new("explorer", "Explorer", nil, :left, -> { project_tree }, nil))
       @panels.register(Panel::Definition.new("hierarchy", "Hierarchy", nil, :right, -> { hierarchy_tree }, nil), visible: false)
       @panels.register(Panel::Definition.new("problems", "Problems", nil, :right, -> { problems_tree }, nil), visible: false)
+      @panels.register(Panel::Definition.new("debug", "Debug", nil, :left, -> { debug_tree }, nil), visible: false)
       @panels.hide("hierarchy")
       @decorations = Decoration::Registry.new
       @decorations.register(:selection_match) do |buffer, rows, current|
@@ -641,7 +642,7 @@ module Canopus
         return
       end
       if [:locations, :symbols, :code_actions, :outline, :branches, :settings_keys, :snippet_choices,
-          :breadcrumbs, :hierarchy_roots, :language_servers, :debug_configurations].include?(@palette[:kind])
+          :breadcrumbs, :hierarchy_roots, :language_servers, :debug_configurations, :debug_watch_remove].include?(@palette[:kind])
         labels = @palette[:all_matches] ||= @palette[:matches].dup
         index = @palette[:kind] == :language_servers ? Spica::Index.new(labels, tie_break: :index) : Spica::Index.new(labels)
         session = @palette[:search] ||= index.session
@@ -666,6 +667,7 @@ module Canopus
     end
     def palette_accept
       return accept_breakpoint_palette if [:breakpoint_actions, :breakpoint_edit].include?(@palette[:kind])
+      return accept_debug_watch_palette if [:debug_watch_add, :debug_watch_remove].include?(@palette[:kind])
       search_state = @palette.slice(:search_options, :selection, :editor, :version)
       after_save = @palette[:after_save]
       if @palette[:kind] == :snippet_choices
@@ -859,6 +861,8 @@ module Canopus
       register_action("debug.buffer_refs") { self.message = buffer_refs(editor.buffer).map { |kind, id| "#{kind}:#{id}" }.join(", ") }
       register_action("debug.start", description: "Start Debugging") { start_debugging }
       register_action("debug.stop", description: "Stop Debugging") { stop_debugging }
+      register_action("debug.watch.add", description: "Add Debug Watch") { show_debug_watch_add }
+      register_action("debug.watch.remove", description: "Remove Debug Watch") { show_debug_watch_remove }
       register_action("file.find") { palette_open(:files) }
       register_action("project.new_file") { project_prompt(:create_file) }
       register_action("project.new_folder") { project_prompt(:create_folder) }
@@ -915,6 +919,7 @@ module Canopus
       register_action("panel.terminal") { @terminals.empty? ? new_terminal : @panels.toggle("terminal") }
       register_action("panel.hierarchy") { @panels.toggle("hierarchy") if @hierarchy_state }
       register_action("panel.problems") { @panels.toggle("problems") }
+      register_action("panel.debug") { @panels.toggle("debug") }
       register_action("problems.filter") { show_problem_filter }
       [:left, :right, :bottom].each { |side| register_action("view.dock_#{side}") { toggle_dock(side) } }
       register_action("view.wrap") { editor.display_map.wrap_width = editor.display_map.wrap_map.width ? nil : 100 }

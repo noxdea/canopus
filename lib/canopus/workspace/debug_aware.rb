@@ -12,16 +12,54 @@ module Canopus
       def initialize_breakpoints
         @breakpoints = Debug::Breakpoints.new(root: @root) do |_path|
           @decorations.invalidate(:breakpoint)
+          @debug_panel&.refresh_breakpoints
           @window&.request_frame
         end
         @breakpoint_click = BreakpointClick.new(self)
         @decorations.register(:breakpoint) { |buffer, rows, current| breakpoint_decorations(buffer, rows, current) }
         @debug_generation = 0
         @debug_session = @debug_thread = @debug_position = nil
+        @debug_panel = Debug::Panel.new(breakpoints: @breakpoints,
+          post: ->(&block) { post(&block) },
+          select_frame: ->(session, frame) { select_debug_frame(session, frame) },
+          select_breakpoint: ->(entry) { select_debug_breakpoint(entry) },
+          report: ->(text) { notify(text) }, request_frame: -> { @window&.request_frame })
         @decorations.register(:debug_position) { |buffer, rows| debug_position_decorations(buffer, rows) }
       end
 
-      attr_reader :debug_session, :debug_position
+      attr_reader :debug_session, :debug_position, :debug_panel
+
+      def debug_tree = @debug_panel.tree
+      def debug_watches = @debug_panel.watches
+
+      def add_debug_watch(expression) = @debug_panel.add_watch(expression)
+      def remove_debug_watch(expression) = @debug_panel.remove_watch(expression)
+
+      def show_debug_watch_add
+        self.palette = {kind: :debug_watch_add, query: +"", index: 0, matches: []}
+      end
+
+      def show_debug_watch_remove
+        if debug_watches.empty?
+          self.message = "No debug watch expressions"
+          return false
+        end
+        self.palette = {kind: :debug_watch_remove, query: +"", index: 0,
+          matches: debug_watches.dup, items: debug_watches}
+        update_palette
+      end
+
+      def accept_debug_watch_palette
+        state = @palette
+        self.palette = nil
+        if state[:kind] == :debug_watch_add
+          add_debug_watch(state[:query])
+        else
+          index = state[:indices] ? state[:indices][state[:index]] : state[:index]
+          expression = index && state[:items][index]
+          expression && remove_debug_watch(expression)
+        end
+      end
 
       def breakpoint_decorations(buffer, rows, current = nil)
         return [] unless breakpoint_buffer?(buffer)
@@ -132,8 +170,8 @@ module Canopus
         stop_debugging if @debug_session
         generation = @debug_generation += 1
         session = build_debug_session(configuration: resolved, adapter: adapter)
-        session.on(:stopped) { |frame| post { show_debug_frame(session, generation, frame) } }
-        session.on(:continued) { post { clear_debug_position if current_debug_session?(session, generation) } }
+        session.on(:stopped) { |frame| post { handle_debug_stop(session, generation, frame) } }
+        session.on(:continued) { post { handle_debug_continue(session, generation) } }
         session.on(:terminated) { post { finish_debug_session(session, generation) } }
         session.on(:error) { |error| post { report_debug_error(session, generation, error) } }
         @debug_session = session
@@ -151,6 +189,7 @@ module Canopus
         session, thread = @debug_session, @debug_thread
         @debug_generation += 1
         @debug_session = @debug_thread = nil
+        @debug_panel.clear
         clear_debug_position
         failure = nil
         begin
@@ -194,21 +233,56 @@ module Canopus
 
         source = frame.source
         path = source && (source["path"] || source[:path])
-        path = debug_source_path(path)
-        line = frame.line
-        raise Error, "debug stack frame has an invalid line" unless line.is_a?(Integer) && line.positive?
-
-        current = open(path)
-        raise Error, "debug stack frame is outside the file" if line > current.buffer.line_count
-
-        @debug_position = {path: current.buffer.path, row: line - 1}.freeze
-        @decorations.invalidate(:debug_position)
-        current.select(current.buffer.rope.line_start(line - 1))
-        current.reveal_cursor
-        @window&.request_frame
+        show_debug_location(path, frame.line)
       rescue StandardError => error
         clear_debug_position
         notify("Debug stop could not be shown: #{error.message}")
+      end
+
+      def show_debug_location(path, line, highlight: true)
+        path = debug_source_path(path)
+        raise Error, "debug location has an invalid line" unless line.is_a?(Integer) && line.positive?
+
+        current = open(path)
+        raise Error, "debug location is outside the file" if line > current.buffer.line_count
+
+        if highlight
+          @debug_position = {path: current.buffer.path, row: line - 1}.freeze
+          @decorations.invalidate(:debug_position)
+        end
+        current.select(current.buffer.rope.line_start(line - 1))
+        current.reveal_cursor
+        @window&.request_frame
+        true
+      end
+
+      def handle_debug_stop(session, generation, frame)
+        return unless current_debug_session?(session, generation)
+
+        @debug_panel.stopped(session, frame)
+        @panels.show("debug")
+        show_debug_frame(session, generation, frame)
+      end
+
+      def handle_debug_continue(session, generation)
+        return unless current_debug_session?(session, generation)
+
+        @debug_panel.continued(session)
+        clear_debug_position
+      end
+
+      def select_debug_frame(session, frame)
+        return false unless @debug_session.equal?(session) && !@closed
+
+        show_debug_frame(session, @debug_generation, frame)
+        true
+      end
+
+      def select_debug_breakpoint(entry)
+        show_debug_location(entry.path, entry.line, highlight: false)
+      rescue StandardError => error
+        notify("Breakpoint could not be shown: #{error.message}")
+        false
       end
 
       def debug_source_path(value)
@@ -232,6 +306,7 @@ module Canopus
 
         @debug_session = @debug_thread = nil
         @debug_generation += 1
+        @debug_panel.clear
         clear_debug_position
         session.close
         notify("Debug session ended")
@@ -242,6 +317,7 @@ module Canopus
 
         @debug_session = @debug_thread = nil
         @debug_generation += 1
+        @debug_panel.clear
         clear_debug_position
         session.close
         notify(error.message)

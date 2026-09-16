@@ -29,6 +29,7 @@ megrez_path = ENV["MEGREZ_PATH"]
 megrez_root = File.expand_path("..", __dir__)
 megrez_path ? require(File.expand_path("lib/megrez", File.expand_path(megrez_path, megrez_root))) : require("megrez")
 require_relative "canopus/debug/session"
+require_relative "canopus/debug/panel"
 tarazed_path = ENV["TARAZED_PATH"]
 tarazed_root = File.expand_path("..", __dir__)
 tarazed_path ? require(File.expand_path("lib/tarazed", File.expand_path(tarazed_path, tarazed_root))) : require("tarazed")

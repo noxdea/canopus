@@ -36,6 +36,7 @@ module Canopus
     attr_reader breakpoints: Debug::Breakpoints
     attr_reader debug_session: Debug::Session?
     attr_reader debug_position: {path: String, row: Integer}?
+    attr_reader debug_panel: Debug::Panel
     attr_accessor window: Zaniah::Platform::Headless::Window?
     attr_reader palette: palette_state?
     def palette=: (palette_state? value) -> void
@@ -74,6 +75,13 @@ module Canopus
     def detach_breakpoints: (Buffer buffer) -> bool
     def start_debugging: (?String | Hash[String, json] configuration) -> Debug::Session?
     def stop_debugging: () -> Debug::Session?
+    def debug_tree: () -> Zaniah::UI::TreeView
+    def debug_watches: () -> Array[String]
+    def add_debug_watch: (String expression) -> bool
+    def remove_debug_watch: (String expression) -> bool
+    def show_debug_watch_add: () -> palette_state
+    def show_debug_watch_remove: () -> (palette_state | bool)
+    def accept_debug_watch_palette: () -> untyped
     def debug_position_decorations: (Buffer buffer, Range[Integer] rows) -> Array[Decoration::Item]
     def invalidate_diagnostics: (?Buffer? buffer) -> nil
     def inlay_hint_decorations: (Buffer buffer, Range[Integer] rows) -> Array[Decoration::Item]

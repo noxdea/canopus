@@ -62,11 +62,41 @@ module Canopus::Debug
     CONNECT_INTERVAL: Float
 
     attr_reader client: Megrez::Session?
+    def stopped_thread_id: () -> Integer?
     def initialize: (root: String, configuration: Hash[String, Canopus::json],
       adapter: Hash[String, Canopus::json], breakpoints: Breakpoints,
       ?client: Megrez::Session?, ?timeout: Numeric) -> void
     def on: (Symbol | String event) { (untyped) -> untyped } -> Proc
     def start: () -> self
+    def stack_frames: (?levels: Integer) -> Megrez::Future
+    def scopes: (Integer frame_id) -> Megrez::Future
+    def variables: (Integer reference) -> Megrez::Future
+    def evaluate: (String expression, frame_id: Integer) -> Megrez::Future
     def close: () -> nil
+  end
+
+  class Panel
+    ITEM_LIMIT: Integer
+    WATCH_LIMIT: Integer
+    TEXT_LIMIT: Integer
+    DEPTH_LIMIT: Integer
+    ROOT_STACK: Array[Symbol]
+    ROOT_VARIABLES: Array[Symbol]
+    ROOT_WATCHES: Array[Symbol]
+    ROOT_BREAKPOINTS: Array[Symbol]
+    ROOTS: Array[Array[Symbol]]
+
+    attr_reader tree: Zaniah::UI::TreeView
+    attr_reader watches: Array[String]
+    attr_reader expanded_paths: Set[Array[untyped]]
+    attr_reader selected_frame: Megrez::StackFrame?
+    def initialize: (breakpoints: Breakpoints, post: untyped, select_frame: untyped,
+      select_breakpoint: untyped, report: untyped, request_frame: untyped) -> void
+    def stopped: (Session session, Megrez::StackFrame frame) -> self
+    def continued: (Session session) -> bool
+    def clear: () -> nil
+    def refresh_breakpoints: () -> nil
+    def add_watch: (String expression) -> bool
+    def remove_watch: (String expression) -> bool
   end
 end

@@ -97,3 +97,26 @@ attach through their launch configuration. On a stop event, the first stack fram
 its canonical source path remains inside the workspace, and its line is
 highlighted. Continued and terminated events clear that highlight. Adapter
 startup and protocol failures are delivered through editor notifications.
+
+## Debug panel
+
+The `debug` panel opens automatically when execution stops and is also
+available through `panel.debug`. It shows the call stack, variables, watches,
+and the persistent breakpoint list. Selecting a stack frame changes the
+variable context and opens its source only when the canonical file remains
+inside the workspace. Breakpoint rows use the same checked source-opening
+path.
+
+Variable children are requested only when their tree row is expanded. The
+panel preserves expansion as scope and variable name paths (plus an ordinal
+for duplicate sibling names); it never stores adapter `variablesReference`
+values in tree state. On another stop or frame selection, Canopus resolves each
+saved name path again from fresh scopes before requesting children. Pending
+results from a continued, replaced, or closed session are discarded.
+
+Use `debug.watch.add` and `debug.watch.remove` from the command palette to edit
+the in-memory watch list. Watches are evaluated with DAP context `watch` for
+the selected frame on every stop and whenever the selected stack frame
+changes. Watch expressions are limited to 4 KiB and 100 entries. Panel
+visibility and size use the existing `dock.panels.debug` setting and session
+state; watch expressions themselves are not written to project files.

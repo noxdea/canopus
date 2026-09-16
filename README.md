@@ -209,6 +209,10 @@ restart behavior.
 Debug launch definitions and the persistent, edit-aware breakpoint gutter
 are described in [Debug configurations](docs/debugging.md). `debug.start`
 selects and starts a configuration, and `debug.stop` ends the active session.
+When execution stops, the Debug panel provides safe stack navigation, lazy
+variables, per-stop watch evaluation (`debug.watch.add` /
+`debug.watch.remove`), and the breakpoint list. Variable expansion is restored
+by name path rather than adapter reference IDs.
 Breakpoint files use an atomic rename
 for normal same-user workspace consistency; concurrent malicious workspace
 mutation is outside that guarantee.

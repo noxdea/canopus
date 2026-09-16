@@ -277,6 +277,77 @@ class DebugSessionTest < Minitest::Test
     assert_equal [["TERM", 123], ["KILL", 123]], signals
   end
 
+  def test_stopped_stack_result_is_discarded_after_the_debuggee_continues
+    frame = Megrez::StackFrame.new(id: 1, name: "main", source: {"path" => @path},
+      line: 1, column: 1, presentation_hint: nil)
+    future = Megrez::Future.new(1)
+    started = Queue.new
+    client = Struct.new(:state, :generation, :future, :started) do
+      def stack_trace(*)
+        started << true
+        future
+      end
+    end.new(:stopped, 7, future, started)
+    owner = Object.new
+    owner.define_singleton_method(:close) {}
+    session = build_session(owner, Struct.new(:entries).new([]))
+    stopped = Queue.new
+    session.on(:stopped) { |value| stopped << value }
+    worker = Thread.new { session.send(:stopped, client, "threadId" => 1) }
+    started.pop
+
+    client.state = :running
+    future.fulfill([frame])
+    worker.join
+
+    assert_nil session.stopped_thread_id
+    assert stopped.empty?
+  ensure
+    session&.close
+  end
+
+  def test_stopped_stack_error_is_discarded_after_the_debuggee_continues
+    future = Megrez::Future.new(1)
+    started = Queue.new
+    client = Struct.new(:state, :generation, :future, :started) do
+      def stack_trace(*)
+        started << true
+        future
+      end
+    end.new(:stopped, 7, future, started)
+    owner = Object.new
+    owner.define_singleton_method(:close) {}
+    session = build_session(owner, Struct.new(:entries).new([]))
+    errors = Queue.new
+    session.on(:error) { |error| errors << error }
+    worker = Thread.new { session.send(:stopped, client, "threadId" => 1) }
+    started.pop
+
+    client.state = :running
+    future.fulfill(error: Megrez::Error.new("late failure"))
+    worker.join
+
+    assert errors.empty?
+  ensure
+    session&.close
+  end
+
+  def test_invalid_stopped_event_is_still_reported
+    client = Struct.new(:state, :generation).new(:running, 7)
+    owner = Object.new
+    owner.define_singleton_method(:close) {}
+    session = build_session(owner, Struct.new(:entries).new([]))
+    errors = Queue.new
+    session.on(:error) { |error| errors << error }
+
+    session.send(:stopped, client, {})
+
+    assert_equal 1, errors.length
+    assert_match(/no thread/, errors.pop.message)
+  ensure
+    session&.close
+  end
+
   def test_rdbg_tcp_launch_stops_and_highlights_the_workspace_source
     skip "set CANOPUS_RDBG=1 to run the rdbg acceptance test" unless ENV["CANOPUS_RDBG"] == "1"
 
