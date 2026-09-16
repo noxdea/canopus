@@ -7,9 +7,9 @@ class DocumentHighlightTest < Minitest::Test
   class Client
     attr_reader :capabilities, :requests, :stopped
 
-    def initialize(*results, supported: true)
+    def initialize(*results, supported: true, &responder)
       @capabilities = {"documentHighlightProvider" => supported}
-      @results, @requests = results, []
+      @results, @requests, @responder = results, [], responder
     end
 
     def start = self
@@ -24,7 +24,7 @@ class DocumentHighlightTest < Minitest::Test
     def diagnostics = {}
     def document_highlight(uri, position)
       @requests << [uri, position]
-      result = @results.shift || []
+      result = @responder ? @responder.call(position) : @results.shift || []
       result.respond_to?(:await) ? result : Sadr::Future.new(@requests.length).fulfill(result)
     end
   end
@@ -70,7 +70,8 @@ class DocumentHighlightTest < Minitest::Test
   end
 
   def test_split_editors_request_and_cache_their_own_carets
-    client = Client.new([highlight(0, 2, 6, 1)], [highlight(0, 7, 12, 2)])
+    results = {2 => [highlight(0, 2, 6, 1)], 7 => [highlight(0, 7, 12, 2)]}
+    client = Client.new { |position| results.fetch(position.character) }
     with_client(client) do
       @editor.select(4)
       @workspace.split(:horizontal)

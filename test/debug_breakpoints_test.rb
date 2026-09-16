@@ -374,11 +374,11 @@ class DebugBreakpointsTest < Minitest::Test
   end
 
   def test_line_deletion_handles_first_middle_and_last_with_lf_and_crlf
+    registry = build_registry
     ["\n", "\r\n"].each_with_index do |ending, ending_index|
       3.times do |row|
         name = "delete-#{ending_index}-#{row}.rb"
         path, buffer = buffer_for(["first", "middle", "last"].join(ending), name: name)
-        registry = build_registry
         registry.attach(buffer)
         registry.add(path, row + 1)
         first = buffer.rope.line_start(row)
@@ -392,12 +392,13 @@ class DebugBreakpointsTest < Minitest::Test
         assert_empty registry.for_path(path)
       end
     end
+    assert_equal [registry], @registries
   end
 
   def test_removing_the_newline_removes_a_final_empty_line
+    registry = build_registry
     ["\n", "\r\n"].each_with_index do |ending, index|
       path, buffer = buffer_for("one#{ending}", name: "empty-#{index}.rb")
-      registry = build_registry
       registry.attach(buffer)
       registry.add(path, 2)
       first = buffer.rope.line_start(1) - ending.bytesize
@@ -409,6 +410,7 @@ class DebugBreakpointsTest < Minitest::Test
       assert buffer.redo
       assert_empty registry.for_path(path)
     end
+    assert_equal [registry], @registries
   end
 
   def test_final_empty_line_shifts_when_an_earlier_newline_is_removed
