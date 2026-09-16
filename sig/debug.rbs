@@ -71,7 +71,7 @@ module Canopus::Debug
     def stack_frames: (?levels: Integer) -> Megrez::Future
     def scopes: (Integer frame_id) -> Megrez::Future
     def variables: (Integer reference) -> Megrez::Future
-    def evaluate: (String expression, frame_id: Integer) -> Megrez::Future
+    def evaluate: (String expression, frame_id: Integer, ?context: String) -> Megrez::Future
     def close: () -> nil
   end
 
@@ -98,5 +98,24 @@ module Canopus::Debug
     def refresh_breakpoints: () -> nil
     def add_watch: (String expression) -> bool
     def remove_watch: (String expression) -> bool
+  end
+
+  class Console
+    ITEM_LIMIT: Integer
+    TEXT_LIMIT: Integer
+    PENDING_LIMIT: Integer
+    OUTPUT_QUEUE_LIMIT: Integer
+
+    attr_reader tree: Zaniah::UI::TreeView
+    attr_reader entries: Array[{id: Integer, label: String}]
+    attr_reader selected_frame: Megrez::StackFrame?
+    def initialize: (post: untyped, request_frame: untyped) -> void
+    def attach: (Session session) -> self
+    def stopped: (Session session, Megrez::StackFrame frame) -> bool
+    def continued: (Session session) -> bool
+    def clear: () -> nil
+    def detach: () -> nil
+    def output: (Session session, Hash[String | Symbol, untyped] event) -> bool
+    def evaluate: (String expression) -> Megrez::Future
   end
 end

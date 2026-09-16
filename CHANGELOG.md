@@ -16,6 +16,7 @@
 - Toggle breakpoints from the gutter and edit conditions, hit counts, log messages, and enabled state from its context menu.
 - Start Megrez-backed debug sessions, configure enabled breakpoints, and highlight safe workspace stop locations.
 - Browse stack frames, lazily expand fresh variable paths, reevaluate watches, and list breakpoints in the Debug panel.
+- Evaluate selected-frame REPL and hover expressions and show bounded, ordered adapter output in the Debug Console.
 - Preserve registration order for equal-priority decorations across Ruby versions and platforms.
 - Show cached, viewport-scoped language-server inlay hints inline with clickable label locations.
 - Show cached language-server code lenses above source lines and resolve them only when visible.

@@ -34,6 +34,7 @@ installable.
 - Native GPU windows on macOS, Linux, and Windows, plus TUI and headless modes
 - Persistent buffers, tabs, splits, sessions, and explicit save-conflict handling
 - LSP completion, diagnostics, hover, document and workspace symbols, formatting, prevalidated rename, and code actions
+- Bounded debug console output, stopped-frame REPL evaluation, and safe identifier hover evaluation
 - Filterable Problems tree for LSP, task, and test diagnostics, with error and warning status counts
 - Automatic read, write, and text highlights for the symbol at each visible editor's caret
 - Clickable LSP document links with on-demand resolution and safe HTTP or local-file navigation
@@ -213,6 +214,10 @@ When execution stops, the Debug panel provides safe stack navigation, lazy
 variables, per-stop watch evaluation (`debug.watch.add` /
 `debug.watch.remove`), and the breakpoint list. Variable expansion is restored
 by name path rather than adapter reference IDs.
+`debug.console.evaluate` accepts REPL input for the selected frame and
+`panel.debug_console` toggles ordered adapter output. Hovering a simple
+local, instance, class, or global variable while stopped evaluates it in the
+selected frame.
 Breakpoint files use an atomic rename
 for normal same-user workspace consistency; concurrent malicious workspace
 mutation is outside that guarantee.

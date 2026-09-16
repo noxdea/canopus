@@ -3,6 +3,16 @@
 module Canopus
   class Workspace
     module DebugAware
+      DEBUG_HOVER_EXPRESSION_LIMIT = 256
+      DEBUG_HOVER_TEXT_LIMIT = 4_096
+      DEBUG_HOVER_SCOPE_LIMIT = 16
+      DEBUG_HOVER_VARIABLE_LIMIT = 256
+      DEBUG_HOVER_TOKEN_LIMIT = 4_096
+      DEBUG_HOVER_ROW_LIMIT = 256
+      DEBUG_HOVER_NAME = /\A[A-Za-z_][A-Za-z0-9_]*\z/n
+      DEBUG_HOVER_DIRECT_NAME = /\A(?:@@?|\$)[A-Za-z_][A-Za-z0-9_]*\z/n
+      DEBUG_HOVER_DIRECT_TOKENS = %w[Name.Variable.Instance Name.Variable.Class Name.Variable.Global].freeze
+
       BreakpointClick = Data.define(:workspace) do
         def call(editor, row) = workspace.toggle_breakpoint(editor, row)
         def right_click(editor, row) = workspace.show_breakpoint_menu(editor, row)
@@ -24,12 +34,15 @@ module Canopus
           select_frame: ->(session, frame) { select_debug_frame(session, frame) },
           select_breakpoint: ->(entry) { select_debug_breakpoint(entry) },
           report: ->(text) { notify(text) }, request_frame: -> { @window&.request_frame })
+        @debug_console = Debug::Console.new(post: ->(&block) { post(&block) },
+          request_frame: -> { @window&.request_frame })
         @decorations.register(:debug_position) { |buffer, rows| debug_position_decorations(buffer, rows) }
       end
 
-      attr_reader :debug_session, :debug_position, :debug_panel
+      attr_reader :debug_session, :debug_position, :debug_panel, :debug_console
 
       def debug_tree = @debug_panel.tree
+      def debug_console_tree = @debug_console.tree
       def debug_watches = @debug_panel.watches
 
       def add_debug_watch(expression) = @debug_panel.add_watch(expression)
@@ -59,6 +72,49 @@ module Canopus
           expression = index && state[:items][index]
           expression && remove_debug_watch(expression)
         end
+      end
+
+      def show_debug_console
+        raise Error, "debug session is not stopped" unless @debug_session && @debug_panel.selected_frame
+
+        @panels.show("debug_console")
+        self.palette = {kind: :debug_console, query: +"", index: 0, matches: []}
+      end
+
+      def accept_debug_console_palette
+        expression = @palette.fetch(:query)
+        self.palette = nil
+        @debug_console.evaluate(expression)
+      end
+
+      def debug_hover(current = editor, offset = current&.primary&.head)
+        session, frame = @debug_session, @debug_panel.selected_frame
+        unless session && frame && debug_hover_editor?(current) && offset.is_a?(Integer)
+          clear_debug_hover
+          return false
+        end
+        candidate = debug_hover_expression(current, offset)
+        unless candidate
+          clear_debug_hover
+          return false
+        end
+        expression, direct = candidate
+        key = [session, @debug_generation, frame.id, current, current.buffer.version, expression].freeze
+        return true if @debug_hover_key == key
+
+        clear_debug_hover
+        token = @debug_hover_token = Object.new.freeze
+        @debug_hover_key = key
+        direct ? request_debug_hover_evaluate(token, key) : request_debug_hover_scopes(token, key)
+        true
+      rescue StandardError
+        clear_debug_hover
+        false
+      end
+
+      def dismiss_hover
+        clear_debug_hover
+        super
       end
 
       def breakpoint_decorations(buffer, rows, current = nil)
@@ -172,9 +228,11 @@ module Canopus
         session = build_debug_session(configuration: resolved, adapter: adapter)
         session.on(:stopped) { |frame| post { handle_debug_stop(session, generation, frame) } }
         session.on(:continued) { post { handle_debug_continue(session, generation) } }
+        session.on(:output) { |event| handle_debug_output(session, generation, event) }
         session.on(:terminated) { post { finish_debug_session(session, generation) } }
         session.on(:error) { |error| post { report_debug_error(session, generation, error) } }
         @debug_session = session
+        @debug_console.attach(session)
         @debug_thread = Thread.new do
           session.start
           post { notify("Debug session started: #{resolved.fetch('name')}") if current_debug_session?(session, generation) }
@@ -190,6 +248,8 @@ module Canopus
         @debug_generation += 1
         @debug_session = @debug_thread = nil
         @debug_panel.clear
+        @debug_console.detach
+        clear_debug_hover
         clear_debug_position
         failure = nil
         begin
@@ -260,6 +320,8 @@ module Canopus
         return unless current_debug_session?(session, generation)
 
         @debug_panel.stopped(session, frame)
+        @debug_console.stopped(session, frame)
+        clear_debug_hover
         @panels.show("debug")
         show_debug_frame(session, generation, frame)
       end
@@ -268,12 +330,20 @@ module Canopus
         return unless current_debug_session?(session, generation)
 
         @debug_panel.continued(session)
+        @debug_console.continued(session)
+        clear_debug_hover
         clear_debug_position
+      end
+
+      def handle_debug_output(session, generation, event)
+        @debug_console.output(session, event) if current_debug_session?(session, generation)
       end
 
       def select_debug_frame(session, frame)
         return false unless @debug_session.equal?(session) && !@closed
 
+        @debug_console.stopped(session, frame)
+        clear_debug_hover
         show_debug_frame(session, @debug_generation, frame)
         true
       end
@@ -307,6 +377,8 @@ module Canopus
         @debug_session = @debug_thread = nil
         @debug_generation += 1
         @debug_panel.clear
+        @debug_console.detach
+        clear_debug_hover
         clear_debug_position
         session.close
         notify("Debug session ended")
@@ -318,6 +390,8 @@ module Canopus
         @debug_session = @debug_thread = nil
         @debug_generation += 1
         @debug_panel.clear
+        @debug_console.detach
+        clear_debug_hover
         clear_debug_position
         session.close
         notify(error.message)
@@ -337,6 +411,170 @@ module Canopus
         @debug_position = nil
         @decorations.invalidate(:debug_position)
         @window&.request_frame
+      end
+
+      def debug_hover_editor?(current)
+        return false unless current.is_a?(Editor) && current.equal?(editor)
+
+        path = current.buffer.path
+        boundary = @root.end_with?(File::SEPARATOR) ? @root : "#{@root}#{File::SEPARATOR}"
+        path.is_a?(String) && path.start_with?(boundary)
+      end
+
+      def debug_hover_expression(current, offset)
+        document, buffer = current.language_document, current.buffer
+        return unless document.background? && document.definition.name == "ruby"
+
+        size = buffer.rope.bytesize
+        return unless offset.between?(0, size)
+        point = buffer.rope.point_at(offset)
+        return unless document.tokens_current?(point.row)
+
+        local = offset - buffer.rope.line_start(point.row)
+        cursor = 0
+        tokens = document.tokens_for(point.row)
+        index = tokens.index do |_name, text|
+          first, cursor = cursor, cursor + text.bytesize
+          local >= first && local < cursor
+        end
+        return unless index
+
+        name, value = tokens.fetch(index)
+        direct = DEBUG_HOVER_DIRECT_TOKENS.include?(name) && value.match?(DEBUG_HOVER_DIRECT_NAME)
+        return unless direct || (name == "Name" && value.match?(DEBUG_HOVER_NAME))
+        return if value.bytesize > DEBUG_HOVER_EXPRESSION_LIMIT || debug_hover_call_token?(tokens, index) ||
+          debug_hover_string_interpolation?(document, point.row, tokens, index)
+
+        [value.dup.freeze, direct].freeze
+      end
+
+      def debug_hover_call_token?(tokens, index)
+        significant = ->(name, _text) { !name.start_with?("Text", "Comment") }
+        before = tokens[0...index].reverse.find { |token| significant.call(*token) }&.last
+        after = tokens[(index + 1)..]&.find { |token| significant.call(*token) }&.last
+        [".", "&.", "::"].include?(before) || after&.match?(/\A(?:\.|&\.|::|\(|\[)/)
+      end
+
+      def debug_hover_string_interpolation?(document, row, tokens, index)
+        depth = 0
+        remaining = DEBUG_HOVER_TOKEN_LIMIT
+        first = [row - DEBUG_HOVER_ROW_LIMIT + 1, 0].max
+        row.downto(first) do |current_row|
+          break unless document.tokens_current?(current_row)
+
+          values = current_row == row ? tokens.first(index) : document.tokens_for(current_row)
+          return true if (remaining -= values.length).negative?
+
+          values.reverse_each do |name, text|
+            next unless name == "Literal.String.Interpol"
+
+            if text == "}"
+              depth += 1
+            elsif text.end_with?("{")
+              return true if depth.zero?
+              depth -= 1
+            end
+          end
+        end
+        false
+      end
+
+      def request_debug_hover_scopes(token, key)
+        session, _generation, frame_id = key
+        future = @debug_hover_request = session.scopes(frame_id)
+        future.on_complete do |scopes, error|
+          post do
+            next unless @debug_hover_token.equal?(token)
+            next clear_debug_hover unless debug_hover_current?(token, key)
+            next clear_debug_hover if error
+
+            values = scopes.first(DEBUG_HOVER_SCOPE_LIMIT).reject do |scope|
+              scope.variables_reference.zero? || scope.expensive
+            end
+            request_debug_hover_variables(token, key, values, 0)
+          end
+        end
+      rescue StandardError
+        clear_debug_hover if @debug_hover_token.equal?(token)
+        false
+      end
+
+      def request_debug_hover_variables(token, key, scopes, index)
+        return clear_debug_hover unless debug_hover_current?(token, key)
+        return clear_debug_hover unless (scope = scopes[index])
+
+        session, = key
+        future = @debug_hover_request = session.variables(scope.variables_reference)
+        future.on_complete do |variables, error|
+          post do
+            next unless @debug_hover_token.equal?(token)
+            next clear_debug_hover unless debug_hover_current?(token, key)
+
+            expression = key.last
+            if !error && variables.first(DEBUG_HOVER_VARIABLE_LIMIT).any? { |variable| variable.name == expression }
+              request_debug_hover_evaluate(token, key)
+            else
+              request_debug_hover_variables(token, key, scopes, index + 1)
+            end
+          end
+        end
+      rescue StandardError
+        clear_debug_hover if @debug_hover_token.equal?(token)
+        false
+      end
+
+      def request_debug_hover_evaluate(token, key)
+        return clear_debug_hover unless debug_hover_current?(token, key)
+
+        session, _generation, frame_id, _current, _version, expression = key
+        future = @debug_hover_request = session.evaluate(expression, frame_id: frame_id, context: "hover")
+        future.on_complete do |variable, error|
+          post { accept_debug_hover(token, key, variable, error) }
+        end
+      rescue StandardError
+        clear_debug_hover if @debug_hover_token.equal?(token)
+        false
+      end
+
+      def debug_hover_current?(token, key)
+        return false unless @debug_hover_token.equal?(token) && @debug_hover_key == key
+
+        session, generation, frame_id, current, version, = key
+        frame = @debug_panel.selected_frame
+        current_debug_session?(session, generation) && frame&.id == frame_id &&
+          current.equal?(editor) && current.buffer.version == version
+      end
+
+      def accept_debug_hover(token, key, variable, error)
+        return unless @debug_hover_token.equal?(token)
+        return clear_debug_hover unless debug_hover_current?(token, key)
+
+        @debug_hover_request = nil
+        return clear_debug_hover if error
+
+        expression = key.last
+        value = bounded_debug_hover_text(variable.respond_to?(:value) ? variable.value : nil)
+        type = bounded_debug_hover_text(variable.respond_to?(:type) ? variable.type : nil)
+        @hover_card = bounded_debug_hover_text("#{expression} = #{value}#{type.empty? ? "" : " · #{type}"}")
+        @hover_markup = false
+        @debug_hover_visible = true
+        @window&.request_frame
+        true
+      end
+
+      def bounded_debug_hover_text(value)
+        value.to_s.byteslice(0, DEBUG_HOVER_TEXT_LIMIT).to_s.dup.force_encoding(Encoding::UTF_8).scrub("")
+          .gsub(/[\x00-\x1f\x7f]+/, " ").strip
+      end
+
+      def clear_debug_hover
+        changed = @debug_hover_request || @debug_hover_key || @debug_hover_visible
+        @debug_hover_request&.cancel
+        @debug_hover_request = @debug_hover_token = @debug_hover_key = nil
+        @hover_card = nil if @debug_hover_visible
+        @debug_hover_visible = false
+        @window&.request_frame if changed
+        nil
       end
 
       def breakpoint_entry(state)

@@ -120,3 +120,24 @@ the selected frame on every stop and whenever the selected stack frame
 changes. Watch expressions are limited to 4 KiB and 100 entries. Panel
 visibility and size use the existing `dock.panels.debug` setting and session
 state; watch expressions themselves are not written to project files.
+
+## Debug console and hover
+
+`debug.console.evaluate` opens the existing input palette and evaluates the
+entered expression with DAP context `repl` in the selected stack frame.
+`panel.debug_console` toggles the bottom panel. Adapter output events retain
+their line breaks and arrival order and show bounded category and source-line
+metadata when it is valid. Source metadata is display-only and never opens an
+adapter-provided path. Finished sessions retain their history until the next
+session starts.
+
+While execution is stopped, hovering an ASCII local, instance, class, or
+global variable evaluates it with context `hover`. Bare names are checked
+against the selected frame's bounded DAP scopes first. Calls, members,
+constants, string and comment tokens, names within a string interpolation
+found in up to 256 cached rows or 4,096 tokens, indexing, operators, and names
+longer than 256 bytes are not evaluated. Hover and REPL requests are cancelled
+on continue, frame change, session replacement, termination, and close; late
+results are discarded.
+Console history is limited to 1,000 entries, individual adapter strings and
+expressions to 4 KiB, and concurrent REPL requests to 16.

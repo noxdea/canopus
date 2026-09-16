@@ -150,6 +150,30 @@ class DebugSessionTest < Minitest::Test
     session&.close
   end
 
+  def test_evaluate_forwards_context_and_output_events_in_order
+    adapter = Megrez::Testing::FakeAdapter.new
+    client = Megrez::Session.new(adapter.transport)
+    session = build_session(client, Struct.new(:entries).new([]))
+    outputs = Queue.new
+    session.on(:output) { |event| outputs << event }
+    session.start
+    wait_until { session.stopped_thread_id }
+
+    result = session.evaluate("answer", frame_id: 10, context: "repl").await(timeout: 1)
+    session.evaluate("watched", frame_id: 10).await(timeout: 1)
+    adapter.emit(:output, "category" => "stdout", "output" => "one")
+    adapter.emit(:output, "category" => "stderr", "output" => "two")
+    wait_until { outputs.length == 2 }
+
+    requests = adapter.messages.select { |message| message["command"] == "evaluate" }
+    assert_equal({"expression" => "answer", "context" => "repl", "frameId" => 10}, requests[-2]["arguments"])
+    assert_equal({"expression" => "watched", "context" => "watch", "frameId" => 10}, requests[-1]["arguments"])
+    assert_equal "42", result.value
+    assert_equal %w[one two], 2.times.map { outputs.pop.fetch("output") }
+  ensure
+    session&.close
+  end
+
   def test_rdbg_tcp_attach_is_rejected_before_spawning
     config = configuration("Attach").merge("request" => "attach")
     session = Canopus::Debug::Session.new(root: @root, configuration: config,

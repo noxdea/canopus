@@ -45,7 +45,7 @@ module Canopus
 
       def scopes(frame_id) = inspection_client.scopes(frame_id)
       def variables(reference) = inspection_client.variables(reference)
-      def evaluate(expression, frame_id:) = inspection_client.evaluate(expression, frame_id: frame_id, context: "watch")
+      def evaluate(expression, frame_id:, context: "watch") = inspection_client.evaluate(expression, frame_id: frame_id, context: context)
 
       def start
         deadline = monotonic_time + @timeout
@@ -55,6 +55,7 @@ module Canopus
         client.on(:initialized) { initialized << true }
         client.on(:stopped) { |event| stopped(client, event) }
         client.on(:continued) { clear_stopped_thread; emit(:continued) }
+        client.on(:output) { |event| emit(:output, event) }
         client.on(:terminated) { clear_stopped_thread; emit(:terminated) }
         client.on(:exited) { clear_stopped_thread; emit(:terminated) }
 

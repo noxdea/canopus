@@ -79,6 +79,15 @@ module Canopus
             @workspace.terminal_visible && @workspace.terminal&.vt&.modes&.[](1003) && @view.hit(event.position)&.first == :terminal
           terminal_mouse(event, :move)
         end
+        unless @drag || @resize_drag || @scroll_drag || @minimap_drag || @drag_file || @drag_tab || @terminal_drag
+          target = @view.hit(event.position)
+          if target&.first == :editor
+            current = target.last
+            @workspace.debug_hover(current, @view.offset_at(current, event.position))
+          else
+            @workspace.debug_hover(nil, nil)
+          end
+        end
       when Zaniah::Input::MouseUp
         @workspace.flush_terminal_resize if @resize_drag&.first == :dock_resize
         @resize_drag = nil
