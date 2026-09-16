@@ -41,6 +41,7 @@ module Canopus
     attr_reader :hover_card, :hover_markup, :semantic_styles
     def dismiss_hover = @hover_card = nil
     def close_language_documents(buffer = nil)
+      invalidate_hierarchy(buffer)
       @opened_lsp_documents&.keys&.each do |key|
         client, document = key
         next if buffer && !document.equal?(buffer)
@@ -1005,6 +1006,9 @@ module Canopus
       end
       @linked_editing_requests&.values&.select { |request| !visible.include?(request[:editor]) }&.each do |request|
         invalidate_linked_editing_ranges(editor: request[:editor])
+      end
+      @hierarchy_prepare_requests&.values&.select { |request| !visible.include?(request[:editor]) }&.each do |request|
+        invalidate_hierarchy(editor: request[:editor])
       end
       nil
     end

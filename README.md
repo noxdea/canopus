@@ -39,6 +39,7 @@ installable.
 - LSP folding ranges with an asynchronous Antares fallback
 - LSP-aware selection expansion with an asynchronous Antares fallback
 - LSP linked-range selection for starting a multi-cursor edit from the command palette
+- Lazy call and type hierarchy trees with bidirectional navigation
 - Ranked, extensible completion and inline-completion provider registry
 - Viewport-scoped LSP inlay hints with clickable label locations
 - Nested bracket colors and active indentation guides backed by Antares structure analysis
@@ -104,7 +105,8 @@ plugin options.
 | Next / previous terminal | Ctrl-Shift-] / Ctrl-Shift-[ | Ctrl-Shift-] / Ctrl-Shift-[ |
 
 The command palette also exposes Git operations, language actions (including
-`language.linked_editing`), project file
+`language.linked_editing`, `language.call_hierarchy`, and
+`language.type_hierarchy`), project file
 operations, settings, themes, docks, and Vim mode. Project deletion moves files
 to `.canopus/trash` instead of deleting them immediately.
 

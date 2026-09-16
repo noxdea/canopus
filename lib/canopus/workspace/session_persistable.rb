@@ -149,6 +149,7 @@ module Canopus
       @panes.each { |pane| pane.editors.each(&:dispose) }
       @buffers.each_value(&:close)
       @panels.restore(restored_panels, docks: restored_docks)
+      @panels.hide("hierarchy") if @panels.key?("hierarchy")
       @panes, @buffers, @layout = restored_panes, restored_buffers, restored_layout
       @active_pane = @panes[active]
       @recent_files = Array(data["recent_files"]).select { |item| item.is_a?(String) && File.file?(item) }.first(100)

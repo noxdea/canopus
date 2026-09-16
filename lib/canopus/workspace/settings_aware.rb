@@ -58,6 +58,7 @@ module Canopus
       invalidate_document_links
       invalidate_folding_ranges
       invalidate_selection_ranges
+      invalidate_hierarchy
       invalidate_prepare_rename
       invalidate_linked_editing_ranges
       invalidate_inlay_hints

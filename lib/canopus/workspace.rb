@@ -45,6 +45,8 @@ module Canopus
       @panels.register(Panel::Definition.new("terminal", "Terminal", nil, :bottom, -> { terminal }, nil))
       @panels.register(Panel::Definition.new("search", "Search", nil, :left, -> { palette_open(:project_search) }, nil))
       @panels.register(Panel::Definition.new("explorer", "Explorer", nil, :left, -> { project_tree }, nil))
+      @panels.register(Panel::Definition.new("hierarchy", "Hierarchy", nil, :right, -> { hierarchy_tree }, nil), visible: false)
+      @panels.hide("hierarchy")
       @decorations = Decoration::Registry.new
       @decorations.register(:selection_match) do |buffer, rows, current|
         selections = current.is_a?(Editor) && current.buffer.equal?(buffer) ? current.selections : buffer.selections
@@ -180,6 +182,7 @@ module Canopus
       previous = buffer.path
       result = buffer.save(target)
       if previous != buffer.path
+        invalidate_hierarchy(buffer)
         invalidate_prepare_rename(buffer)
         invalidate_document_links(buffer)
         invalidate_linked_editing_ranges(buffer)
@@ -272,6 +275,7 @@ module Canopus
       invalidate_document_highlights(editor: current)
       invalidate_folding_ranges(editor: current)
       invalidate_selection_ranges(editor: current)
+      invalidate_hierarchy(editor: current)
       invalidate_prepare_rename(editor: current)
       invalidate_document_links(editor: current)
       invalidate_linked_editing_ranges(editor: current)
@@ -586,7 +590,8 @@ module Canopus
         @palette[:index] = 0
         return
       end
-      if [:locations, :symbols, :code_actions, :outline, :branches, :settings_keys, :snippet_choices, :breadcrumbs].include?(@palette[:kind])
+      if [:locations, :symbols, :code_actions, :outline, :branches, :settings_keys, :snippet_choices,
+          :breadcrumbs, :hierarchy_roots].include?(@palette[:kind])
         labels = @palette[:all_matches] ||= @palette[:matches].dup
         session = @palette[:search] ||= Spica::Index.new(labels).session
         session.query = @palette[:query]
@@ -635,6 +640,11 @@ module Canopus
         index = current[:indices] ? current[:indices][current[:index]] : current[:index]
         self.palette = nil
         return accept_breadcrumb_palette(current, index)
+      elsif @palette[:kind] == :hierarchy_roots
+        current = @palette
+        index = current[:indices] ? current[:indices][current[:index]] : current[:index]
+        self.palette = nil
+        return accept_hierarchy_root(current, index)
       elsif @palette[:kind] == :rename && @palette[:rename]
         current = @submitting_rename_palette = @palette
         begin
@@ -728,6 +738,7 @@ module Canopus
       @closed = true
       cancel_completion_requests
       cancel_project_search
+      invalidate_hierarchy
       invalidate_document_highlights
       invalidate_folding_ranges
       invalidate_selection_ranges
@@ -803,6 +814,8 @@ module Canopus
       end
       register_action("language.rename") { prepare_rename }
       register_action("language.linked_editing") { linked_editing_range }
+      register_action("language.call_hierarchy") { show_call_hierarchy }
+      register_action("language.type_hierarchy") { show_type_hierarchy }
       register_action("language.expand_selection") { expand_selection }
       register_action("language.shrink_selection") { shrink_selection }
       register_action("editor.fold") { fold_current }
@@ -819,6 +832,7 @@ module Canopus
       register_action("panel.explorer") { @panels.toggle("explorer") }
       register_action("panel.search") { @panels.fetch("search").build.call }
       register_action("panel.terminal") { @terminals.empty? ? new_terminal : @panels.toggle("terminal") }
+      register_action("panel.hierarchy") { @panels.toggle("hierarchy") if @hierarchy_state }
       [:left, :right, :bottom].each { |side| register_action("view.dock_#{side}") { toggle_dock(side) } }
       register_action("view.wrap") { editor.display_map.wrap_width = editor.display_map.wrap_map.width ? nil : 100 }
       register_action("view.theme") { self.theme = @theme.name.include?("Dark") ? "Canopus Light" : "Canopus Dark" }
@@ -943,6 +957,7 @@ require_relative "workspace/project_tree_editable"
 require_relative "workspace/file_change_aware"
 require_relative "workspace/language_server_configurable"
 require_relative "workspace/language_aware"
+require_relative "workspace/hierarchy_aware"
 require_relative "workspace/git_aware"
 require_relative "workspace/project_searchable"
 require_relative "workspace/settings_aware"
@@ -952,6 +967,7 @@ Canopus::Workspace.include Canopus::Workspace::ProjectTreeEditable
 Canopus::Workspace.include Canopus::Workspace::FileChangeAware
 Canopus::Workspace.include Canopus::Workspace::LanguageServerConfigurable
 Canopus::Workspace.include Canopus::Workspace::LanguageAware
+Canopus::Workspace.include Canopus::Workspace::HierarchyAware
 Canopus::Workspace.include Canopus::Workspace::GitAware
 Canopus::Workspace.include Canopus::Workspace::ProjectSearchable
 Canopus::Workspace.include Canopus::Workspace::SettingsAware

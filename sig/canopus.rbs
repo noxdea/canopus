@@ -406,6 +406,10 @@ module Canopus
     def invalidate_document_links: (?Buffer? buffer, ?client: Sadr::Client?, ?editor: Editor?) -> nil
     def linked_editing_range: (?Editor current) -> bool?
     def invalidate_linked_editing_ranges: (?Buffer? buffer, ?client: Sadr::Client?, ?editor: Editor?) -> nil
+    def hierarchy_tree: () -> Zaniah::UI::TreeView
+    def show_call_hierarchy: (?Editor? current) -> bool?
+    def show_type_hierarchy: (?Editor? current) -> bool?
+    def invalidate_hierarchy: (?Buffer? buffer, ?client: Sadr::Client?, ?editor: Editor?) -> nil
     def invalidate_folding_ranges: (?Buffer? buffer, ?client: Sadr::Client?, ?editor: Editor?) -> nil
     def expand_selection: (?Editor current) -> bool?
     def shrink_selection: (?Editor current) -> bool

@@ -81,6 +81,13 @@ document, visible tab, settings, or server changes. Continuous linked editing
 and the HTML/XML fallback are intentionally deferred to the later editing-core
 work.
 
+Run `language.call_hierarchy` or `language.type_hierarchy` from the command
+palette to prepare a hierarchy at the caret. If the server returns more than
+one root, choose one from the palette. The right-side Hierarchy panel loads
+incoming and outgoing calls, or supertypes and subtypes, only as branches are
+expanded. Selecting an item opens its local file and source range; remote file
+URIs are rejected.
+
 Sticky scroll prefers `textDocument/documentSymbol` when the server advertises
 it and uses cached Antares structure regions otherwise. Requests and normalized
 symbol trees are tied to the current buffer version and discarded after edits,
