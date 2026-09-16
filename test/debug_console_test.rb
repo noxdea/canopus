@@ -234,6 +234,7 @@ class DebugConsoleTest < Minitest::Test
     @workspace = Canopus::Workspace.new(root: @root)
     current = @workspace.open(@path)
     settle_tokens(current)
+    source = current.buffer.text
     session = Session.new
     frame = Frame.new(7)
     @workspace.instance_variable_set(:@debug_session, session)
@@ -241,22 +242,22 @@ class DebugConsoleTest < Minitest::Test
     @workspace.debug_panel.instance_variable_set(:@selected_frame, frame)
 
     %w[dangerous inside comment object member Constant].each do |text|
-      refute @workspace.debug_hover(current, @source.index(text) + 1), text
+      refute @workspace.debug_hover(current, source.index(text) + 1), text
     end
-    [@source.index('#{local}') + 2, @source.index("  local\n") + 3].each do |offset|
+    [source.index('#{local}') + 2, source.index("  local") + 3].each do |offset|
       refute @workspace.debug_hover(current, offset)
     end
     assert_empty session.requests
     assert_empty session.scope_requests
     assert_empty session.variable_requests
 
-    assert @workspace.debug_hover(current, @source.index("unknown") + 1)
+    assert @workspace.debug_hover(current, source.index("unknown") + 1)
     @workspace.drain
     assert_empty session.requests
     assert_equal [7], session.scope_requests
     assert_equal [101], session.variable_requests
 
-    assert @workspace.debug_hover(current, @source.index("local\n") + 1)
+    assert @workspace.debug_hover(current, current.buffer.rope.line_start(1) + 1)
     @workspace.drain
     expression, frame_id, context, future = session.requests.last
     assert_equal ["local", 7, "hover"], [expression, frame_id, context]
@@ -267,7 +268,7 @@ class DebugConsoleTest < Minitest::Test
 
     @workspace.dismiss_hover
     assert_nil @workspace.hover_card
-    assert @workspace.debug_hover(current, @source.index("@ivar") + 1)
+    assert @workspace.debug_hover(current, source.index("@ivar") + 1)
     expression, frame_id, context, ivar = session.requests.last
     assert_equal ["@ivar", 7, "hover"], [expression, frame_id, context]
     ivar.fulfill(variable("2"))
@@ -275,7 +276,7 @@ class DebugConsoleTest < Minitest::Test
     assert_match(/@ivar = 2/, @workspace.hover_card)
 
     @workspace.dismiss_hover
-    assert @workspace.debug_hover(current, @source.index("local\n") + 1)
+    assert @workspace.debug_hover(current, current.buffer.rope.line_start(1) + 1)
     @workspace.drain
     stale = session.requests.last.last
     @workspace.instance_variable_set(:@debug_generation,
@@ -308,7 +309,7 @@ class DebugConsoleTest < Minitest::Test
     @workspace.debug_panel.instance_variable_set(:@session, session)
     @workspace.debug_panel.instance_variable_set(:@selected_frame, frame)
 
-    assert @workspace.debug_hover(current, @source.index("local\n") + 1)
+    assert @workspace.debug_hover(current, current.buffer.rope.line_start(1) + 1)
     scope = session.scope_futures.last
     assert_same scope, @workspace.instance_variable_get(:@debug_hover_request)
     scope.fulfill([Megrez::Scope.new(name: "Locals", variables_reference: 101,
@@ -326,7 +327,7 @@ class DebugConsoleTest < Minitest::Test
     assert_nil @workspace.instance_variable_get(:@debug_hover_request)
 
     settle_tokens(current)
-    assert @workspace.debug_hover(current, @source.index("local\n") + 1)
+    assert @workspace.debug_hover(current, current.buffer.rope.line_start(1) + 1)
     pending = session.scope_futures.last
     @workspace.send(:handle_debug_continue, session, @workspace.instance_variable_get(:@debug_generation))
     assert_raises(Megrez::Cancelled) { pending.await(timeout: 0) }
