@@ -119,7 +119,7 @@ class DiagnosticDecorationTest < Minitest::Test
       underline.call(*arguments, **options)
     end
 
-    @editor.language_document.stub(:poll, false) { controller.tick }
+    window.render(controller.view)
 
     assert_equal 1, calls.length
     assert calls.first.last[:wave]
