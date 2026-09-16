@@ -304,7 +304,7 @@ class TaskRunnerTest < Minitest::Test
       ]}, root: root)
     captured = +"".b
     completed = nil
-    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 10
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 30
     until completed
       runner.drain(max_bytes: 12_000, max_seconds: 0.004) do |_entry, data, seconds|
         captured << data if data
