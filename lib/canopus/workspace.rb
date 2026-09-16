@@ -641,7 +641,7 @@ module Canopus
         return
       end
       if [:locations, :symbols, :code_actions, :outline, :branches, :settings_keys, :snippet_choices,
-          :breadcrumbs, :hierarchy_roots, :language_servers].include?(@palette[:kind])
+          :breadcrumbs, :hierarchy_roots, :language_servers, :debug_configurations].include?(@palette[:kind])
         labels = @palette[:all_matches] ||= @palette[:matches].dup
         index = @palette[:kind] == :language_servers ? Spica::Index.new(labels, tie_break: :index) : Spica::Index.new(labels)
         session = @palette[:search] ||= index.session
@@ -703,6 +703,12 @@ module Canopus
         server = index && current[:items][index]
         self.palette = nil
         return restart_language_server(server[:language], server[:index]) if server
+      elsif @palette[:kind] == :debug_configurations
+        current = @palette
+        index = current[:indices] ? current[:indices][current[:index]] : current[:index]
+        configuration = index && current[:items][index]
+        self.palette = nil
+        return start_debugging(configuration.fetch("name")) if configuration
       elsif @palette[:kind] == :problem_filter
         query = @palette[:query]
         self.palette = nil
@@ -822,6 +828,7 @@ module Canopus
       rescue StandardError => error
         failure ||= error
       end
+      cleanup.call { stop_debugging }
       cleanup.call { @breakpoints.close }
       cleanup.call { @minimap.close }
       cleanup.call { @watcher&.close }
@@ -850,6 +857,8 @@ module Canopus
       register_action("tab.reopen_closed") { reopen_closed }
       register_action("pane.close") { request_close(@active_pane.editors.dup) }
       register_action("debug.buffer_refs") { self.message = buffer_refs(editor.buffer).map { |kind, id| "#{kind}:#{id}" }.join(", ") }
+      register_action("debug.start", description: "Start Debugging") { start_debugging }
+      register_action("debug.stop", description: "Stop Debugging") { stop_debugging }
       register_action("file.find") { palette_open(:files) }
       register_action("project.new_file") { project_prompt(:create_file) }
       register_action("project.new_folder") { project_prompt(:create_folder) }

@@ -14,6 +14,7 @@
 - Load bounded JSONC debug configurations, expand explicit launch variables, and resolve configured adapters.
 - Persist bounded conditional breakpoints with coalesced writes and keep their lines aligned through edits, undo, and redo.
 - Toggle breakpoints from the gutter and edit conditions, hit counts, log messages, and enabled state from its context menu.
+- Start Megrez-backed debug sessions, configure enabled breakpoints, and highlight safe workspace stop locations.
 - Preserve registration order for equal-priority decorations across Ruby versions and platforms.
 - Show cached, viewport-scoped language-server inlay hints inline with clickable label locations.
 - Show cached language-server code lenses above source lines and resolve them only when visible.

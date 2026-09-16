@@ -16,7 +16,12 @@ module Canopus
         end
         @breakpoint_click = BreakpointClick.new(self)
         @decorations.register(:breakpoint) { |buffer, rows, current| breakpoint_decorations(buffer, rows, current) }
+        @debug_generation = 0
+        @debug_session = @debug_thread = @debug_position = nil
+        @decorations.register(:debug_position) { |buffer, rows| debug_position_decorations(buffer, rows) }
       end
+
+      attr_reader :debug_session, :debug_position
 
       def breakpoint_decorations(buffer, rows, current = nil)
         return [] unless breakpoint_buffer?(buffer)
@@ -109,7 +114,154 @@ module Canopus
 
       def detach_breakpoints(buffer) = @breakpoints.detach(buffer)
 
+      def start_debugging(configuration = nil)
+        loader = Debug::Configuration.new(root: @root, settings: @settings)
+        if configuration.nil?
+          configurations = loader.configurations
+          raise Error, "no debug configurations are available" if configurations.empty?
+          if configurations.length > 1
+            self.palette = {kind: :debug_configurations, query: +"", index: 0,
+              matches: configurations.map { |item| item.fetch("name") }, items: configurations}
+            return nil
+          end
+          configuration = configurations.first
+        end
+        context = debug_configuration_context
+        resolved = loader.resolve(configuration, **context)
+        adapter = loader.adapter(resolved.fetch("type"), **context)
+        stop_debugging if @debug_session
+        generation = @debug_generation += 1
+        session = build_debug_session(configuration: resolved, adapter: adapter)
+        session.on(:stopped) { |frame| post { show_debug_frame(session, generation, frame) } }
+        session.on(:continued) { post { clear_debug_position if current_debug_session?(session, generation) } }
+        session.on(:terminated) { post { finish_debug_session(session, generation) } }
+        session.on(:error) { |error| post { report_debug_error(session, generation, error) } }
+        @debug_session = session
+        @debug_thread = Thread.new do
+          session.start
+          post { notify("Debug session started: #{resolved.fetch('name')}") if current_debug_session?(session, generation) }
+        rescue StandardError => error
+          post { fail_debug_session(session, generation, error) }
+        end
+        @debug_thread.report_on_exception = false
+        session
+      end
+
+      def stop_debugging
+        session, thread = @debug_session, @debug_thread
+        @debug_generation += 1
+        @debug_session = @debug_thread = nil
+        clear_debug_position
+        failure = nil
+        begin
+          session&.close
+        rescue StandardError => error
+          failure = error
+        ensure
+          thread.join if thread && thread != Thread.current
+        end
+        raise failure if failure
+
+        session
+      end
+
+      def debug_position_decorations(buffer, rows)
+        position = @debug_position
+        return [] unless position && buffer.path == position[:path] && rows.cover?(position[:row])
+
+        [Decoration::Item.new(:line, nil, position[:row], nil, "#f9758333", 10, :debug_position, nil)]
+      end
+
       private
+
+      def build_debug_session(configuration:, adapter:)
+        Debug::Session.new(root: @root, configuration: configuration, adapter: adapter,
+          breakpoints: @breakpoints)
+      end
+
+      def debug_configuration_context
+        current = editor
+        return {} unless current && current.buffer.path
+
+        selection = current.primary
+        {file: current.buffer.path,
+         line_number: current.buffer.rope.point_at(selection.head).row + 1,
+         selected_text: selection.empty? ? nil : current.buffer.rope.byteslice(selection.range).to_s}
+      end
+
+      def show_debug_frame(session, generation, frame)
+        return unless current_debug_session?(session, generation)
+
+        source = frame.source
+        path = source && (source["path"] || source[:path])
+        path = debug_source_path(path)
+        line = frame.line
+        raise Error, "debug stack frame has an invalid line" unless line.is_a?(Integer) && line.positive?
+
+        current = open(path)
+        raise Error, "debug stack frame is outside the file" if line > current.buffer.line_count
+
+        @debug_position = {path: current.buffer.path, row: line - 1}.freeze
+        @decorations.invalidate(:debug_position)
+        current.select(current.buffer.rope.line_start(line - 1))
+        current.reveal_cursor
+        @window&.request_frame
+      rescue StandardError => error
+        clear_debug_position
+        notify("Debug stop could not be shown: #{error.message}")
+      end
+
+      def debug_source_path(value)
+        valid = value.is_a?(String) && value.valid_encoding? &&
+          (value.encoding == Encoding::UTF_8 || value.ascii_only?) && value.bytesize.between?(1, 65_536) &&
+          !value.match?(/[\x00-\x1f\x7f]/)
+        raise Error, "debug stack frame has an invalid source" unless valid
+
+        path = File.realpath(File.expand_path(value, @root))
+        boundary = @root.end_with?(File::SEPARATOR) ? @root : "#{@root}#{File::SEPARATOR}"
+        raise Error, "debug stack frame is outside the workspace" unless path.start_with?(boundary)
+        raise Error, "debug stack frame source is not a file" unless File.file?(path)
+
+        path
+      rescue SystemCallError => error
+        raise Error, "invalid debug stack frame source: #{error.message}"
+      end
+
+      def finish_debug_session(session, generation)
+        return unless current_debug_session?(session, generation)
+
+        @debug_session = @debug_thread = nil
+        @debug_generation += 1
+        clear_debug_position
+        session.close
+        notify("Debug session ended")
+      end
+
+      def fail_debug_session(session, generation, error)
+        return unless current_debug_session?(session, generation)
+
+        @debug_session = @debug_thread = nil
+        @debug_generation += 1
+        clear_debug_position
+        session.close
+        notify(error.message)
+      end
+
+      def report_debug_error(session, generation, error)
+        notify(error.message) if current_debug_session?(session, generation)
+      end
+
+      def current_debug_session?(session, generation)
+        @debug_session.equal?(session) && @debug_generation == generation && !@closed
+      end
+
+      def clear_debug_position
+        return unless @debug_position
+
+        @debug_position = nil
+        @decorations.invalidate(:debug_position)
+        @window&.request_frame
+      end
 
       def breakpoint_entry(state)
         @breakpoints.for_path(state.fetch(:path)).find { |entry| entry.line == state.fetch(:line) }

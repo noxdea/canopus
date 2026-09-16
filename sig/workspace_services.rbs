@@ -34,6 +34,8 @@ module Canopus
     attr_reader providers: Provider::Registry
     attr_reader diagnostics: Diagnostics::Registry
     attr_reader breakpoints: Debug::Breakpoints
+    attr_reader debug_session: Debug::Session?
+    attr_reader debug_position: {path: String, row: Integer}?
     attr_accessor window: Zaniah::Platform::Headless::Window?
     attr_reader palette: palette_state?
     def palette=: (palette_state? value) -> void
@@ -70,6 +72,9 @@ module Canopus
     def attach_breakpoints: (Buffer buffer) -> untyped
     def relocate_breakpoints: (Buffer buffer) -> untyped
     def detach_breakpoints: (Buffer buffer) -> bool
+    def start_debugging: (?String | Hash[String, json] configuration) -> Debug::Session?
+    def stop_debugging: () -> Debug::Session?
+    def debug_position_decorations: (Buffer buffer, Range[Integer] rows) -> Array[Decoration::Item]
     def invalidate_diagnostics: (?Buffer? buffer) -> nil
     def inlay_hint_decorations: (Buffer buffer, Range[Integer] rows) -> Array[Decoration::Item]
     def request_inlay_hints: (Editor editor, Range[Integer] visible_rows, ?start: bool) -> bool

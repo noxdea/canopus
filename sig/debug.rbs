@@ -56,4 +56,17 @@ module Canopus::Debug
     def flush: () -> self
     def error: () -> StandardError?
   end
+
+  class Session
+    DEFAULT_TIMEOUT: Integer
+    CONNECT_INTERVAL: Float
+
+    attr_reader client: Megrez::Session?
+    def initialize: (root: String, configuration: Hash[String, Canopus::json],
+      adapter: Hash[String, Canopus::json], breakpoints: Breakpoints,
+      ?client: Megrez::Session?, ?timeout: Numeric) -> void
+    def on: (Symbol | String event) { (untyped) -> untyped } -> Proc
+    def start: () -> self
+    def close: () -> nil
+  end
 end

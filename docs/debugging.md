@@ -78,5 +78,22 @@ workspace mutation is outside its scope. Buffer attachment is an internal
 lifecycle operation. Left-click the gutter to add or remove a breakpoint.
 Right-click it to add or edit a condition, hit count, or log message, or to
 enable, disable, and remove the breakpoint. Disabled breakpoints use the muted
-gutter color; enabled breakpoints use the error color. DAP sessions are added
-separately.
+gutter color; enabled breakpoints use the error color.
+
+## Sessions
+
+Run `debug.start` from the command palette. If the project has more than one
+launch configuration, Canopus opens a searchable configuration list. The
+adapter is initialized before enabled breakpoints are sent; Canopus then
+completes configuration and waits for the launch or attach response. Only one
+session is active per workspace. `debug.stop` closes the protocol session and
+its adapter process.
+
+The Ruby TCP adapter example above supports launch configurations and is started
+without a shell. Canopus assigns
+it a loopback port, passes the resolved `program` and `args` to rdbg, and then
+connects with Megrez. TCP attach is not supported; stdio adapters may implement
+attach through their launch configuration. On a stop event, the first stack frame is opened only if
+its canonical source path remains inside the workspace, and its line is
+highlighted. Continued and terminated events clear that highlight. Adapter
+startup and protocol failures are delivered through editor notifications.
