@@ -52,7 +52,7 @@ module Canopus
     def set_selections(selections, merge: true)
       previous = @selections
       unless merge
-        @selections = selections.sort_by(&:start).freeze
+        @selections = ordered_selections(selections).freeze
         @buffer.selections = @selections
         notify_selection if @selections != previous
         return @selections
@@ -386,7 +386,7 @@ module Canopus
     end
 
     def merged_selections(selections, touching: !snippet_active?)
-      selections.sort_by(&:start).each_with_object([]) do |selection, merged|
+      ordered_selections(selections).each_with_object([]) do |selection, merged|
         if merged.last && (selection.start < merged.last.end || (touching && selection.start == merged.last.end))
           previous = merged.pop
           merged << Selection.new(previous.id, previous.start, [previous.end, selection.end].max, selection.goal)
@@ -394,6 +394,9 @@ module Canopus
           merged << selection
         end
       end
+    end
+    def ordered_selections(selections)
+      selections.each_with_index.sort_by { |selection, index| [selection.start, index] }.map!(&:first)
     end
     def horizontal(offset, direction)
       if @buffer.rope.respond_to?(:lazy?)

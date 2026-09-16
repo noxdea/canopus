@@ -59,6 +59,7 @@ class SelectionRangeTest < Minitest::Test
 
       assert @workspace.expand_selection
       assert_equal [bytes(0, 0, 12), bytes(0, 0, 12)], @editor.selections.map(&:range)
+      assert_equal [10, 11], @editor.selections.map(&:id)
       assert_equal 2, @editor.selections.length
       assert_equal 1, client.requests.length
 

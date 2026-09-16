@@ -138,6 +138,20 @@ class EditorTest < Minitest::Test
     assert_equal "xyef", editor.buffer.text
   end
 
+  def test_same_start_selection_order_is_input_stable_with_and_without_merging
+    editor = Canopus::Editor.new(Canopus::Buffer.new("abcdef"))
+    selections = [Canopus::Selection.new(3, 0, 4, nil),
+      Canopus::Selection.new(1, 4, 0, nil), Canopus::Selection.new(2, 0, 2, nil)]
+
+    assert_equal selections, editor.set_selections(selections, merge: false)
+    assert_equal 2, editor.primary.id
+
+    editor.set_selections(selections.values_at(1, 0))
+    assert_equal 1, editor.primary.id
+    editor.set_selections(selections.values_at(0, 1))
+    assert_equal 3, editor.primary.id
+  end
+
   def test_typing_into_preserved_overlapping_selections_restores_them_on_undo
     editor = Canopus::Editor.new(Canopus::Buffer.new("abcdef"))
     selections = [Canopus::Selection.new(1, 0, 2, nil), Canopus::Selection.new(2, 1, 3, 4)]

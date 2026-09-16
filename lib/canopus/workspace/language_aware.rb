@@ -1295,7 +1295,7 @@ module Canopus
           Selection.new(selection.id, range.begin, range.end, nil)
         end
         [expanded, chain]
-      end.sort_by { |selection, _chain| selection.start }
+      end.each_with_index.sort_by { |(selection, _chain), index| [selection.start, index] }.map!(&:first)
       expanded = pairs.map(&:first).freeze
       if expanded == state[:current]
         @message = "No larger selection"
