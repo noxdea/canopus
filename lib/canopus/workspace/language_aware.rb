@@ -35,6 +35,12 @@ module Canopus
     STICKY_SYMBOL_LIMIT = 10_000
     STICKY_DEPTH_LIMIT = 64
     STICKY_REQUEST_LIMIT = 16
+    WORKSPACE_SYMBOL_LIMIT = 10_000
+    WORKSPACE_SYMBOL_QUERY_LIMIT = 256
+    WORKSPACE_SYMBOL_TIMEOUT = 10
+    WORKSPACE_SYMBOL_LABEL_BYTES = 512
+    WORKSPACE_SYMBOL_PREVIEW_BYTES = 512
+    WORKSPACE_SYMBOL_UTF16_CHUNK_BYTES = 64 * 1024
     BREADCRUMB_CONTAINER_KINDS = [2, 3, 4, 5, 10, 11, 23].freeze
     BREADCRUMB_CALLABLE_KINDS = [6, 9, 12].freeze
 
@@ -96,6 +102,8 @@ module Canopus
       client || raise(Error, "No language server configured for #{definition_for(buffer.path).name}")
     end
     def language_request(kind, **options)
+      return request_workspace_symbols(options.fetch(:query, "")) if kind == :workspace_symbols
+
       current, buffer, offset = editor, editor.buffer, editor.primary.head
       if kind == :inlayHint
         requested = request_visible_inlay_hints(current)
@@ -247,6 +255,222 @@ module Canopus
     end
     private :language_request_feature, :route_language_clients, :active_language_client,
       :language_request_await, :cancel_language_requests, :deduplicate_client_items
+
+    def request_workspace_symbols(query)
+      valid = query.is_a?(String) && query.valid_encoding? && query.bytesize.between?(1, WORKSPACE_SYMBOL_QUERY_LIMIT) &&
+        !query.match?(/[\0\r\n]/) && !query.strip.empty?
+      raise Error, "workspace symbol query must be 1 to #{WORKSPACE_SYMBOL_QUERY_LIMIT} bytes" unless valid
+
+      cancel_workspace_symbol_search
+      generation = @workspace_symbol_generation = @workspace_symbol_generation.to_i + 1
+      query = query.dup.freeze
+      request = {generation: generation, futures: [], clients: []}
+      (@workspace_symbol_lock ||= Mutex.new).synchronize { @workspace_symbol_request = request }
+      empty = [].freeze
+      self.palette = {kind: :workspace_symbol_results, query: +"", index: 0, matches: empty, items: empty,
+        all_matches: empty, indices: empty, workspace_symbol_groups: {}.freeze,
+        workspace_symbol_index: Spica::Index.new(empty, tie_break: :index), workspace_symbol_generation: generation}
+      job = Thread.new do
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + WORKSPACE_SYMBOL_TIMEOUT
+        clients = workspace_symbol_clients
+        (@workspace_symbol_lock ||= Mutex.new).synchronize do
+          request[:clients] = clients if @workspace_symbol_request.equal?(request)
+        end
+        pending = clients.filter_map do |client|
+          next unless workspace_symbol_request_current?(request)
+          entry = begin
+            [client, client.workspace_symbols(query), nil]
+          rescue StandardError => error
+            [client, nil, error]
+          end
+          tracked = (@workspace_symbol_lock ||= Mutex.new).synchronize do
+            if @workspace_symbol_request.equal?(request)
+              request[:futures] << entry
+              true
+            end
+          end
+          cancel_language_requests([entry]) unless tracked
+          entry if tracked
+        end
+        symbols, seen, successes = [], {}, 0
+        pending.each do |client, future, failure|
+          next if failure || !workspace_symbol_request_current?(request)
+          begin
+            response = language_request_await(future, deadline)
+            next if client.respond_to?(:running?) && !client.running?
+            values = normalize_workspace_symbols(response)
+            successes += 1
+            values.each do |symbol|
+              break if symbols.length >= WORKSPACE_SYMBOL_LIMIT
+              next if seen.key?(symbol)
+              seen[symbol] = true
+              symbols << symbol
+            end
+          rescue StandardError
+            nil
+          end
+        end
+        if successes.zero? && workspace_symbol_request_current?(request)
+          fallback_deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + WORKSPACE_SYMBOL_TIMEOUT
+          symbols = workspace_symbol_fallback(query, generation, fallback_deadline)
+        end
+        next unless workspace_symbol_request_current?(request)
+        symbols = deduplicate_workspace_symbols(symbols).first(WORKSPACE_SYMBOL_LIMIT).freeze
+        prepared = prepare_workspace_symbol_palette(symbols, generation)
+        post do
+          install_workspace_symbol_palette(request, prepared)
+        end
+      rescue StandardError => error
+        post { @message = error.message if workspace_symbol_request_current?(request) }
+      ensure
+        cancel_language_requests(pending)
+        (@workspace_symbol_lock ||= Mutex.new).synchronize do
+          request[:futures].clear if @workspace_symbol_request.equal?(request)
+        end
+      end
+      (@language_jobs ||= []) << job
+      @language_jobs.reject! { |thread| !thread.alive? }
+      @message = "Searching workspace symbols…"
+      job
+    end
+
+    def cancel_workspace_symbol_search
+      request = futures = nil
+      (@workspace_symbol_lock ||= Mutex.new).synchronize do
+        request = @workspace_symbol_request
+        if request
+          @workspace_symbol_request = nil
+          @workspace_symbol_generation = @workspace_symbol_generation.to_i + 1
+          futures = request[:futures].dup
+          request[:futures].clear
+        end
+      end
+      cancel_language_requests(futures) if request
+      nil
+    end
+
+    def workspace_symbol_clients
+      (@client_lock ||= Mutex.new).synchronize do
+        configured = if @language_clients&.any?
+          @language_clients
+        else
+          @clients.to_h { |language, client| [language, [client]] }
+        end
+        configured.flat_map do |language, clients|
+          route_language_clients(language, clients, "workspaceSymbol")
+        end.select { |client| !client.respond_to?(:running?) || client.running? }.uniq
+      end
+    end
+
+    def normalize_workspace_symbols(value)
+      return [] if value.nil?
+      raise Error, "invalid workspace symbol response" unless value.is_a?(Array)
+      raise Error, "too many workspace symbols" if value.length > WORKSPACE_SYMBOL_LIMIT
+
+      value.filter_map do |symbol|
+        raise Error, "invalid workspace symbol" unless symbol.is_a?(Hash)
+        name, kind, container = symbol.values_at("name", "kind", "containerName")
+        valid_name = name.is_a?(String) && name.valid_encoding? && name.bytesize.between?(1, 4_096)
+        valid_container = container.nil? || container.is_a?(String) && container.valid_encoding? && container.bytesize <= 4_096
+        raise Error, "invalid workspace symbol" unless valid_name && kind.is_a?(Integer) && kind.between?(1, 26) && valid_container
+
+        location = symbol["location"]
+        next unless location.is_a?(Hash) && location["range"]
+        uri = location["uri"]
+        Sadr::Protocol.path(uri)
+        range = Sadr::Protocol.range_value(location["range"])
+        normalized = {"name" => name.dup.freeze, "kind" => kind,
+          "location" => {"uri" => uri.dup.freeze, "range" => {
+            "start" => {"line" => range.start.line, "character" => range.start.character}.freeze,
+            "end" => {"line" => range.end.line, "character" => range.end.character}.freeze
+          }.freeze}.freeze}
+        normalized["containerName"] = container.dup.freeze if container
+        normalized.freeze
+      rescue Sadr::Error, KeyError, TypeError
+        nil
+      end
+    end
+
+    def deduplicate_workspace_symbols(symbols)
+      seen = {}
+      symbols.each_with_object([]) do |symbol, values|
+        next if seen.key?(symbol)
+        seen[symbol] = true
+        values << symbol
+      end
+    end
+
+    def workspace_symbol_cancelled?(generation, deadline)
+      @closed || generation != @workspace_symbol_generation ||
+        Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+    end
+
+    def workspace_symbol_request_current?(request)
+      return false if @closed || request[:generation] != @workspace_symbol_generation ||
+        !@workspace_symbol_request.equal?(request)
+      request[:clients].none? { |client| @retired_language_clients&.[](client) }
+    end
+
+    def prepare_workspace_symbol_palette(items, generation)
+      labels = items.map do |item|
+        location = item.fetch("location")
+        path = Sadr::Protocol.path(location.fetch("uri"))
+        container = item["containerName"]
+        name = bounded_workspace_symbol_text(item.fetch("name"), 256)
+        container = bounded_workspace_symbol_text(container, 128) if container
+        basename = bounded_workspace_symbol_text(File.basename(path), 96)
+        label = "#{name}#{container ? " — #{container}" : ""} #{basename}:#{location.dig('range', 'start', 'line') + 1}".freeze
+        bounded_workspace_symbol_text(label, WORKSPACE_SYMBOL_LABEL_BYTES)
+      end
+      groups = labels.each_with_index.each_with_object({}) do |(label, index), values|
+        (values[label] ||= []) << index
+      end
+      groups.each_value(&:freeze)
+      groups.freeze
+      visible = [items.length, 12].min
+      # Index construction is worker-safe; its mutable, thread-confined Session is created by update_palette.
+      {kind: :workspace_symbol_results, query: +"", index: 0, matches: labels.first(visible).freeze,
+       all_matches: labels.freeze, items: items, indices: (0...visible).to_a.freeze,
+       workspace_symbol_groups: groups, workspace_symbol_index: Spica::Index.new(groups.keys, tie_break: :index),
+       workspace_symbol_generation: generation}
+    end
+
+    def bounded_workspace_symbol_text(value, maximum)
+      return value if value.frozen? && value.bytesize <= maximum
+      return value.dup.freeze if value.bytesize <= maximum
+      result = +""
+      value.each_grapheme_cluster do |cluster|
+        break if result.bytesize + cluster.bytesize + "…".bytesize > maximum
+        result << cluster
+      end
+      result << "…" if maximum >= "…".bytesize
+      result.freeze
+    end
+
+    def display_workspace_symbols(prepared)
+      query = if @palette&.dig(:kind) == :workspace_symbol_results &&
+          @palette[:workspace_symbol_generation] == prepared[:workspace_symbol_generation]
+        @palette.fetch(:query).dup
+      else
+        +""
+      end
+      prepared = prepared.merge(query: query)
+      @palette = prepared
+      update_palette unless query.empty?
+      count = prepared.fetch(:items).length
+      @message = count.zero? ? "No workspace symbols found" : "#{count} workspace symbols"
+    end
+
+    def install_workspace_symbol_palette(request, prepared)
+      (@workspace_symbol_lock ||= Mutex.new).synchronize do
+        return false unless workspace_symbol_request_current?(request)
+        display_workspace_symbols(prepared)
+        true
+      end
+    end
+    private :workspace_symbol_clients, :normalize_workspace_symbols, :deduplicate_workspace_symbols,
+      :workspace_symbol_cancelled?, :workspace_symbol_request_current?, :prepare_workspace_symbol_palette,
+      :bounded_workspace_symbol_text, :display_workspace_symbols, :install_workspace_symbol_palette
 
     def run_save_actions(buffer)
       language = definition_for(buffer.path)
@@ -1041,7 +1265,7 @@ module Canopus
         show_snippet_choices(editor) if snippet
         command = item["command"]
         client.execute_command(command.fetch("command"), arguments: command.fetch("arguments", [])) if command && client
-      when :locations, :symbols
+      when :locations, :symbols, :workspace_symbol_results
         location = item["location"] || item
         jump_to_language_location(location)
       when :code_actions

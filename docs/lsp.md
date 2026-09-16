@@ -138,6 +138,16 @@ incoming and outgoing calls, or supertypes and subtypes, only as branches are
 expanded. Selecting an item opens its local file and source range; remote file
 URIs are rejected.
 
+Press Cmd-T on macOS or Ctrl-T elsewhere, or run
+`language.workspace_symbols`, and enter a query. Canopus requests
+`workspace/symbol` from every active server routed to `workspaceSymbol` under
+one ten-second deadline, keeps configuration order while removing duplicate
+results, and uses Spica to refine the returned locations. Selecting a result
+opens its local file and range. If no routed server is running, or every routed
+provider fails, a background Alkaid content search supplies bounded local-file
+matches using the project's ignore rules. Queries are limited to 256 bytes and
+results to 10,000 entries.
+
 Sticky scroll prefers `textDocument/documentSymbol` when the server advertises
 it and uses cached Antares structure regions otherwise. Requests and normalized
 symbol trees are tied to the current buffer version and discarded after edits,

@@ -274,6 +274,7 @@ module Canopus
     end
 
     def invalidate_language_client_features(language, client, clear_diagnostics: false)
+      cancel_workspace_symbol_search
       invalidate_document_highlights(client: client)
       invalidate_document_links(client: client)
       invalidate_folding_ranges(client: client)
@@ -287,7 +288,7 @@ module Canopus
       clear_language_client_diagnostics(client) if clear_diagnostics
       @completion_generation = @completion_generation.to_i + 1
       @semantic_styles&.delete_if { |buffer, _| definition_for(buffer.path).name == language }
-      self.palette = nil if %i[completion locations symbols code_actions].include?(@palette&.dig(:kind)) ||
+      self.palette = nil if %i[completion locations symbols code_actions workspace_symbol_results].include?(@palette&.dig(:kind)) ||
         @palette&.dig(:client).equal?(client) || @palette&.dig(:item_clients)&.include?(client)
       @hover_card = nil
       @window&.request_frame

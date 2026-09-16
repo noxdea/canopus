@@ -111,6 +111,9 @@ module Canopus
       value
     end
     def palette=(value)
+      if @workspace_symbol_request && value&.dig(:workspace_symbol_generation) != @workspace_symbol_generation
+        cancel_workspace_symbol_search
+      end
       previous, @palette = @palette, @closed ? nil : value
       rename = previous&.dig(:kind) == :rename && previous[:rename]
       if rename && !previous.equal?(@submitting_rename_palette) && !rename.equal?(@palette&.dig(:rename))
@@ -618,6 +621,21 @@ module Canopus
         @palette[:index] = 0
         return
       end
+      if @palette[:kind] == :workspace_symbol_results
+        labels = @palette.fetch(:all_matches)
+        if @palette[:query].empty?
+          @palette[:indices] = (0...[labels.length, 12].min).to_a
+          @palette[:matches] = @palette[:indices].map { |index| labels.fetch(index) }
+        else
+          session = @palette[:search] ||= @palette.fetch(:workspace_symbol_index).session
+          session.query = @palette[:query]
+          groups = @palette.fetch(:workspace_symbol_groups)
+          @palette[:indices] = session.matches(12).flat_map { |match| groups.fetch(match.candidate) }.first(12)
+          @palette[:matches] = @palette[:indices].map { |index| labels.fetch(index) }
+        end
+        @palette[:index] = 0
+        return
+      end
       if [:locations, :symbols, :code_actions, :outline, :branches, :settings_keys, :snippet_choices,
           :breadcrumbs, :hierarchy_roots, :language_servers].include?(@palette[:kind])
         labels = @palette[:all_matches] ||= @palette[:matches].dup
@@ -649,7 +667,7 @@ module Canopus
         current = @palette
         self.palette = nil
         return @panes.any? { |pane| pane.editors.include?(current[:editor]) } && current[:editor].choose_snippet(current[:matches][current[:index]])
-      elsif [:completion, :locations, :symbols, :code_actions].include?(@palette[:kind])
+      elsif [:completion, :locations, :symbols, :code_actions, :workspace_symbol_results].include?(@palette[:kind])
         current = @palette
         self.palette = nil
         index = current[:indices] ? current[:indices][current[:index]] : current[:index]
@@ -775,6 +793,7 @@ module Canopus
     end
     def close
       @closed = true
+      cancel_workspace_symbol_search
       cancel_completion_requests
       cancel_project_search
       invalidate_hierarchy
@@ -847,7 +866,7 @@ module Canopus
       end
       register_action("edit.toggle_comment") { editor.toggle_comment(prefix: editor.language_document.definition.comment) }
       register_action("language.outline") { show_outline }
-      register_action("language.workspace_symbols") { palette_open(:workspace_symbols) }
+      register_action("language.workspace_symbols", description: "Workspace Symbols") { palette_open(:workspace_symbols) }
       %i[completion hover definition typeDefinition implementation references formatting codeAction signatureHelp documentSymbol inlayHint codeLens diagnostic semantic_tokens].each do |kind|
         register_action("language.#{kind}") { language_request(kind) }
       end

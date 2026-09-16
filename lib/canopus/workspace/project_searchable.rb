@@ -95,9 +95,78 @@ module Canopus
     end
 
     def search_project_paths(pattern, generation)
-      Alkaid::Search.new(@root, pattern: pattern, ignore: @project.ignore_matcher, workers: 4,
-        max_file_size: 10 * 1024 * 1024, max_matches: 10_000, hidden: true,
-        cancelled: -> { search_cancelled?(generation) }).run.map(&:path).uniq.freeze
+      project_search_matches(pattern, cancelled: -> { search_cancelled?(generation) }).map(&:path).uniq.freeze
+    end
+
+    def workspace_symbol_fallback(query, generation, deadline)
+      matches = project_search_matches(query, ignore_case: true,
+        cancelled: -> { workspace_symbol_cancelled?(generation, deadline) })
+      cancelled = -> { workspace_symbol_cancelled?(generation, deadline) }
+      lines, paths, symbols = {}.compare_by_identity, {}, []
+      matches.each do |match|
+        break if cancelled.call
+        symbol = fallback_workspace_symbol(match, lines: lines, paths: paths, cancelled: cancelled)
+        symbols << symbol if symbol
+      end
+      symbols.freeze
+    end
+
+    def project_search_matches(pattern, ignore_case: false, cancelled:)
+      Alkaid::Search.new(@root, pattern: pattern, ignore_case: ignore_case, ignore: @project.ignore_matcher, workers: 4,
+        max_file_size: 10 * 1024 * 1024, max_matches: 10_000, hidden: true, cancelled: cancelled).run
+    end
+
+    def fallback_workspace_symbol(match, lines: {}.compare_by_identity, paths: {}, cancelled: -> { false })
+      absolute = if paths.key?(match.path)
+        paths[match.path]
+      else
+        paths[match.path] = File.realpath(File.join(@root, match.path))
+      end
+      prefix = @root.end_with?(File::SEPARATOR) ? @root : @root + File::SEPARATOR
+      return unless absolute.start_with?(prefix)
+
+      range = match.ranges.first
+      state = lines[match.line] ||= {valid: match.line.valid_encoding?, offset: 0, units: 0}
+      return unless state[:valid] && range && range.begin >= 0 && range.end <= match.line.bytesize &&
+        match.line_number.positive? && !cancelled.call
+      first = workspace_symbol_utf16_column(match.line, range.begin, state, cancelled)
+      last = workspace_symbol_utf16_column(match.line, range.end, state, cancelled)
+      return unless first && last
+      preview = fallback_workspace_symbol_preview(match.line, range)
+      return if preview.empty?
+      {"name" => preview.freeze, "kind" => 13, "containerName" => match.path.dup.freeze,
+        "location" => {"uri" => Sadr::Protocol.uri(absolute).freeze, "range" => {
+          "start" => {"line" => match.line_number - 1, "character" => first}.freeze,
+          "end" => {"line" => match.line_number - 1, "character" => last}.freeze
+        }.freeze}.freeze}.freeze
+    rescue Errno::ENOENT, Errno::EACCES, Errno::ELOOP, EncodingError
+      nil
+    end
+
+    def workspace_symbol_utf16_column(line, target, state, cancelled)
+      offset, units = target < state[:offset] ? [0, 0] : state.values_at(:offset, :units)
+      update = offset == state[:offset]
+      while offset < target
+        return if cancelled.call
+        finish = [offset + Workspace::LanguageAware::WORKSPACE_SYMBOL_UTF16_CHUNK_BYTES, target].min
+        if finish < target
+          finish -= 1 while finish > offset && line.getbyte(finish)&.between?(0x80, 0xBF)
+        end
+        return if finish <= offset
+        units += line.byteslice(offset, finish - offset).encode(Encoding::UTF_16LE).bytesize / 2
+        offset = finish
+      end
+      state[:offset], state[:units] = offset, units if update
+      units
+    end
+
+    def fallback_workspace_symbol_preview(line, range)
+      first = [range.begin - 96, 0].max
+      first += 1 while first < range.begin && line.getbyte(first)&.between?(0x80, 0xBF)
+      last = [first + Workspace::LanguageAware::WORKSPACE_SYMBOL_PREVIEW_BYTES, line.bytesize].min
+      last -= 1 while last > range.begin && line.getbyte(last)&.between?(0x80, 0xBF)
+      preview = line.byteslice(first, last - first).to_s.gsub(/\s+/, " ").strip
+      bounded_workspace_symbol_text(preview, Workspace::LanguageAware::WORKSPACE_SYMBOL_PREVIEW_BYTES)
     end
 
     def build_search_preparation(pattern, generation, sources, paths, settings)

@@ -398,6 +398,8 @@ module Canopus
     def show_language_server_restart: () -> void
     def restart_language_server: (String language, Integer index) -> Sadr::Client
     def language_request: (Symbol kind, **json options) -> void
+    def request_workspace_symbols: (String query) -> Thread
+    def cancel_workspace_symbol_search: () -> nil
     def run_save_actions: (Buffer buffer) -> bool
     def prepare_rename: (?Editor? current) -> bool?
     def rename_prepared: (Hash[Symbol, untyped] snapshot, String name) -> bool?

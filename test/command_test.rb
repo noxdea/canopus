@@ -69,4 +69,14 @@ class CommandTest < Minitest::Test
     assert_raises(ArgumentError) { registry.register(malformed) }
     refute_includes registry.entries, "test.invalid"
   end
+
+  def test_workspace_symbol_shortcuts_do_not_conflict
+    conflicts = Canopus::Command::DEFAULT_KEYBINDINGS.each_with_object([]) do |(action, bindings), found|
+      next if action == "language.workspace_symbols"
+
+      found << action unless (bindings.keys & %w[cmd-t ctrl-t]).empty?
+    end
+
+    assert_empty conflicts
+  end
 end

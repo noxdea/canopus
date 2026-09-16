@@ -212,8 +212,10 @@ class WorkspaceTest < Minitest::Test
     assert_equal ["long_recent_file.rb", "a.rb"], @workspace.palette[:matches]
   end
 
-  def test_workspace_symbol_action_accepts_a_query
-    @workspace.call("language.workspace_symbols")
+  def test_workspace_symbol_shortcut_and_action_accept_a_query
+    assert_equal({"cmd-t" => "", "ctrl-t" => ""},
+      Canopus::Command::DEFAULT_KEYBINDINGS.fetch("language.workspace_symbols"))
+    key("cmd-t")
     assert_equal :workspace_symbols, @workspace.palette[:kind]
     type("Example")
     requests = []

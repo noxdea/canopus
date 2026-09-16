@@ -11,6 +11,7 @@ module Canopus
       "tab.close_all" => {"cmd-alt-w" => "", "ctrl-alt-w" => ""}.freeze,
       "tab.reopen_closed" => {"cmd-shift-t" => "", "ctrl-shift-t" => ""}.freeze,
       "file.find" => {"cmd-p" => "", "ctrl-p" => ""}.freeze,
+      "language.workspace_symbols" => {"cmd-t" => "", "ctrl-t" => ""}.freeze,
       "command.palette" => {"cmd-shift-p" => "", "ctrl-shift-p" => ""}.freeze,
       "edit.undo" => {"cmd-z" => "", "ctrl-z" => ""}.freeze,
       "edit.redo" => {"cmd-shift-z" => "", "ctrl-shift-z" => ""}.freeze,

@@ -33,7 +33,7 @@ installable.
 
 - Native GPU windows on macOS, Linux, and Windows, plus TUI and headless modes
 - Persistent buffers, tabs, splits, sessions, and explicit save-conflict handling
-- LSP completion, diagnostics, hover, symbols, formatting, prevalidated rename, and code actions
+- LSP completion, diagnostics, hover, document and workspace symbols, formatting, prevalidated rename, and code actions
 - Filterable Problems tree for LSP, task, and test diagnostics, with error and warning status counts
 - Automatic read, write, and text highlights for the symbol at each visible editor's caret
 - Clickable LSP document links with on-demand resolution and safe HTTP or local-file navigation
@@ -94,6 +94,7 @@ plugin options.
 | Action | macOS | Linux / Windows |
 | --- | --- | --- |
 | File finder / commands | Cmd-P / Cmd-Shift-P | Ctrl-P / Ctrl-Shift-P |
+| Workspace symbols | Cmd-T | Ctrl-T |
 | Save / undo / redo | Cmd-S / Cmd-Z / Cmd-Shift-Z | Ctrl-S / Ctrl-Z / Ctrl-Shift-Z |
 | Find / project search | Cmd-F / Cmd-Shift-F | Ctrl-F / Ctrl-Shift-F |
 | Replace / next occurrence | Cmd-Alt-F / Cmd-D | Ctrl-H / Ctrl-D |
@@ -159,7 +160,11 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
 
 A legacy argument array such as `"ruby": ["ruby-lsp"]` still configures one
 server. With multiple servers, completion, diagnostics, and code actions are
-merged; other features use the first matching server in configuration order.
+merged; workspace symbols are collected from every matching active server;
+other features use the first matching server in configuration order. Workspace
+symbol search falls back to bounded project-content search when no usable
+provider is active. Override `language.workspace_symbols` in `keymap` to change
+its Cmd-T / Ctrl-T binding.
 
 `render_whitespace` accepts `none`, `boundary`, `selection`, or `all`.
 `boundary` hides only single spaces between non-whitespace characters. Tabs use
