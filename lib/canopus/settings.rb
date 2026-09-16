@@ -8,6 +8,7 @@ module Canopus
     DEFAULTS = {"font_size" => 14, "tab_size" => 4, "use_tabs" => false, "soft_wrap" => false, "vim_mode" => false, "keymap" => [].freeze,
       "scroll_friction" => 12,
       "theme" => "Canopus Dark", "font_family" => nil, "icon_theme" => nil, "languages" => {}, "language_servers" => {},
+      "debug_adapters" => {}.freeze,
       "tabs" => {"activate_on_close" => "history", "close_on_middle_click" => true, "close_empty_pane" => true,
         "reopen_history_limit" => 20, "confirm_on_close_dirty" => true}.freeze,
       "diagnostics" => {"inline" => true, "inline_max_length" => 80, "severity" => "warning"}.freeze,
@@ -71,13 +72,19 @@ module Canopus
         "left" => {"$ref" => "#/$defs/dock"}, "right" => {"$ref" => "#/$defs/dock"},
         "bottom" => {"$ref" => "#/$defs/dock"}, "panels" => {"type" => "object", "maxProperties" => 1000,
           "additionalProperties" => {"$ref" => "#/$defs/panel"}}}},
-      "languages" => {"type" => "object", "additionalProperties" => {"$ref" => "#"}},
+      "languages" => {"type" => "object", "additionalProperties" => {"allOf" => [
+        {"$ref" => "#"}, {"properties" => {"languages" => false, "debug_adapters" => false}}
+      ]}},
       "language_servers" => {"type" => "object", "additionalProperties" => {"anyOf" => [
         {"type" => "null"}, {"$ref" => "#/$defs/language_server"},
         {"type" => "array", "minItems" => 1, "items" => {"type" => "string", "minLength" => 1}},
         {"type" => "array", "minItems" => 1, "maxItems" => 16,
           "items" => {"$ref" => "#/$defs/language_server"}}
-      ]}}}, "$defs" => {
+      ]}},
+      "debug_adapters" => {"type" => "object", "maxProperties" => 64,
+        "propertyNames" => {"type" => "string", "minLength" => 1, "maxLength" => 128,
+          "pattern" => "^[A-Za-z0-9_.-]+$"},
+        "additionalProperties" => {"$ref" => "#/$defs/debug_adapter"}}}, "$defs" => {
         "language_server" => {"type" => "object", "additionalProperties" => false,
           "required" => ["command"], "properties" => {
             "command" => {"type" => "array", "minItems" => 1,
@@ -87,6 +94,12 @@ module Canopus
             "features" => {"type" => "array", "minItems" => 1, "uniqueItems" => true,
               "items" => {"type" => "string", "enum" => %w[completion diagnostics codeAction formatting definition typeDefinition implementation hover signatureHelp references rename documentSymbol codeLens inlayHint semanticTokens documentHighlight foldingRange selectionRange callHierarchy typeHierarchy documentLink linkedEditingRange workspaceSymbol]}}
           }},
+        "debug_adapter" => {"type" => "object", "additionalProperties" => false,
+          "required" => %w[command transport], "properties" => {
+            "command" => {"type" => "array", "minItems" => 1, "maxItems" => 32,
+              "items" => {"type" => "string", "minLength" => 1, "maxLength" => 4096,
+                "pattern" => "^(?![\\s\\S]*[\\u0000-\\u001f\\u007f])[\\s\\S]+$"}},
+            "transport" => {"type" => "string", "enum" => %w[stdio tcp]}}},
         "dock" => {"type" => "object", "required" => %w[size visible], "properties" => {
           "size" => {"type" => "number", "exclusiveMinimum" => 0}, "visible" => {"type" => "boolean"}}},
         "panel" => {"type" => "object", "required" => %w[size visible], "properties" => {
@@ -168,10 +181,12 @@ module Canopus
       validate_save_actions!
       validate_language_server_keys!
       snapshot_language_servers!
+      validate_debug_adapters!
       validate_dock!
       @values["languages"] = @values["languages"].to_h do |name, layer|
         raise Error, "language settings must be objects" unless name.is_a?(String) && layer.is_a?(Hash)
         raise Error, "language settings cannot contain nested languages" if layer.key?("languages")
+        raise Error, "debug_adapters is a global setting" if layer.key?("debug_adapters") || layer.key?(:debug_adapters)
         checked = Settings.new(@values.merge("languages" => {}), layer)
         layer = layer.merge("keymap" => checked["keymap"]) if layer.key?("keymap")
         layer = layer.merge("code_actions_on_save" => checked["code_actions_on_save"]) if layer.key?("code_actions_on_save")
@@ -333,6 +348,38 @@ module Canopus
           raise Error, "language server env keys must be strings" if env.is_a?(Hash) && !env.keys.all? { |key| key.is_a?(String) }
         end
       end
+    end
+
+    def validate_debug_adapters!
+      adapters = @values["debug_adapters"]
+      raise Error, "debug_adapters must be an object of at most 64 adapters" unless adapters.is_a?(Hash) && adapters.length <= 64
+      adapters.each do |type, options|
+        valid_type = type.is_a?(String) && type.valid_encoding? && type.bytesize.between?(1, 128) &&
+          type.match?(/\A[A-Za-z0-9_.-]+\z/)
+        raise Error, "invalid debug adapter type" unless valid_type
+        unless options.is_a?(Hash) && options.keys.all? { |key| key.is_a?(String) } &&
+          (options.keys - %w[command transport]).empty?
+          raise Error, "invalid debug adapter options for #{type}"
+        end
+        command = options["command"]
+        valid_command = command.is_a?(Array) && command.length.between?(1, 32) && command.all? do |argument|
+          argument.is_a?(String) && argument.valid_encoding? && argument.bytesize.between?(1, 4096) &&
+            !argument.match?(/[\x00-\x1f\x7f]/)
+        end
+        raise Error, "invalid debug adapter command for #{type}" unless valid_command
+        raise Error, "invalid debug adapter transport for #{type}" unless %w[stdio tcp].include?(options["transport"])
+      end
+      serialized = JSON.generate(adapters)
+      raise Error, "debug_adapters exceeds 1 MiB" if serialized.bytesize > 1_048_576
+      snapshot = JSON.parse(serialized)
+      freeze_value = lambda do |value|
+        value.each { |key, child| key.freeze; freeze_value.call(child) } if value.is_a?(Hash)
+        value.each { |child| freeze_value.call(child) } if value.is_a?(Array)
+        value.freeze
+      end
+      @values["debug_adapters"] = freeze_value.call(snapshot)
+    rescue JSON::GeneratorError, JSON::ParserError, JSON::NestingError
+      raise Error, "invalid debug_adapters"
     end
 
     def validate_dock!

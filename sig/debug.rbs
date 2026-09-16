@@ -1,0 +1,22 @@
+module Canopus::Debug
+  class Configuration
+    RELATIVE_PATH: String
+    MAX_BYTES: Integer
+    MAX_CONFIGURATIONS: Integer
+    MAX_DEPTH: Integer
+    MAX_COLLECTION_SIZE: Integer
+    MAX_STRING_BYTES: Integer
+    MAX_EXPANDED_STRING_BYTES: Integer
+    MAX_TOTAL_EXPANDED_BYTES: Integer
+    MAX_ENVIRONMENT_ENTRY_BYTES: Integer
+    MAX_ENVIRONMENT_BYTES: Integer
+    VARIABLE: Regexp
+
+    attr_reader root: String
+    attr_reader configurations: Array[Hash[String, Canopus::json]]
+
+    def initialize: (root: String, ?settings: Canopus::Settings, ?environment: untyped) -> void
+    def resolve: (String | Hash[String, Canopus::json] configuration, ?file: String?, ?line_number: Integer?, ?selected_text: String?) -> Hash[String, Canopus::json]
+    def adapter: (String type, ?file: String?, ?line_number: Integer?, ?selected_text: String?) -> Hash[String, Canopus::json]
+  end
+end

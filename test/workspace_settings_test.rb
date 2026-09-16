@@ -39,6 +39,15 @@ class WorkspaceSettingsTest < Minitest::Test
     assert_raises(Canopus::Error) { Canopus::Settings.new("languages" => {"ruby" => {"tab_size" => 0}}) }
     assert_raises(Canopus::Error) { Canopus::Settings.new("theme" => 123) }
     assert_equal "integer", Canopus::Settings.schema.dig("properties", "tab_size", "type")
+    language_schema = Canopus::Settings.schema.dig("properties", "languages", "additionalProperties")
+    assert_equal({"$ref" => "#"}, language_schema["allOf"].first)
+    assert_equal({"languages" => false, "debug_adapters" => false},
+      language_schema["allOf"].last["properties"])
+    settings = Canopus::Settings.new("languages" => {"ruby" => {"soft_wrap" => true}})
+    assert_equal true, settings.for_language("ruby")["soft_wrap"]
+    assert_raises(Canopus::Error) do
+      Canopus::Settings.new("languages" => {"ruby" => {"languages" => {"nested" => {}}}})
+    end
   end
 
   def test_diagnostic_settings_are_defaulted_and_validated

@@ -23,6 +23,7 @@ require_relative "canopus/editor"
 require_relative "canopus/language"
 require "spica"
 require_relative "canopus/project"
+require_relative "canopus/debug/configuration"
 tarazed_path = ENV["TARAZED_PATH"]
 tarazed_root = File.expand_path("..", __dir__)
 tarazed_path ? require(File.expand_path("lib/tarazed", File.expand_path(tarazed_path, tarazed_root))) : require("tarazed")

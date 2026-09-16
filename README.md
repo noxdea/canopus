@@ -154,6 +154,9 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
       { "command": ["ruby-lsp"], "features": ["completion", "definition", "hover", "formatting"] },
       { "command": ["rubocop", "--lsp"], "features": ["diagnostics", "codeAction"] }
     ]
+  },
+  "debug_adapters": {
+    "ruby": { "command": ["rdbg", "--open", "--stop-at-load"], "transport": "tcp" }
   }
 }
 ```
@@ -217,6 +220,7 @@ network privileges.
 ## Documentation
 
 - [Language servers](docs/lsp.md)
+- [Debug configurations](docs/debugging.md)
 - [Vim mode](docs/vim.md)
 - [Snippets](docs/snippets.md)
 - [Completion providers](docs/providers.md)
