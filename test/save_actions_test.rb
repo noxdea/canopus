@@ -90,7 +90,7 @@ class SaveActionsTest < Minitest::Test
   def setup
     @root = Dir.mktmpdir("canopus-save-actions-")
     @path = File.join(@root, "sample.rb")
-    File.write(@path, "value\n")
+    File.binwrite(@path, "value\n")
     @settings = Canopus::Settings.new("language_servers" => {"ruby" => ["fake-server"]})
     @workspace = Canopus::Workspace.new(root: @root, settings: @settings)
     @editor = @workspace.open(@path)
@@ -198,7 +198,7 @@ class SaveActionsTest < Minitest::Test
 
   def test_nested_save_of_another_buffer_runs_its_own_actions
     second_path = File.join(@root, "second.rb")
-    File.write(second_path, "second\n")
+    File.binwrite(second_path, "second\n")
     second = @workspace.open(second_path)
     @settings.merge!("format_on_save" => true)
     @client.formatting_result = [edit("F")]

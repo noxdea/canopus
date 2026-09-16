@@ -2271,8 +2271,14 @@ module Canopus
       return false unless cache && cache[:generation] == generation &&
         buffer.version == version && language_client_active?(client) && @settings.for_language(definition_for(buffer.path).name)["code_lens"]["enabled"]
 
+      request = begin
+        client.execute_command(command.fetch("command"), arguments: command.fetch("arguments", []))
+      rescue StandardError => error
+        post { @message = error.message unless @retired_language_clients&.[](client) }
+        return true
+      end
       job = Thread.new do
-        client.execute_command(command.fetch("command"), arguments: command.fetch("arguments", [])).await(timeout: 10)
+        request.await(timeout: 10)
       rescue StandardError => error
         post { @message = error.message unless @retired_language_clients&.[](client) }
       ensure

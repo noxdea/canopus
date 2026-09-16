@@ -12,8 +12,8 @@ class DisplayMapOverlayTest < Minitest::Test
     end
   end
 
-  def inline(offset, content = "[]", style = {})
-    Canopus::Decoration::Item.new(:inline, offset...offset, nil, content, style, 0, :test, nil)
+  def inline(offset, content = "[]", style = {}, priority: 0, **styles)
+    Canopus::Decoration::Item.new(:inline, offset...offset, nil, content, style.merge(styles), priority, :test, nil)
   end
 
   def block(row, height:, position: :above)
@@ -50,6 +50,17 @@ class DisplayMapOverlayTest < Minitest::Test
     assert_equal %w[a b cd], map.each_row.map { |row, _| row.text }
     assert_equal Canopus::DisplayPoint.new(1, 0), map.to_display(1)
     assert_equal 1, map.to_buffer(Canopus::DisplayPoint.new(1, 0))
+  ensure
+    map&.dispose
+  end
+
+  def test_same_offset_inlines_sort_by_priority_and_preserve_input_order_for_ties
+    map = Canopus::DisplayMap.new(Canopus::Buffer.new("ab"), background_threshold: nil)
+    map.set_overlays([inline(1, "later first", priority: 10), inline(1, "early", priority: 0),
+      inline(1, "later second", priority: 10)], font_size: 10, line_height: 10)
+
+    assert_equal ["early", "later first", "later second"],
+      map.row(0).metadata.map { |placement| placement.item.content }
   ensure
     map&.dispose
   end

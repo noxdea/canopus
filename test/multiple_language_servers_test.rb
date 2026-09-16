@@ -100,7 +100,7 @@ class MultipleLanguageServersTest < Minitest::Test
   def setup
     @root = Dir.mktmpdir("canopus-multiple-language-servers-")
     @path = File.join(@root, "sample.rb")
-    File.write(@path, "value\n")
+    File.binwrite(@path, "value\n")
     @created = []
   end
 

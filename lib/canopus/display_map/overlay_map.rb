@@ -62,10 +62,14 @@ class Canopus::DisplayMap::OverlayMap
         blocks[row] << Block.new(item, row, height.to_f, (height.to_f / line_height).ceil, position)
       end
     end
-    inlines.each_value { |values| values.sort_by! { |value| [value.offset, value.item.priority] }.freeze }
+    inline_values = inlines.values.flatten.each_with_index
+      .sort_by { |value, index| [value.offset, value.item.priority, index] }.map!(&:first).freeze
+    inlines.each_value do |values|
+      ordered = values.each_with_index.sort_by { |value, index| [value.offset, value.item.priority, index] }.map!(&:first)
+      values.replace(ordered).freeze
+    end
     blocks.each_value { |values| values.sort_by! { |value| value.item.priority }.freeze }
     inlines, blocks = inlines.to_h.freeze, blocks.to_h.freeze
-    inline_values = inlines.values.flatten.sort_by(&:offset).freeze
     return [] if @inlines == inlines && @blocks == blocks && @line_height == line_height
 
     affected = (@inlines.keys | @blocks.keys | inlines.keys | blocks.keys).select do |row|
