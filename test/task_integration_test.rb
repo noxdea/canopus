@@ -193,9 +193,9 @@ class TaskIntegrationTest < Minitest::Test
 
     assert @workspace.stop_task(output)
     wait_until { output.terminal.closed? }
-    20.times do
+    wait_until do
       @workspace.drain_task_outputs
-      break if @workspace.instance_variable_get(:@task_finished)[output.id]
+      @workspace.instance_variable_get(:@task_finished)[output.id]
     end
 
     assert @workspace.instance_variable_get(:@task_finished)[output.id]
