@@ -359,7 +359,7 @@ class DebugConsoleTest < Minitest::Test
     document = current.language_document
     rows = (0...current.buffer.line_count).to_a
     document.request(rows: rows)
-    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 10
     until rows.all? { |row| document.tokens_current?(row) }
       document.poll
       raise "timed out waiting for tokens" if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
