@@ -100,7 +100,7 @@ module Canopus
     def hierarchy_snapshot(kind, current)
       buffer, offset = current.buffer, current.primary.head
       language = current.language_document.definition.name
-      client = @clients[language]
+      client = active_language_client(language, kind == :call ? "callHierarchy" : "typeHierarchy")
       generation = @hierarchy_generation = @hierarchy_generation.to_i + 1
       snapshot = {kind: kind, generation: generation, editor: current,
         document: current.language_document, buffer: buffer, version: buffer.version,
@@ -120,7 +120,8 @@ module Canopus
     def start_hierarchy_prepare(id, snapshot)
       job = Thread.new do
         begin
-          owner = language_client(snapshot[:buffer])
+          feature = snapshot[:kind] == :call ? "callHierarchy" : "typeHierarchy"
+          owner = language_client(snapshot[:buffer], feature: feature)
           unless @hierarchy_prepare_requests&.[](id).equal?(snapshot) && hierarchy_editor_valid?(snapshot)
             next
           end
@@ -402,7 +403,8 @@ module Canopus
 
     def hierarchy_context_valid?(state)
       return false unless state && hierarchy_editor_valid?(state)
-      client = @clients[state[:language]]
+      feature = state[:kind] == :call ? "callHierarchy" : "typeHierarchy"
+      client = active_language_client(state[:language], feature)
       client.equal?(state[:client]) && hierarchy_capability(client, state[:kind]) == state[:capability]
     end
 
@@ -414,7 +416,8 @@ module Canopus
     def hierarchy_state_valid?(state)
       client = state[:client]
       !@closed && @hierarchy_state.equal?(state) && state[:generation] == @hierarchy_generation &&
-        @clients[state[:language]].equal?(client) && hierarchy_capability(client, state[:kind]) == state[:capability]
+        active_language_client(state[:language], state[:kind] == :call ? "callHierarchy" : "typeHierarchy").equal?(client) &&
+        hierarchy_capability(client, state[:kind]) == state[:capability]
     end
 
     def hierarchy_child_valid?(id, request)

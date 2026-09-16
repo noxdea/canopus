@@ -270,10 +270,10 @@ class SelectionRangeTest < Minitest::Test
     client = Client.new([chain(range(0, 0, 7))])
     original = @workspace.method(:language_client)
     started, release = Queue.new, Queue.new
-    delayed = lambda do |buffer|
+    delayed = lambda do |buffer, feature: nil, **|
       started << true
       release.pop
-      original.call(buffer)
+      original.call(buffer, feature: feature)
     end
     with_client(client) do
       @workspace.stub(:language_client, delayed) do
@@ -298,7 +298,7 @@ class SelectionRangeTest < Minitest::Test
 
   def test_failed_initial_client_startup_after_edit_clears_pending_state
     started, release = Queue.new, Queue.new
-    failing = lambda do |_buffer|
+    failing = lambda do |_buffer, **|
       started << true
       release.pop
       raise Canopus::Error, "start failed"

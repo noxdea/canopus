@@ -20,6 +20,18 @@ require_relative "diagnostics"
 module Canopus
   class Workspace
     ClosedTab = Data.define(:path, :selections, :scroll_x, :scroll_y, :pane_id, :index)
+    LANGUAGE_SERVER_CAPABILITIES = {
+      "completion" => "completionProvider", "diagnostics" => nil, "codeAction" => "codeActionProvider",
+      "formatting" => "documentFormattingProvider", "definition" => "definitionProvider",
+      "typeDefinition" => "typeDefinitionProvider", "implementation" => "implementationProvider",
+      "hover" => "hoverProvider", "signatureHelp" => "signatureHelpProvider", "references" => "referencesProvider",
+      "rename" => "renameProvider", "documentSymbol" => "documentSymbolProvider", "codeLens" => "codeLensProvider",
+      "inlayHint" => "inlayHintProvider", "semanticTokens" => "semanticTokensProvider",
+      "documentHighlight" => "documentHighlightProvider", "foldingRange" => "foldingRangeProvider",
+      "selectionRange" => "selectionRangeProvider", "callHierarchy" => "callHierarchyProvider",
+      "typeHierarchy" => "typeHierarchyProvider", "documentLink" => "documentLinkProvider",
+      "linkedEditingRange" => "linkedEditingRangeProvider", "workspaceSymbol" => "workspaceSymbolProvider"
+    }.freeze
     attr_reader :panes, :active_pane, :buffers, :actions, :commands, :settings, :theme, :project, :clients, :root, :docks, :panels, :decorations, :providers, :minimap, :diagnostics
     attr_reader :terminals, :active_terminal_index
     attr_accessor :window, :terminal_composition, :selected_project_path, :performance
@@ -607,9 +619,10 @@ module Canopus
         return
       end
       if [:locations, :symbols, :code_actions, :outline, :branches, :settings_keys, :snippet_choices,
-          :breadcrumbs, :hierarchy_roots].include?(@palette[:kind])
+          :breadcrumbs, :hierarchy_roots, :language_servers].include?(@palette[:kind])
         labels = @palette[:all_matches] ||= @palette[:matches].dup
-        session = @palette[:search] ||= Spica::Index.new(labels).session
+        index = @palette[:kind] == :language_servers ? Spica::Index.new(labels, tie_break: :index) : Spica::Index.new(labels)
+        session = @palette[:search] ||= index.session
         session.query = @palette[:query]
         matches = session.matches(12)
         @palette[:indices] = matches.map(&:index)
@@ -661,6 +674,12 @@ module Canopus
         index = current[:indices] ? current[:indices][current[:index]] : current[:index]
         self.palette = nil
         return accept_hierarchy_root(current, index)
+      elsif @palette[:kind] == :language_servers
+        current = @palette
+        index = current[:indices] ? current[:indices][current[:index]] : current[:index]
+        server = index && current[:items][index]
+        self.palette = nil
+        return restart_language_server(server[:language], server[:index]) if server
       elsif @palette[:kind] == :problem_filter
         query = @palette[:query]
         self.palette = nil
@@ -737,7 +756,7 @@ module Canopus
       [pattern, search_options]
     end
     def connect_server(language, command)
-      options = normalize_server_options({"command" => command})
+      options = normalize_server_configuration(command)
       (@client_lock ||= Mutex.new).synchronize { ensure_language_server(language, options) }
     end
     def drain
@@ -848,6 +867,7 @@ module Canopus
       register_action("settings.open") { open_settings }
       register_action("settings.complete") { settings_completions }
       register_action("language.diagnostics") { show_diagnostics }
+      register_action("language.restart_server") { show_language_server_restart }
       register_action("view.project") { @panels.toggle("explorer") }
       register_action("panel.explorer") { @panels.toggle("explorer") }
       register_action("panel.search") { @panels.fetch("search").build.call }

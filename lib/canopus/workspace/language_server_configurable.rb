@@ -2,14 +2,55 @@
 
 module Canopus
   module Workspace::LanguageServerConfigurable
+    def language_server_states(language)
+      options = server_options_list(@client_options&.[](language))
+      language_client_list(language).each_with_index.map do |client, index|
+        command = options.dig(index, :command) || []
+        {language: language, index: index, name: File.basename(command.first.to_s), state: client.state}.freeze
+      end.freeze
+    end
+
+    def show_language_server_restart
+      language = editor.language_document.definition.name
+      items = language_server_states(language)
+      self.palette = {kind: :language_servers, query: +"", index: 0,
+        matches: items.map { |item| "#{item[:name]} (#{item[:state]})" }, items: items}
+      update_palette
+    end
+
+    def restart_language_server(language, index)
+      (@client_lock ||= Mutex.new).synchronize do
+        options = server_options_list(@client_options&.[](language) || language_server_options(language))
+        clients = language_client_list(language).dup
+        option = options.fetch(index)
+        current = clients.fetch(index)
+        replacement = start_language_client(language, option, index: index)
+        replacements = clients.dup
+        replacements[index] = replacement
+        store_language_clients(language, replacements)
+        begin
+          open_language_client_documents(language, replacement)
+        rescue StandardError
+          store_language_clients(language, clients)
+          cleanup_language_clients(language, [replacement])
+          raise
+        end
+        retire_language_client(language, current)
+        @message = "Restarted #{File.basename(option.fetch(:command).first)}"
+        replacement
+      end
+    end
+
     private
 
     def normalize_server_options(value)
-      value = {"command" => value} if value.is_a?(Array)
-      unless value.is_a?(Hash) && (value.keys - %w[command env initialization_options configuration]).empty?
+      legacy = value.is_a?(Array)
+      value = {"command" => value} if legacy
+      allowed = %w[command env initialization_options configuration features]
+      unless value.is_a?(Hash) && (value.keys - allowed).empty?
         raise Error, "language server must be an argument array or command/options object"
       end
-      command, env = value["command"], value.fetch("env", {})
+      command, env, features = value["command"], value.fetch("env", {}), value["features"]
       unless command.is_a?(Array) && !command.empty? && command.first.is_a?(String) && !command.first.empty? &&
           command.all? { |part| part.is_a?(String) && part.valid_encoding? && !part.include?("\0") }
         raise Error, "language server command must be a nonempty argument array without NUL bytes"
@@ -19,6 +60,10 @@ module Canopus
       end
       configuration = value.fetch("configuration", {})
       raise Error, "language server configuration must be an object" unless configuration.is_a?(Hash)
+      if features && (!features.is_a?(Array) || features.empty? || features.length > Workspace::LANGUAGE_SERVER_CAPABILITIES.length ||
+          features.uniq.length != features.length || !features.all? { |feature| Workspace::LANGUAGE_SERVER_CAPABILITIES.key?(feature) })
+        raise Error, "language server features must be unique supported feature names"
+      end
       encoded = JSON.generate(value)
       raise Error, "language server options exceed 1 MiB" if encoded.bytesize > 1 << 20
       snapshot = JSON.parse(encoded)
@@ -29,9 +74,57 @@ module Canopus
       end
       freeze_value.call(snapshot)
       {command: snapshot.fetch("command"), env: snapshot.fetch("env", {}).freeze,
-        initialization_options: snapshot["initialization_options"], configuration: snapshot.fetch("configuration", {}).freeze}.freeze
-    rescue JSON::GeneratorError, JSON::ParserError => error
+        initialization_options: snapshot["initialization_options"], configuration: snapshot.fetch("configuration", {}).freeze,
+        features: snapshot["features"], legacy: legacy}.freeze
+    rescue JSON::GeneratorError, JSON::ParserError, JSON::NestingError => error
       raise Error, "invalid language server options: #{error.message}"
+    end
+
+    def normalize_server_configuration(value)
+      if value.is_a?(Array) && value.any? { |item| item.is_a?(Hash) }
+        unless value.length.between?(1, 16) && value.all? { |item| item.is_a?(Hash) }
+          raise Error, "language server list must contain 1 to 16 option objects"
+        end
+        return value.map { |item| normalize_server_options(item) }.freeze
+      end
+      normalize_server_options(value)
+    end
+
+    def server_options_list(options) = options.nil? ? [] : options.is_a?(Array) ? options : [options]
+
+    def language_client_list(language)
+      return @language_clients[language].compact if @language_clients&.key?(language)
+      client = @clients[language]
+      client ? [client] : []
+    end
+
+    def language_client_active?(client)
+      @language_clients ? @language_clients.values.any? { |clients| clients.include?(client) } : @clients.value?(client)
+    end
+
+    def language_server_feature?(option, client, feature)
+      return true unless option
+      return option[:features].include?(feature) if option[:features]
+      return true if option[:legacy]
+
+      capability = Workspace::LANGUAGE_SERVER_CAPABILITIES.fetch(feature)
+      capability.nil? || !!client.capabilities[capability]
+    end
+
+    def language_server_option(language, client)
+      index = language_client_list(language).index(client)
+      index && server_options_list(@client_options&.[](language))[index]
+    end
+
+    def store_language_clients(language, clients)
+      @language_clients ||= {}
+      if clients.empty?
+        @language_clients.delete(language)
+        @clients.delete(language)
+      else
+        @language_clients[language] = clients.freeze
+        @clients[language] = clients.first
+      end
     end
 
     def language_server_options(language)
@@ -41,16 +134,14 @@ module Canopus
         definition = @languages[language] || Language::DEFINITIONS.find { |item| item.name == language }
         configured = definition&.servers&.find { |candidate| Language.executable?(candidate.first) }
       end
-      normalize_server_options(configured) unless configured.nil?
+      normalize_server_configuration(configured) unless configured.nil?
     end
 
     def language_server_settings_plan
-      # Validate every layer before any client is stopped, including settings
-      # for languages which have not opened a server yet.
       [@settings.values, *@settings["languages"].values].each do |layer|
         layer.fetch("language_servers", {}).each do |name, value|
           raise Error, "language server names must be strings" unless name.is_a?(String)
-          normalize_server_options(value) unless value.nil?
+          normalize_server_configuration(value) unless value.nil?
         end
       end
       (@client_options || {}).keys.to_h { |language| [language, language_server_options(language)] }.freeze
@@ -85,55 +176,131 @@ module Canopus
       raise Error, "Workspace closed" if @closed
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout if timeout
       @client_options ||= {}
-      previous, client = @client_options[language], @clients[language]
-      if client && previous && options && previous.except(:configuration) == options.except(:configuration)
-        client.did_change_configuration(options[:configuration]) if previous[:configuration] != options[:configuration]
+      previous = server_options_list(@client_options[language])
+      requested = server_options_list(options)
+      clients = language_client_list(language)
+      reusable = clients.length == requested.length && previous.length == requested.length &&
+        requested.each_index.all? do |index|
+          previous[index].except(:configuration, :features, :legacy) == requested[index].except(:configuration, :features, :legacy)
+        end
+      if reusable
+        changed_features = requested.each_index.select do |index|
+          previous[index].values_at(:features, :legacy) != requested[index].values_at(:features, :legacy)
+        end
+        requested.each_index do |index|
+          clients[index].did_change_configuration(requested[index][:configuration]) if previous[index][:configuration] != requested[index][:configuration]
+        end
         @client_options[language] = options
-        return client
-      end
-      return if !client && previous == options && options.nil?
-      if client
-        @clients.delete(language)
-        invalidate_diagnostics
-        invalidate_document_highlights(client: client)
-        invalidate_document_links(client: client)
-        invalidate_folding_ranges(client: client)
-        invalidate_selection_ranges(client: client)
-        invalidate_hierarchy(client: client)
-        invalidate_prepare_rename(client: client)
-        invalidate_linked_editing_ranges(client: client)
-        invalidate_inlay_hints(client: client)
-        invalidate_code_lenses(client: client)
-        invalidate_sticky_symbols(client: client)
-        (@retired_language_clients ||= ObjectSpace::WeakMap.new)[client] = true
-        @opened_lsp_documents&.keys&.each do |key|
-          next unless key.first.equal?(client)
-          close_language_document(client, key.last) if key.last.path
-        rescue Sadr::Error
-          forget_language_document(client, key.last)
-          nil
+        store_language_clients(language, clients)
+        changed_features.each do |index|
+          clear_diagnostics = language_server_feature?(previous[index], clients[index], "diagnostics") &&
+            !language_server_feature?(requested[index], clients[index], "diagnostics")
+          invalidate_language_client_features(language, clients[index], clear_diagnostics: clear_diagnostics)
         end
-        client.stop
-        post do
-          @semantic_styles&.delete_if { |buffer, _| definition_for(buffer.path).name == language }
-          self.palette = nil if @palette&.dig(:client).equal?(client)
-          @hover_card = nil
-          @window&.request_frame
-        end
+        return @clients[language]
       end
+      return if clients.empty? && @client_options[language] == options && options.nil?
+
+      store_language_clients(language, [])
+      retire_language_clients(language, clients)
       if Thread.current.equal?(@language_reload_job)
         options = @language_reload_lock.synchronize do
           @language_reload_targets&.key?(language) ? @language_reload_targets[language] : options
         end
+        requested = server_options_list(options)
       end
-      @client_options[language] = options
-      return unless options
+      replacements = []
+      begin
+        requested.each_with_index do |option, index|
+          remaining = deadline && deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          raise Sadr::Timeout, "language server startup timed out" if remaining && remaining <= 0
+          replacements << start_language_client(language, option, index: index, timeout: remaining)
+        end
+        @client_options[language] = options
+        store_language_clients(language, replacements)
+        replacements.each { |client| open_language_client_documents(language, client) }
+      rescue StandardError
+        store_language_clients(language, [])
+        cleanup_language_clients(language, replacements)
+        raise
+      end
+      replacements.first
+    end
+
+    def retire_language_clients(language, clients)
+      failure = nil
+      clients.each do |client|
+        retire_language_client(language, client)
+      rescue StandardError => error
+        failure ||= error
+      end
+      raise failure if failure
+    end
+
+    def cleanup_language_clients(language, clients)
+      clients.each do |client|
+        retire_language_client(language, client)
+      rescue StandardError
+        begin
+          stop_language_client(client)
+        rescue StandardError
+          nil
+        end
+      end
+    end
+
+    def retire_language_client(language, client)
+      retiring_language_clients[client] = true
+      invalidate_language_client_features(language, client)
+      (@retired_language_clients ||= ObjectSpace::WeakMap.new)[client] = true
+      @opened_lsp_documents&.keys&.each do |owner, buffer|
+        next unless owner.equal?(client)
+        close_language_document(client, buffer) if buffer.path
+      rescue Sadr::Error
+        forget_language_document(client, buffer)
+      end
+      stop_language_client(client)
+      @window&.request_frame
+    end
+
+    def retiring_language_clients
+      @retiring_language_clients ||= {}.compare_by_identity
+    end
+
+    def stop_language_client(client)
+      retiring_language_clients[client] = true
+      client.stop
+      retiring_language_clients.delete(client)
+    end
+
+    def invalidate_language_client_features(language, client, clear_diagnostics: false)
+      invalidate_document_highlights(client: client)
+      invalidate_document_links(client: client)
+      invalidate_folding_ranges(client: client)
+      invalidate_selection_ranges(client: client)
+      invalidate_hierarchy(client: client)
+      invalidate_prepare_rename(client: client)
+      invalidate_linked_editing_ranges(client: client)
+      invalidate_inlay_hints(client: client)
+      invalidate_code_lenses(client: client)
+      invalidate_sticky_symbols(client: client)
+      clear_language_client_diagnostics(client) if clear_diagnostics
+      @completion_generation = @completion_generation.to_i + 1
+      @semantic_styles&.delete_if { |buffer, _| definition_for(buffer.path).name == language }
+      self.palette = nil if %i[completion locations symbols code_actions].include?(@palette&.dig(:kind)) ||
+        @palette&.dig(:client).equal?(client) || @palette&.dig(:item_clients)&.include?(client)
+      @hover_card = nil
+      @window&.request_frame
+    end
+
+    def start_language_client(language, options, index:, timeout: nil)
       raise Error, "Workspace closed" if @closed
       dispatcher = ->(&block) { @window ? (@main_queue ||= Queue.new) << block : block.call }
-      replacement = Sadr::Client.new(**options, root: @root, dispatch: dispatcher)
-      replacement.on("error") { |error| @message = error.message if @clients[language].equal?(replacement) }
+      replacement = Sadr::Client.new(**options.except(:features, :legacy), root: @root, dispatch: dispatcher)
+      replacement.on("error") { |error| @message = error.message if language_client_active?(replacement) }
       replacement.on("workspace/configuration") do |params|
-        configured = @client_options.fetch(language).fetch(:configuration)
+        current = language_server_option(language, replacement)
+        configured = (current || options).fetch(:configuration)
         values = @settings.for_language(language).values
         params.fetch("items").map do |item|
           section = item["section"]
@@ -143,63 +310,82 @@ module Canopus
           value.nil? ? {} : value
         end
       end
-      replacement.on("workspace/applyEdit") do |params|
-        future = Sadr::Future.new(nil)
-        if @closed || @retired_language_clients&.[](replacement)
-          future.fulfill({"applied" => false, "failureReason" => "Language server stopped"})
-        elsif @save_action_clients&.key?(replacement)
-          begin
-            edit = params.fetch("edit")
-            raise Error, "save-time code actions cannot change workspace resources" if resource_workspace_edit?(edit)
-            result = apply_workspace_edit(edit)
-            (@save_action_errors ||= {})[replacement] = result["failureReason"].to_s unless result["applied"]
-            future.fulfill(result)
-          rescue StandardError => error
-            (@save_action_errors ||= {})[replacement] = error.message
-            future.fulfill({"applied" => false, "failureReason" => error.message})
-          end
-        else
-          confirm_workspace_edit(params.fetch("edit"), label: params.fetch("label", "Apply language server changes?"), response: future)
-          @palette[:client] = replacement
-        end
-        future
-      end
+      replacement.on("workspace/applyEdit") { |params| handle_language_workspace_edit(replacement, params) }
       replacement.on("textDocument/publishDiagnostics") { |params| accept_diagnostic_notification(replacement, params) }
       replacement.on("workspace/inlayHint/refresh") { invalidate_inlay_hints(client: replacement) }
       replacement.on("workspace/codeLens/refresh") { invalidate_code_lenses(client: replacement) }
-      (@starting_language_clients ||= {})[language] = replacement
+      key = [language, index]
+      (@starting_language_clients ||= {})[key] = replacement
       begin
-        remaining = deadline && deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
-        raise Sadr::Timeout, "language server startup timed out" if remaining && remaining <= 0
-        remaining ? replacement.start(timeout: remaining) : replacement.start
+        timeout ? replacement.start(timeout: timeout) : replacement.start
         raise Error, "Workspace closed" if @closed
-        @clients[language] = replacement
-        @opened_lsp_documents ||= {}
-        @buffers.values.uniq.each do |buffer|
-          next unless buffer.path && !buffer.read_only && definition_for(buffer.path).name == language
-          open_language_document(replacement, buffer, language)
-        end
         replacement
-      rescue StandardError
-        replacement.stop
-        @clients.delete(language) if @clients[language].equal?(replacement)
+      rescue StandardError => error
+        begin
+          stop_language_client(replacement)
+        rescue StandardError
+          nil
+        end
         @opened_lsp_documents&.keys&.each do |owner, buffer|
           forget_language_document(owner, buffer) if owner.equal?(replacement)
         end
-        raise
+        raise error
       ensure
-        @starting_language_clients.delete(language)
+        @starting_language_clients.delete(key)
       end
     end
 
+    def open_language_client_documents(language, client)
+      @opened_lsp_documents ||= {}
+      @buffers.values.uniq.each do |buffer|
+        next unless buffer.path && !buffer.read_only && definition_for(buffer.path).name == language
+        open_language_document(client, buffer, language) unless @opened_lsp_documents[[client, buffer]]
+      end
+      client
+    end
+
+    def handle_language_workspace_edit(client, params)
+      future = Sadr::Future.new(nil)
+      if @closed || @retired_language_clients&.[](client)
+        future.fulfill({"applied" => false, "failureReason" => "Language server stopped"})
+      elsif @save_action_clients&.key?(client)
+        begin
+          edit = params.fetch("edit")
+          raise Error, "save-time code actions cannot change workspace resources" if resource_workspace_edit?(edit)
+          result = apply_workspace_edit(edit)
+          (@save_action_errors ||= {})[client] = result["failureReason"].to_s unless result["applied"]
+          future.fulfill(result)
+        rescue StandardError => error
+          (@save_action_errors ||= {})[client] = error.message
+          future.fulfill({"applied" => false, "failureReason" => error.message})
+        end
+      else
+        confirm_workspace_edit(params.fetch("edit"), label: params.fetch("label", "Apply language server changes?"), response: future)
+        @palette[:client] = client
+      end
+      future
+    end
+
     def stop_language_servers
-      @starting_language_clients&.values&.each(&:stop)
+      starting = @starting_language_clients&.values&.uniq || []
+      starting.each do |client|
+        stop_language_client(client)
+      rescue StandardError
+        nil
+      end
       resyncs = @language_document_resyncs&.values || []
       (@client_lock ||= Mutex.new).synchronize do
         @language_document_subscriptions&.each_value(&:detach)
         @language_document_subscriptions&.clear
         @opened_lsp_documents&.clear
-        @clients.each_value(&:stop)
+        active = @language_clients ? @language_clients.values.flatten : @clients.values
+        clients = [*active, *retiring_language_clients.keys].compact.uniq
+        clients.each do |client|
+          stop_language_client(client)
+        rescue StandardError
+          nil
+        end
+        @language_clients&.clear
         @clients.clear
       end
       resyncs.each { |thread| thread.join unless thread.equal?(Thread.current) }

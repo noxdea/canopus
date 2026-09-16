@@ -8,6 +8,7 @@
 - Show language-server diagnostics as severity-colored wave underlines and optional line-end messages.
 - Collect LSP, task, and test diagnostics in one bounded registry with a filterable Problems panel and status counts.
 - Run opt-in formatting and configured source actions before saving without letting language-server failures block the write.
+- Route each language through ordered language servers, aggregate completion, diagnostics, and code actions, and restart individual servers.
 - Preserve registration order for equal-priority decorations across Ruby versions and platforms.
 - Show cached, viewport-scoped language-server inlay hints inline with clickable label locations.
 - Show cached language-server code lenses above source lines and resolve them only when visible.

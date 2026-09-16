@@ -392,7 +392,11 @@ module Canopus
     def update_palette: () -> void
     def palette_accept: () -> void
     def connect_server: (String language, Array[String] command) -> Sadr::Client
-    def language_client: (?Buffer buffer, ?timeout: Numeric) -> Sadr::Client
+    def language_clients: (?Buffer buffer, ?feature: String?, ?timeout: Numeric?) -> Array[Sadr::Client]
+    def language_client: (?Buffer buffer, ?feature: String?, ?timeout: Numeric?) -> Sadr::Client
+    def language_server_states: (String language) -> Array[Hash[Symbol, untyped]]
+    def show_language_server_restart: () -> void
+    def restart_language_server: (String language, Integer index) -> Sadr::Client
     def language_request: (Symbol kind, **json options) -> void
     def run_save_actions: (Buffer buffer) -> bool
     def prepare_rename: (?Editor? current) -> bool?

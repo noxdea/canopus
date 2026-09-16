@@ -21,6 +21,27 @@ An absent or `null` entry auto-detects the language's default executable; it doe
 not disable the server. If no executable is found, Canopus leaves that language
 without a server. Invalid settings keep the previous working connection.
 
+Configure multiple ordered servers with option objects and explicit feature
+routing. The first matching server handles single-result features such as
+formatting and definition; completion, diagnostics, and code actions are merged
+from every matching server:
+
+```json
+{
+  "language_servers": {
+    "ruby": [
+      {"command": ["ruby-lsp"], "features": ["completion", "definition", "hover", "formatting"]},
+      {"command": ["rubocop", "--lsp"], "features": ["diagnostics", "codeAction"]}
+    ]
+  }
+}
+```
+
+Omit `features` to route from negotiated server capabilities. The legacy
+argument array (`"ruby": ["ruby-lsp"]`) remains a single-server command. The
+status bar shows each connection, and `language.restart_server` restarts one
+selected server without disturbing the others.
+
 Changes to the command, environment, or initialization options restart the
 connection and reopen its documents. A configuration-only change sends
 `workspace/didChangeConfiguration` without restarting. Resource-changing server

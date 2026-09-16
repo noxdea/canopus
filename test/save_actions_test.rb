@@ -116,7 +116,7 @@ class SaveActionsTest < Minitest::Test
   end
 
   def save
-    @workspace.stub(:language_client, @client) { @workspace.save_buffer(@editor.buffer) }
+    @workspace.stub(:language_clients, [@client]) { @workspace.save_buffer(@editor.buffer) }
   end
 
   def test_formatting_and_configured_code_actions_apply_in_order_as_one_undo
@@ -204,7 +204,7 @@ class SaveActionsTest < Minitest::Test
     @client.formatting_result = [edit("F")]
     subscription = @editor.buffer.on_edit { @workspace.save_buffer(second.buffer) }
 
-    @workspace.stub(:language_client, @client) { @workspace.save_buffer(@editor.buffer) }
+    @workspace.stub(:language_clients, [@client]) { @workspace.save_buffer(@editor.buffer) }
 
     assert_equal 2, @client.formatting_calls.length
     assert_equal "Fvalue\n", File.read(@path)
@@ -306,12 +306,12 @@ class SaveActionsTest < Minitest::Test
     current.insert_text("draft", auto_indent: false)
     @settings.merge!("format_on_save" => true)
 
-    @workspace.stub(:language_client, @client) { @workspace.save_buffer(current.buffer, path: "new.rb") }
+    @workspace.stub(:language_clients, [@client]) { @workspace.save_buffer(current.buffer, path: "new.rb") }
     assert_equal "draft", File.read(File.join(@root, "new.rb"))
     assert_empty @client.formatting_calls
 
     @client.formatting_result = [edit("F")]
-    @workspace.stub(:language_client, @client) { @workspace.save_buffer(current.buffer) }
+    @workspace.stub(:language_clients, [@client]) { @workspace.save_buffer(current.buffer) }
     assert_equal "Fdraft", File.read(File.join(@root, "new.rb"))
   end
 end

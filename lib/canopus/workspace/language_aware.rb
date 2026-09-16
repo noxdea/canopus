@@ -71,7 +71,7 @@ module Canopus
       (@main_queue ||= Queue.new) << block
       @window&.request_frame
     end
-    def language_client(buffer = editor.buffer, timeout: nil)
+    def language_clients(buffer = editor.buffer, feature: nil, timeout: nil)
       raise Error, "language servers are disabled for large read-only documents" if buffer.read_only
       language = definition_for(buffer.path)
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout if timeout
@@ -80,13 +80,20 @@ module Canopus
         raise Error, "No language server configured for #{language.name}" unless options
         remaining = deadline && deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
         raise Sadr::Timeout, "language server startup timed out" if remaining && remaining <= 0
-        client = ensure_language_server(language.name, options, timeout: remaining)
+        ensure_language_server(language.name, options, timeout: remaining)
+        clients = language_client_list(language.name)
         @opened_lsp_documents ||= {}
-        unless @opened_lsp_documents[[client, buffer]]
-          open_language_document(client, buffer, language.name)
+        clients.each do |client|
+          open_language_document(client, buffer, language.name) unless @opened_lsp_documents[[client, buffer]]
         end
-        client
+        route_language_clients(language.name, clients, feature)
       end
+    end
+
+    def language_client(buffer = editor.buffer, feature: nil, timeout: nil)
+      client = language_clients(buffer, feature: feature, timeout: timeout).first
+      raise Error, "No language server supports #{feature}" if !client && feature
+      client || raise(Error, "No language server configured for #{definition_for(buffer.path).name}")
     end
     def language_request(kind, **options)
       current, buffer, offset = editor, editor.buffer, editor.primary.head
@@ -100,41 +107,146 @@ module Canopus
       version = buffer.version
       (@language_jobs ||= []) << Thread.new do
         begin
-          client = language_client(buffer)
+          feature = language_request_feature(kind)
+          language_name = definition_for(buffer.path).name
+          aggregate = %i[codeAction diagnostic].include?(kind)
+          deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 10 if aggregate
+          clients = language_clients(buffer, feature: feature,
+            timeout: deadline && deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC))
           uri = Sadr::Protocol.uri(buffer.path)
           position = Sadr::Protocol.position(buffer.rope, offset)
-          result = case kind
-          when :hover, :definition, :typeDefinition, :implementation, :signatureHelp
-            method = {typeDefinition: :type_definition, signatureHelp: :signature_help}.fetch(kind, kind)
-            client.public_send(method, uri, position).await(timeout: 10)
-          when :references then client.references(uri, position, include_declaration: true).await(timeout: 10)
-          when :rename then client.rename(uri, position, options.fetch(:name)).await(timeout: 10)
-          when :formatting then client.formatting(uri, {tabSize: current.tab_size, insertSpaces: !current.use_tabs}).await(timeout: 10)
-          when :codeAction
-            client.code_action(uri, Sadr::Protocol.range(buffer.rope, current.primary.range), {diagnostics: diagnostics_for(buffer)}).await(timeout: 10)
-          when :documentSymbol then client.document_symbol(uri).await(timeout: 10)
-          when :codeLens then client.code_lens(uri).await(timeout: 10)
-          when :diagnostic then client.diagnostic(uri).await(timeout: 10)
-          when :semantic_tokens then client.semantic_tokens(uri, version: buffer.version)
-          when :workspace_symbols then client.workspace_symbols(options.fetch(:query, "")).await(timeout: 10)
-          else raise Error, "unknown language request #{kind}"
+          raise Error, "No language server supports #{feature}" if clients.empty?
+          if kind == :codeAction
+            pending = clients.map do |owner|
+              [owner, owner.code_action(uri, Sadr::Protocol.range(buffer.rope, current.primary.range),
+                {diagnostics: diagnostics_for(buffer)}), nil]
+            rescue StandardError => error
+              [owner, nil, error]
+            end
+            pairs, failures, successes = [], [], 0
+            pending.each do |owner, future, failure|
+              if failure
+                failures << failure
+                next
+              end
+              begin
+                result = language_request_await(future, deadline)
+                successes += 1
+                pairs.concat(Array(result).map { |item| [item, owner] })
+              rescue StandardError => error
+                failures << error
+              end
+            end
+            raise failures.first if successes.zero? && !failures.empty?
+            pairs = deduplicate_client_items(pairs)
+            client, result, item_clients = clients.first, pairs.map(&:first), pairs.map(&:last)
+          elsif kind == :diagnostic
+            pending = clients.map do |owner|
+              [owner, owner.diagnostic(uri), nil]
+            rescue StandardError => error
+              [owner, nil, error]
+            end
+            failures, successes = [], 0
+            results = pending.filter_map do |owner, future, failure|
+              if failure
+                failures << failure
+                next
+              end
+              begin
+                value = language_request_await(future, deadline)
+                successes += 1
+                [owner, value]
+              rescue StandardError => error
+                failures << error
+                nil
+              end
+            end
+            raise failures.first if successes.zero? && !failures.empty?
+            client, result = clients.first, results
+          else
+            client = clients.first
+            result = case kind
+            when :hover, :definition, :typeDefinition, :implementation, :signatureHelp
+              method = {typeDefinition: :type_definition, signatureHelp: :signature_help}.fetch(kind, kind)
+              client.public_send(method, uri, position).await(timeout: 10)
+            when :references then client.references(uri, position, include_declaration: true).await(timeout: 10)
+            when :rename then client.rename(uri, position, options.fetch(:name)).await(timeout: 10)
+            when :formatting then client.formatting(uri, {tabSize: current.tab_size, insertSpaces: !current.use_tabs}).await(timeout: 10)
+            when :documentSymbol then client.document_symbol(uri).await(timeout: 10)
+            when :codeLens then client.code_lens(uri).await(timeout: 10)
+            when :semantic_tokens then client.semantic_tokens(uri, version: buffer.version)
+            when :workspace_symbols then client.workspace_symbols(options.fetch(:query, "")).await(timeout: 10)
+            else raise Error, "unknown language request #{kind}"
+            end
           end
           post do
-            next unless @clients.value?(client)
+            routed = route_language_clients(language_name, language_client_list(language_name), feature)
+            if %i[codeAction diagnostic].include?(kind)
+              next unless clients == routed
+            else
+              next unless routed.first.equal?(client)
+            end
             next unless @panes.any? { |pane| pane.editors.include?(current) }
             if buffer.version == version
-              display_language_result(kind, result, client, current)
+              if kind == :diagnostic
+                result.each { |owner, value| display_language_result(kind, value, owner, current) }
+              else
+                display_language_result(kind, result, client, current, item_clients: item_clients)
+              end
             else
               @message = "Document changed; request #{kind} again"
             end
           end
         rescue StandardError => error
           post { @message = error.message unless client && @retired_language_clients&.[](client) }
+        ensure
+          cancel_language_requests(pending)
         end
       end
       @language_jobs.reject! { |thread| !thread.alive? }
       @message = "#{kind}…"
     end
+
+    def language_request_feature(kind)
+      {diagnostic: "diagnostics", semantic_tokens: "semanticTokens", workspace_symbols: "workspaceSymbol"}.fetch(kind, kind.to_s)
+    end
+
+    def route_language_clients(language, clients, feature)
+      return clients if feature.nil?
+      feature = feature.to_s
+      options = server_options_list(@client_options&.[](language))
+      clients.each_with_index.filter_map do |client, index|
+        client if language_server_feature?(options[index], client, feature)
+      end
+    end
+
+    def language_request_await(future, deadline)
+      remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      raise Sadr::Timeout, "language server request timed out" if remaining <= 0
+      future.await(timeout: remaining)
+    end
+
+    def cancel_language_requests(pending)
+      Array(pending).each do |_client, future, _failure|
+        future.cancel if future&.respond_to?(:cancel) && (!future.respond_to?(:done?) || !future.done?)
+      end
+    end
+
+    def deduplicate_client_items(pairs)
+      seen = {}
+      pairs.each_with_object([]) do |pair, values|
+        item = pair.first
+        next if seen.key?(item)
+        seen[item] = true
+        values << pair
+      end
+    end
+
+    def active_language_client(language, feature)
+      route_language_clients(language, language_client_list(language), feature).first
+    end
+    private :language_request_feature, :route_language_clients, :active_language_client,
+      :language_request_await, :cancel_language_requests, :deduplicate_client_items
 
     def run_save_actions(buffer)
       language = definition_for(buffer.path)
@@ -146,29 +258,34 @@ module Canopus
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + values["format_on_save_timeout"] / 1_000.0
       remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
       raise Sadr::Timeout, "save actions timed out" if remaining <= 0
-      client = language_client(buffer, timeout: remaining)
+      clients = language_clients(buffer, timeout: remaining)
       raise Sadr::Timeout, "save actions timed out" if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
-      capabilities = client.capabilities
       buffer.begin_undo_group
       ran = false
       begin
-        formatting = capabilities["documentFormattingProvider"]
-        if values["format_on_save"] && (formatting == true || formatting.is_a?(Hash))
+        formatter = route_language_clients(language.name, clients, "formatting").find do |client|
+          capability = client.capabilities["documentFormattingProvider"]
+          capability == true || capability.is_a?(Hash)
+        end
+        if values["format_on_save"] && formatter
           version = buffer.version
-          edits = save_action_await(client.formatting(Sadr::Protocol.uri(buffer.path),
+          edits = save_action_await(formatter.formatting(Sadr::Protocol.uri(buffer.path),
             {tabSize: values["tab_size"], insertSpaces: !values["use_tabs"]}), deadline)
           raise Error, "document changed while awaiting save formatting" unless buffer.version == version
           apply_save_format(buffer, version, edits)
           ran = true
         end
-        provider = capabilities["codeActionProvider"]
-        if provider == true || provider.is_a?(Hash)
-          kinds.each { |kind| ran = run_code_action_on_save(client, buffer, kind, provider, deadline) || ran }
+        action_clients = route_language_clients(language.name, clients, "codeAction").select do |client|
+          provider = client.capabilities["codeActionProvider"]
+          provider == true || provider.is_a?(Hash)
+        end
+        unless action_clients.empty?
+          kinds.each { |kind| ran = run_code_action_on_save(action_clients, buffer, kind, deadline) || ran }
         end
         ran
       ensure
         buffer.end_undo_group
-        @save_action_errors&.delete(client)
+        clients.each { |client| @save_action_errors&.delete(client) }
       end
     end
 
@@ -200,20 +317,42 @@ module Canopus
       raise Error, result["failureReason"].to_s unless result["applied"]
     end
 
-    def run_code_action_on_save(client, buffer, kind, provider, deadline)
+    def run_code_action_on_save(clients, buffer, kind, deadline)
       version = buffer.version
       range = Sadr::Protocol.range(buffer.rope, 0...buffer.rope.bytesize)
-      actions = save_action_await(client.code_action(Sadr::Protocol.uri(buffer.path), range,
-        {diagnostics: diagnostics_for(buffer), only: [kind], triggerKind: 2}), deadline)
+      pending = clients.map do |client|
+        [client, client.code_action(Sadr::Protocol.uri(buffer.path), range,
+          {diagnostics: diagnostics_for(buffer), only: [kind], triggerKind: 2}), nil]
+      rescue StandardError => error
+        [client, nil, error]
+      end
+      failures, successes = [], 0
+      actions = pending.flat_map do |client, future, failure|
+        if failure
+          failures << failure
+          next []
+        end
+        begin
+          result = save_action_await(future, deadline)
+          successes += 1
+          Array(result).map { |action| [action, client] }
+        rescue StandardError => error
+          failures << error
+          []
+        end
+      end
+      raise failures.first if successes.zero? && !failures.empty?
+      actions = deduplicate_client_items(actions)
       raise Error, "document changed while awaiting save code actions" unless buffer.version == version
-      actions ||= []
-      raise Error, "invalid code action response" unless actions.is_a?(Array) && actions.all? { |action| action.is_a?(Hash) }
-      candidates = actions.reject { |action| action["disabled"] }
-      action = candidates.find { |item| item["kind"] == kind } ||
-        candidates.find { |item| item["kind"].is_a?(String) && item["kind"].start_with?("#{kind}.") } ||
-        candidates.find { |item| !item.key?("kind") }
-      return false unless action
+      raise Error, "invalid code action response" unless actions.all? { |action, _client| action.is_a?(Hash) }
+      candidates = actions.reject { |action, _client| action["disabled"] }
+      selected = candidates.find { |action, _client| action["kind"] == kind } ||
+        candidates.find { |action, _client| action["kind"].is_a?(String) && action["kind"].start_with?("#{kind}.") } ||
+        candidates.find { |action, _client| !action.key?("kind") }
+      return false unless selected
+      action, client = selected
 
+      provider = client.capabilities["codeActionProvider"]
       if provider.is_a?(Hash) && provider["resolveProvider"] && !action.key?("edit") && !action["command"].is_a?(String)
         resolved = save_action_await(client.resolve_code_action(action), deadline)
         raise Error, "invalid resolved code action" unless resolved.nil? || resolved.is_a?(Hash)
@@ -241,6 +380,8 @@ module Canopus
         raise Error, @save_action_errors.delete(client) if @save_action_errors&.key?(client)
       end
       true
+    ensure
+      cancel_language_requests(pending)
     end
     private :save_action_await, :apply_save_format, :run_code_action_on_save
 
@@ -368,56 +509,81 @@ module Canopus
     end
 
     def lsp_completions(buffer, offset, context)
-      client = context[:client]
-      result = context[:lsp_result]
-      unless context.key?(:lsp_result)
-        client = language_client(buffer)
-        context[:client] = client
-        result = client.completion(Sadr::Protocol.uri(buffer.path), Sadr::Protocol.position(buffer.rope, offset)).await(timeout: 10)
-      end
-      context[:client] = client
-      lsp_completion_items(result).map do |item|
-        text_edit = item["textEdit"]
-        if text_edit
-          range = text_edit.is_a?(Hash) && (text_edit["range"] || text_edit["replace"] || text_edit["insert"])
-          unless range.is_a?(Hash) && text_edit["newText"].is_a?(String) && text_edit["newText"].valid_encoding?
-            raise Error, "invalid completion text edit"
+      responses = if context.key?(:lsp_result)
+        [[context[:client], context[:lsp_result]]]
+      else
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 10
+        clients = language_clients(buffer, feature: "completion",
+          timeout: deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC))
+        uri = Sadr::Protocol.uri(buffer.path)
+        position = Sadr::Protocol.position(buffer.rope, offset)
+        pending = clients.map do |client|
+          [client, client.completion(uri, position), nil]
+        rescue StandardError => error
+          [client, nil, error]
+        end
+        begin
+          pending.filter_map do |client, future, failure|
+            if failure
+              context[:errors] << [:lsp, failure.message.to_s.slice(0, 4_096).freeze] if context[:errors].length < 64
+              next
+            end
+            begin
+              [client, language_request_await(future, deadline)]
+            rescue StandardError => error
+              context[:errors] << [:lsp, error.message.to_s.slice(0, 4_096).freeze] if context[:errors].length < 64
+              nil
+            end
           end
-          Sadr::Protocol.offset(buffer.rope, range.fetch("start"))
-          Sadr::Protocol.offset(buffer.rope, range.fetch("end"))
+        ensure
+          cancel_language_requests(pending)
         end
-        insertion = text_edit && text_edit["newText"] || item["insertText"] || item.fetch("label")
-        documentation = item["documentation"]
-        documentation = documentation["value"] if documentation.is_a?(Hash)
-        additional = item.fetch("additionalTextEdits", []).map do |entry|
-          raise Error, "invalid completion additional edit" unless entry.is_a?(Hash)
-          range = entry.fetch("range")
-          [Sadr::Protocol.offset(buffer.rope, range.fetch("start"))...Sadr::Protocol.offset(buffer.rope, range.fetch("end")), entry.fetch("newText")]
+      end
+      context[:client] = responses.first&.first
+      responses.flat_map do |client, result|
+        lsp_completion_items(result).map do |item|
+          text_edit = item["textEdit"]
+          if text_edit
+            range = text_edit.is_a?(Hash) && (text_edit["range"] || text_edit["replace"] || text_edit["insert"])
+            unless range.is_a?(Hash) && text_edit["newText"].is_a?(String) && text_edit["newText"].valid_encoding?
+              raise Error, "invalid completion text edit"
+            end
+            Sadr::Protocol.offset(buffer.rope, range.fetch("start"))
+            Sadr::Protocol.offset(buffer.rope, range.fetch("end"))
+          end
+          insertion = text_edit && text_edit["newText"] || item["insertText"] || item.fetch("label")
+          documentation = item["documentation"]
+          documentation = documentation["value"] if documentation.is_a?(Hash)
+          additional = item.fetch("additionalTextEdits", []).map do |entry|
+            raise Error, "invalid completion additional edit" unless entry.is_a?(Hash)
+            range = entry.fetch("range")
+            [Sadr::Protocol.offset(buffer.rope, range.fetch("start"))...Sadr::Protocol.offset(buffer.rope, range.fetch("end")), entry.fetch("newText")]
+          end
+          completion = Provider::Completion.new(item.fetch("label"), insertion, item["kind"], item["detail"], documentation,
+            item["sortText"], item["filterText"], additional, :lsp)
+          context[:metadata][completion] ||= {item: item, client: client}
+          completion
         end
-        completion = Provider::Completion.new(item.fetch("label"), insertion, item["kind"], item["detail"], documentation,
-          item["sortText"], item["filterText"], additional, :lsp)
-        context[:metadata][completion] ||= {item: item, client: client}
-        completion
       end
     end
     private :request_completions, :cancel_completion_requests, :lsp_completions
     def diagnostics_for(buffer)
       return [] unless buffer.path
       uri = Sadr::Protocol.uri(buffer.path)
-      @diagnostics.for_uri(uri).filter_map do |entry|
-        if entry.source == :lsp
-          client = @diagnostic_owners&.[](uri)
-          next unless client && @opened_lsp_documents&.key?([client, buffer])
-          next if @diagnostic_versions&.dig(client, uri) != buffer.version
-        end
-        entry.diagnostic
-      end
+      local = @diagnostics.for_uri(uri).reject { |entry| entry.source == :lsp }.map(&:diagnostic)
+      clients = [*(@language_clients || {}).values.flatten, *(@lsp_diagnostics || {}).keys].uniq
+      lsp = clients.flat_map do |client|
+        next [] unless @opened_lsp_documents&.key?([client, buffer]) &&
+          @diagnostic_versions&.dig(client, uri) == buffer.version
+        @lsp_diagnostics.fetch(client).fetch(uri, [])
+      end.uniq
+      local + lsp
     end
 
     def document_highlight_decorations(buffer, rows, current)
       return [] unless current.is_a?(Editor) && current.buffer.equal?(buffer)
 
-      client = @clients[current.language_document.definition.name]
+      client = active_language_client(current.language_document.definition.name, "documentHighlight")
       key = document_highlight_key(client, current, buffer)
       value = (@document_highlight_cache || {})[key]
       value.is_a?(Array) ? value.select { |item| diagnostic_item_visible?(buffer, item, rows) } : []
@@ -434,7 +600,7 @@ module Canopus
       return false unless buffer.path && !buffer.read_only && @panes.any? { |pane| pane.active.equal?(current) }
 
       language = current.language_document.definition.name
-      client = @clients[language]
+      client = active_language_client(language, "documentHighlight")
       key = document_highlight_key(client, current, buffer)
       cache = @document_highlight_cache ||= {}
       return false if cache.key?(key)
@@ -458,7 +624,7 @@ module Canopus
       @window&.request_frame
       job = Thread.new do
         begin
-          owner = language_client(buffer)
+          owner = language_client(buffer, feature: "documentHighlight")
           request[:client] = owner
           supported = document_highlight_supported?(owner)
           valid = document_highlight_request_valid?(request, owner)
@@ -514,7 +680,7 @@ module Canopus
     def document_link_decorations(buffer, rows, current)
       return [] unless current.is_a?(Editor) && current.buffer.equal?(buffer)
 
-      client = @clients[current.language_document.definition.name]
+      client = active_language_client(current.language_document.definition.name, "documentLink")
       cache = (@document_link_cache || {})[document_link_key(client, current, buffer)]
       return [] unless cache.is_a?(Hash)
 
@@ -536,7 +702,7 @@ module Canopus
       return false unless buffer.path && !buffer.read_only && @panes.any? { |pane| pane.active.equal?(current) }
 
       language = current.language_document.definition.name
-      client = @clients[language]
+      client = active_language_client(language, "documentLink")
       key = document_link_key(client, current, buffer)
       return false if (@document_link_cache ||= {}).key?(key)
 
@@ -564,7 +730,7 @@ module Canopus
       @decorations.invalidate(:document_link, buffer: buffer)
       job = Thread.new do
         begin
-          owner = language_client(buffer)
+          owner = language_client(buffer, feature: "documentLink")
           if request[:client]
             next unless request[:client].equal?(owner)
           else
@@ -772,7 +938,8 @@ module Canopus
 
     def display_completions(completions, current, context)
       metadata = context.fetch(:metadata)
-      active = @clients.values
+      language = current.language_document.definition.name
+      active = route_language_clients(language, language_client_list(language), "completion")
       completions = completions.reject do |completion|
         client = metadata[completion]&.fetch(:client)
         client && !active.include?(client)
@@ -823,7 +990,7 @@ module Canopus
       completion = item if item.is_a?(Provider::Completion)
       metadata = palette[:completion_metadata]&.[](completion)
       item = metadata[:item] if metadata
-      client = metadata&.fetch(:client) || palette[:client]
+      client = metadata&.fetch(:client) || palette[:item_clients]&.[](index) || palette[:client]
       raise Error, "Language server settings changed; request again" if client && @retired_language_clients&.[](client)
       provider, resolver = case palette[:kind]
       when :completion then ["completionProvider", :resolve_completion]
@@ -883,7 +1050,7 @@ module Canopus
           command = item["command"]
           if command
             command = item if command.is_a?(String)
-            palette[:client].execute_command(command.fetch("command"), arguments: command.fetch("arguments", []))
+            client.execute_command(command.fetch("command"), arguments: command.fetch("arguments", []))
           end
         end
         return confirm_workspace_edit(item["edit"], label: item.fetch("title", "Apply code action?"), on_applied: run_command) if resource_workspace_edit?(item["edit"])
@@ -927,7 +1094,7 @@ module Canopus
       document, buffer, version = current.language_document, current.buffer, current.buffer.version
       heads = selections.map(&:head).freeze
       language = document.definition.name
-      client = @clients[language]
+      client = active_language_client(language, "selectionRange")
       pending = {document: document, buffer: buffer, version: version, selections: selections,
         heads: heads, source: :lsp, client: client, supported: selection_range_supported?(client)}
       unless buffer.path && !buffer.read_only && (client || language_server_options(language))
@@ -968,7 +1135,7 @@ module Canopus
       current, document = editor, editor.language_document
       buffer, version, cursor = current.buffer, current.buffer.version, current.primary.head
       language = document.definition.name
-      client = @clients[language]
+      client = active_language_client(language, "foldingRange")
       key = folding_range_key(client, buffer, version)
       cache = @folding_range_cache ||= {}
       return cache[key] == false ? fold_with_antares(current, document, version, cursor) :
@@ -1126,7 +1293,7 @@ module Canopus
     def rename_snapshot(current)
       buffer, offset = current.buffer, current.primary.head
       language = current.language_document.definition.name
-      client = @clients[language]
+      client = active_language_client(language, "rename")
       snapshot = {editor: current, buffer: buffer, version: buffer.version, rope: buffer.rope,
         selections: current.selections, offset: offset, uri: Sadr::Protocol.uri(buffer.path),
         position: Sadr::Protocol.position(buffer.rope, offset), language: language,
@@ -1144,7 +1311,7 @@ module Canopus
     def start_prepare_rename(id, snapshot)
       job = Thread.new do
         begin
-          owner = language_client(snapshot[:buffer])
+          owner = language_client(snapshot[:buffer], feature: "rename")
           unless @prepare_rename_requests&.[](id).equal?(snapshot) && rename_editor_valid?(snapshot)
             next
           end
@@ -1202,7 +1369,7 @@ module Canopus
     def start_prepared_rename(id, snapshot, name)
       job = Thread.new do
         begin
-          owner = language_client(snapshot[:buffer])
+          owner = language_client(snapshot[:buffer], feature: "rename")
           unless snapshot[:client]&.equal?(owner) && prepare_rename_request_valid?(id, snapshot, owner)
             raise Error, "Rename cancelled because the language server changed"
           end
@@ -1242,7 +1409,7 @@ module Canopus
     end
 
     def rename_snapshot_valid?(snapshot)
-      client = @clients[snapshot[:language]]
+      client = active_language_client(snapshot[:language], "rename")
       rename_editor_valid?(snapshot) && client.equal?(snapshot[:client]) &&
         prepare_rename_supported?(client) == snapshot[:prepare_supported]
     end
@@ -1313,7 +1480,7 @@ module Canopus
       requests[id] = request
       job = Thread.new do
         begin
-          owner = language_client(buffer)
+          owner = language_client(buffer, feature: "selectionRange")
           request[:client] = owner
           supported = selection_range_supported?(owner)
           valid = selection_range_request_valid?(id, request, owner)
@@ -1370,7 +1537,7 @@ module Canopus
           normalize_antares_selection_ranges(pending[:buffer].rope, pending[:heads], chains))
       end
 
-      client = @clients[document.definition.name]
+      client = active_language_client(document.definition.name, "selectionRange")
       pending = pending.merge(source: :antares, client: client,
         supported: selection_range_supported?(client))
       (@pending_selection_ranges ||= {})[current] = pending
@@ -1430,7 +1597,7 @@ module Canopus
     end
 
     def selection_range_state_valid?(current, state)
-      client = @clients[current.language_document.definition.name]
+      client = active_language_client(current.language_document.definition.name, "selectionRange")
       !@closed && client.equal?(state[:client]) && selection_range_supported?(client) == state[:supported] &&
         current.language_document.equal?(state[:document]) && current.buffer.equal?(state[:buffer]) &&
         current.buffer.version == state[:version] && current.selections == state[:current] &&
@@ -1443,7 +1610,7 @@ module Canopus
     end
 
     def selection_range_result_valid?(request, owner)
-      selection_range_context_valid?(request) && @clients.value?(owner) &&
+      selection_range_context_valid?(request) && language_client_active?(owner) &&
         @opened_lsp_documents&.key?([owner, request[:buffer]])
     end
 
@@ -1474,7 +1641,7 @@ module Canopus
       requests[id] = request
       job = Thread.new do
         begin
-          owner = language_client(buffer)
+          owner = language_client(buffer, feature: "foldingRange")
           request[:client] = owner
           supported = folding_range_supported?(owner)
           valid = folding_range_request_valid?(id, request, owner)
@@ -1529,7 +1696,7 @@ module Canopus
 
       (@pending_folds ||= {})[current] = {document: document, buffer: current.buffer, version: version,
         cursor: cursor, source: :antares,
-        client: @clients[document.definition.name]}
+        client: active_language_client(document.definition.name, "foldingRange")}
       @message = "Analyzing fold ranges…"
       nil
     end
@@ -1564,7 +1731,7 @@ module Canopus
     end
 
     def folding_range_result_valid?(request, owner)
-      fold_context_valid?(request) && @clients.value?(owner) &&
+      fold_context_valid?(request) && language_client_active?(owner) &&
         @opened_lsp_documents&.key?([owner, request[:buffer]])
     end
 
@@ -1731,15 +1898,38 @@ module Canopus
       buffer = entry.last
       version = params["version"]
       return if version && version != buffer.version
+      language = definition_for(buffer.path).name
+      return unless route_language_clients(language, language_client_list(language), "diagnostics").include?(client)
 
-      @diagnostics.publish(:lsp, uri, params.fetch("diagnostics"))
+      diagnostics = snapshot_lsp_diagnostics(params.fetch("diagnostics"))
+      documents = ((@lsp_diagnostics ||= {})[client] ||= {})
+      previous = documents[uri]
+      documents[uri] = diagnostics
+      publish_lsp_diagnostics(uri)
       (@diagnostic_versions ||= {}).tap { |versions| (versions[client] ||= {})[uri] = buffer.version }
-      (@diagnostic_owners ||= {})[uri] = client
       invalidate_diagnostics(buffer)
       @window&.request_frame
     rescue ArgumentError, KeyError, Sadr::Error
+      if defined?(documents) && documents
+        previous ? documents[uri] = previous : documents.delete(uri)
+        @lsp_diagnostics.delete(client) if documents.empty?
+      end
       nil
     end
+
+    def snapshot_lsp_diagnostics(diagnostics)
+      Sadr::Protocol.diagnostics(diagnostics)
+      values = JSON.parse(JSON.generate(diagnostics))
+      freeze_value = lambda do |value|
+        value.each { |key, child| key.freeze; freeze_value.call(child) } if value.is_a?(Hash)
+        value.each { |child| freeze_value.call(child) } if value.is_a?(Array)
+        value.freeze
+      end
+      freeze_value.call(values)
+    rescue JSON::GeneratorError, JSON::ParserError, JSON::NestingError
+      raise ArgumentError, "invalid diagnostics"
+    end
+    private :snapshot_lsp_diagnostics
 
     def cache_code_lenses(client, buffer, version, result, generation)
       raise Error, "invalid code lenses" unless result.nil? || result.is_a?(Array)
@@ -1816,7 +2006,7 @@ module Canopus
           post do
             current = @code_lens_cache&.[](key)
             next unless current.equal?(cache) && current[:generation] == generation &&
-              buffer.version == version && @clients.value?(client)
+              buffer.version == version && language_client_active?(client)
 
             begin
               resolved = validate_code_lens_entry(buffer, entry[:lens].merge(result || {}), entry[:index])
@@ -1855,7 +2045,7 @@ module Canopus
       client, buffer, version = key
       cache = @code_lens_cache&.[](key)
       return false unless cache && cache[:generation] == generation &&
-        buffer.version == version && @clients.value?(client) && @settings.for_language(definition_for(buffer.path).name)["code_lens"]["enabled"]
+        buffer.version == version && language_client_active?(client) && @settings.for_language(definition_for(buffer.path).name)["code_lens"]["enabled"]
 
       job = Thread.new do
         client.execute_command(command.fetch("command"), arguments: command.fetch("arguments", [])).await(timeout: 10)
@@ -1873,7 +2063,8 @@ module Canopus
     public
 
     def inlay_hint_decorations(buffer, rows)
-      active = @clients.values
+      active = (@language_clients || {}).values.flatten
+      active = @clients.values if active.empty?
       cache = (@inlay_hint_cache || {}).select do |key, _entry|
         key[1].equal?(buffer) && key[2] == buffer.version && active.include?(key[0])
       end
@@ -1897,7 +2088,7 @@ module Canopus
       return false if first == last
 
       language = current.language_document.definition.name
-      client = @clients[language]
+      client = active_language_client(language, "inlayHint")
       return false unless client || start
       return false if client && !client.capabilities["inlayHintProvider"]
       settings = @settings.for_language(language)["inlay_hints"]
@@ -1929,14 +2120,14 @@ module Canopus
       (@inlay_hint_requests ||= {})[id] = {client: client, buffer: buffer, version: version, generation: generation, range: requested}
       job = Thread.new do
         begin
-          owner = language_client(buffer)
+          owner = language_client(buffer, feature: "inlayHint")
           supported = owner.capabilities["inlayHintProvider"]
-          valid = buffer.version == version && @inlay_hint_generation.to_i == generation && @clients.value?(owner)
+          valid = buffer.version == version && @inlay_hint_generation.to_i == generation && language_client_active?(owner)
           result = owner.inlay_hint(Sadr::Protocol.uri(buffer.path), protocol_range).await(timeout: 10) if supported && valid
           post do
             @inlay_hint_requests&.delete(id)
             @language_jobs&.reject! { |thread| !thread.alive? }
-            next unless supported && valid && @inlay_hint_generation.to_i == generation && @clients.value?(owner)
+            next unless supported && valid && @inlay_hint_generation.to_i == generation && language_client_active?(owner)
             next unless buffer.version == version && @panes.any? { |pane| pane.editors.any? { |editor| editor.buffer.equal?(buffer) } }
 
             cache_inlay_hints(owner, buffer, version, requested, result, id, settings)
@@ -1979,7 +2170,8 @@ module Canopus
     end
 
     def code_lens_decorations(buffer, rows)
-      active = @clients.values
+      active = (@language_clients || {}).values.flatten
+      active = @clients.values if active.empty?
       caches = (@code_lens_cache || {}).select do |key, _cache|
         key[1].equal?(buffer) && key[2] == buffer.version && active.include?(key[0])
       end
@@ -2027,7 +2219,7 @@ module Canopus
       return false if first == last
 
       language = current.language_document.definition.name
-      client = @clients[language]
+      client = active_language_client(language, "codeLens")
       return false unless client || start
       provider = client&.capabilities&.[]("codeLensProvider")
       return false if client && provider != true && !provider.is_a?(Hash)
@@ -2059,16 +2251,16 @@ module Canopus
       (@code_lens_requests ||= {})[id] = request
       job = Thread.new do
         begin
-          owner = language_client(buffer)
+          owner = language_client(buffer, feature: "codeLens")
           request[:client] = owner
           capability = owner.capabilities["codeLensProvider"]
           supported = capability == true || capability.is_a?(Hash)
-          valid = buffer.version == version && @clients.value?(owner) && @code_lens_requests&.[](id).equal?(request)
+          valid = buffer.version == version && language_client_active?(owner) && @code_lens_requests&.[](id).equal?(request)
           result = owner.code_lens(Sadr::Protocol.uri(buffer.path)).await(timeout: 10) if supported && valid
           post do
             pending = @code_lens_requests&.delete(id)
             @language_jobs&.reject! { |thread| !thread.alive? }
-            next unless pending.equal?(request) && supported && valid && @clients.value?(owner)
+            next unless pending.equal?(request) && supported && valid && language_client_active?(owner)
             next unless buffer.version == version && @panes.any? { |pane| pane.editors.any? { |editor| editor.buffer.equal?(buffer) } }
 
             begin
@@ -2083,7 +2275,7 @@ module Canopus
             pending = @code_lens_requests&.delete(id)
             @language_jobs&.reject! { |thread| !thread.alive? }
             @code_lens_start_attempts&.delete(language) unless client
-            if pending.equal?(request) && owner && @clients.value?(owner) && buffer.version == version &&
+            if pending.equal?(request) && owner && language_client_active?(owner) && buffer.version == version &&
                 @panes.any? { |pane| pane.editors.any? { |editor| editor.buffer.equal?(buffer) } }
               cache_code_lenses(owner, buffer, version, [], generation)
             end
@@ -2245,7 +2437,8 @@ module Canopus
       items = [{kind: :path, label: relative.freeze, value: project_path&.freeze}.freeze]
       items.concat(symbols.map { |symbol| {kind: :symbol, label: symbol.name, value: symbol}.freeze })
       {buffer: current.buffer, document: current.language_document, path: path, version: current.buffer.version,
-       client: @clients[current.language_document.definition.name], generation: entry&.dig(:generation), items: items.freeze}.freeze
+       client: active_language_client(current.language_document.definition.name, "documentSymbol"),
+       generation: entry&.dig(:generation), items: items.freeze}.freeze
     end
 
     def minimap_settings(current)
@@ -2323,7 +2516,7 @@ module Canopus
       buffer = current.buffer
       return false unless buffer.path && !buffer.read_only
       language = current.language_document.definition.name
-      client = @clients[language]
+      client = active_language_client(language, "documentSymbol")
       cache = @sticky_symbol_cache || {}
       return false if client && cache.key?([client, buffer, buffer.version])
       return false if client && !client.capabilities["documentSymbolProvider"]
@@ -2345,10 +2538,10 @@ module Canopus
       requests[id] = request
       job = Thread.new do
         begin
-          owner = language_client(buffer)
+          owner = language_client(buffer, feature: "documentSymbol")
           request[:client] = owner
           supported = !!owner.capabilities["documentSymbolProvider"]
-          active = @sticky_symbol_requests&.[](id).equal?(request) && buffer.version == request[:version] && @clients.value?(owner)
+          active = @sticky_symbol_requests&.[](id).equal?(request) && buffer.version == request[:version] && language_client_active?(owner)
           future = owner.document_symbol(request[:uri]) if supported && active
           request[:future] = future
           if future && @sticky_symbol_requests&.[](id).equal?(request)
@@ -2359,7 +2552,7 @@ module Canopus
           end
           post do
             pending = @sticky_symbol_requests&.delete(id)
-            next unless pending.equal?(request) && buffer.version == request[:version] && @clients.value?(owner) &&
+            next unless pending.equal?(request) && buffer.version == request[:version] && language_client_active?(owner) &&
               buffer.path && Sadr::Protocol.uri(buffer.path) == request[:uri] &&
               @opened_lsp_documents&.key?([owner, buffer]) &&
               @panes.any? { |pane| pane.editors.any? { |editor| editor.buffer.equal?(buffer) } }
@@ -2369,7 +2562,7 @@ module Canopus
         rescue StandardError => error
           post do
             pending = @sticky_symbol_requests&.delete(id)
-            if pending.equal?(request) && owner && buffer.version == request[:version] && @clients.value?(owner) &&
+            if pending.equal?(request) && owner && buffer.version == request[:version] && language_client_active?(owner) &&
                 buffer.path && Sadr::Protocol.uri(buffer.path) == request[:uri] && @opened_lsp_documents&.key?([owner, buffer])
               cache_sticky_symbols(owner, buffer, request[:version], false)
               @message = error.message unless @retired_language_clients&.[](owner)
@@ -2417,10 +2610,10 @@ module Canopus
         context[:path] == current.buffer.path && context[:version] == current.buffer.version
 
       entry = document_symbol_entry(current)
-      active_client = @clients[current.language_document.definition.name]
+      active_client = active_language_client(current.language_document.definition.name, "documentSymbol")
       return false unless context[:client].equal?(active_client) && context[:generation] == entry&.dig(:generation)
       client = context[:client]
-      !client || @clients.value?(client) && client.running? && @opened_lsp_documents&.key?([client, current.buffer])
+      !client || language_client_active?(client) && client.running? && @opened_lsp_documents&.key?([client, current.buffer])
     end
 
     def breadcrumb_symbol_category(symbol)
@@ -2467,7 +2660,7 @@ module Canopus
 
     def document_symbol_entry(current)
       buffer = current.buffer
-      client = @clients[current.language_document.definition.name]
+      client = active_language_client(current.language_document.definition.name, "documentSymbol")
       key = [client, buffer, buffer.version]
       cache = @sticky_symbol_cache || {}
       return cache[key] if client && cache.key?(key) && cache[key]
@@ -2886,7 +3079,7 @@ module Canopus
 
     def document_link_result_valid?(request, owner)
       document_link_editor_valid?(request) && request[:client].equal?(owner) &&
-        @clients[request[:language]].equal?(owner) &&
+        active_language_client(request[:language], "documentLink").equal?(owner) &&
         request[:supported] == document_link_supported?(owner) &&
         request[:resolve] == document_link_resolve_supported?(owner) &&
         @opened_lsp_documents&.key?([owner, request[:buffer]])
@@ -2933,7 +3126,7 @@ module Canopus
     def document_link_cache_valid?(key, cache)
       client, current, buffer, version, supported, resolve, document = key
       @document_link_cache&.[](key).equal?(cache) && !@closed && buffer.version == version &&
-        current.buffer.equal?(buffer) && current.language_document.equal?(document) && @clients.value?(client) &&
+        current.buffer.equal?(buffer) && current.language_document.equal?(document) && language_client_active?(client) &&
         document_link_supported?(client) == supported && document_link_resolve_supported?(client) == resolve &&
         @panes.any? { |pane| pane.active.equal?(current) }
     end
@@ -3007,7 +3200,7 @@ module Canopus
     def linked_editing_snapshot(current)
       buffer, offset = current.buffer, current.primary.head
       language = current.language_document.definition.name
-      client = @clients[language]
+      client = active_language_client(language, "linkedEditingRange")
       snapshot = {editor: current, buffer: buffer, version: buffer.version, rope: buffer.rope,
         selections: current.selections, selection: current.primary, offset: offset,
         uri: Sadr::Protocol.uri(buffer.path), position: Sadr::Protocol.position(buffer.rope, offset),
@@ -3026,7 +3219,7 @@ module Canopus
     def start_linked_editing_request(id, snapshot)
       job = Thread.new do
         begin
-          owner = language_client(snapshot[:buffer])
+          owner = language_client(snapshot[:buffer], feature: "linkedEditingRange")
           unless @linked_editing_requests&.[](id).equal?(snapshot) && linked_editing_editor_valid?(snapshot)
             next
           end
@@ -3115,7 +3308,7 @@ module Canopus
     end
 
     def linked_editing_snapshot_valid?(snapshot)
-      client = @clients[snapshot[:language]]
+      client = active_language_client(snapshot[:language], "linkedEditingRange")
       linked_editing_editor_valid?(snapshot) && client.equal?(snapshot[:client]) &&
         linked_editing_supported?(client) == snapshot[:supported]
     end
@@ -3148,7 +3341,7 @@ module Canopus
 
     def document_highlight_result_valid?(request, owner)
       buffer = request[:buffer]
-      document_highlight_editor_valid?(request) && @clients.value?(owner) &&
+      document_highlight_editor_valid?(request) && language_client_active?(owner) &&
         @opened_lsp_documents&.key?([owner, buffer])
     end
 
@@ -3234,7 +3427,6 @@ module Canopus
 
     def open_language_document(client, buffer, language_id)
       uri = Sadr::Protocol.uri(buffer.path)
-      client.open(Sadr::Document.new(uri: uri, language_id: language_id, version: buffer.version, text: buffer.text))
       key = [client, buffer]
       @language_document_subscriptions&.delete(key)&.detach
       (@language_document_subscriptions ||= {})[key] = buffer.on_edit do |patch|
@@ -3250,7 +3442,12 @@ module Canopus
         sync_language_document(client, uri, buffer, patch)
       end
       (@opened_lsp_documents ||= {})[key] = true
+      client.open(Sadr::Document.new(uri: uri, language_id: language_id, version: buffer.version, text: buffer.text))
       uri
+    rescue StandardError
+      @opened_lsp_documents&.delete(key) if defined?(key)
+      @language_document_subscriptions&.delete(key)&.detach if defined?(key)
+      raise
     end
 
     def close_language_document(client, buffer, uri: Sadr::Protocol.uri(buffer.path))
@@ -3262,31 +3459,21 @@ module Canopus
       key = [client, buffer]
       @opened_lsp_documents&.delete(key)
       @language_document_subscriptions&.delete(key)&.detach
-      if uri && (versions = @diagnostic_versions&.[](client))
-        versions.delete(uri)
-        @diagnostic_versions.delete(client) if versions.empty?
-      end
-      if uri && @diagnostic_owners&.[](uri).equal?(client)
-        @diagnostic_owners.delete(uri)
-        @diagnostics.publish(:lsp, uri, [])
-      else
-        invalidate_diagnostics(buffer)
-      end
+      clear_client_diagnostics(client, uri) if uri
+      invalidate_diagnostics(buffer)
       invalidate_document_highlights(buffer, client: client)
       invalidate_document_links(buffer, client: client)
       invalidate_folding_ranges(buffer, client: client)
       invalidate_selection_ranges(buffer, client: client)
       invalidate_prepare_rename(buffer, client: client)
       invalidate_linked_editing_ranges(buffer, client: client)
-      invalidate_inlay_hints(buffer)
-      invalidate_code_lenses(buffer)
+      invalidate_inlay_hints(buffer, client: client)
+      invalidate_code_lenses(buffer, client: client)
       invalidate_sticky_symbols(buffer, client: client)
     end
 
     def sync_language_document(client, uri, buffer, patch)
-      if @diagnostic_owners&.[](uri).equal?(client) && @diagnostics.for_uri(uri).any? { |entry| entry.source == :lsp }
-        @diagnostics.publish(:lsp, uri, [])
-      end
+      clear_client_diagnostics(client, uri)
       changes = if patch.is_a?(Patch)
         patch.edits.reverse.map do |edit|
           Sadr::ContentChange.new(range: Sadr::Protocol.range(patch.before, edit.old_range), text: edit.new_text)
@@ -3299,6 +3486,29 @@ module Canopus
       self.message = "Language server change failed: #{error.message}"
       resync_language_document(client, uri, buffer)
     end
+
+    def publish_lsp_diagnostics(uri)
+      clients = [*(@language_clients || {}).values.flatten, *(@lsp_diagnostics || {}).keys].uniq
+      values = clients.flat_map { |client| @lsp_diagnostics&.dig(client, uri) || [] }.uniq
+      @diagnostics.publish(:lsp, uri, values)
+    end
+
+    def clear_language_client_diagnostics(client)
+      (@lsp_diagnostics&.dig(client)&.keys || []).dup.each { |uri| clear_client_diagnostics(client, uri) }
+    end
+
+    def clear_client_diagnostics(client, uri)
+      if (documents = @lsp_diagnostics&.[](client))
+        documents.delete(uri)
+        @lsp_diagnostics.delete(client) if documents.empty?
+      end
+      if (versions = @diagnostic_versions&.[](client))
+        versions.delete(uri)
+        @diagnostic_versions.delete(client) if versions.empty?
+      end
+      publish_lsp_diagnostics(uri)
+    end
+    private :publish_lsp_diagnostics, :clear_client_diagnostics, :clear_language_client_diagnostics
 
     def resync_language_document(client, uri, buffer)
       key = [client, buffer]
@@ -3353,7 +3563,7 @@ module Canopus
       raise Error, "invalid completion result: #{error.message}"
     end
 
-    def display_language_result(kind, result, client, current)
+    def display_language_result(kind, result, client, current, item_clients: nil)
       case kind
       when :completion
         generation = @completion_generation = (@completion_generation || 0) + 1
@@ -3389,7 +3599,8 @@ module Canopus
       when :formatting then current.buffer.edit(Sadr::Protocol.text_edits(current.buffer.rope, result || []), kind: :lsp)
       when :codeAction, :codeLens
         items = Array(result)
-        self.palette = {kind: :code_actions, query: +"", index: 0, matches: items.map { |item| item["title"] || item.dig("command", "title") || "Code lens" }, items: items, client: client, editor: current, version: current.buffer.version, lens: kind == :codeLens}
+        self.palette = {kind: :code_actions, query: +"", index: 0, matches: items.map { |item| item["title"] || item.dig("command", "title") || "Code lens" },
+          items: items, client: client, item_clients: item_clients, editor: current, version: current.buffer.version, lens: kind == :codeLens}
         update_palette
       when :documentSymbol
         symbols = []

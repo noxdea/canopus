@@ -148,9 +148,18 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
     { "context": "Editor && !vim_mode", "bindings": { "ctrl-k ctrl-s": "file.save" } }
   ],
   "languages": { "ruby": { "tab_size": 2 } },
-  "language_servers": { "ruby": ["ruby-lsp"] }
+  "language_servers": {
+    "ruby": [
+      { "command": ["ruby-lsp"], "features": ["completion", "definition", "hover", "formatting"] },
+      { "command": ["rubocop", "--lsp"], "features": ["diagnostics", "codeAction"] }
+    ]
+  }
 }
 ```
+
+A legacy argument array such as `"ruby": ["ruby-lsp"]` still configures one
+server. With multiple servers, completion, diagnostics, and code actions are
+merged; other features use the first matching server in configuration order.
 
 `render_whitespace` accepts `none`, `boundary`, `selection`, or `all`.
 `boundary` hides only single spaces between non-whitespace characters. Tabs use

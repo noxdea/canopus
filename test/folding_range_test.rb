@@ -146,10 +146,10 @@ class FoldingRangeTest < Minitest::Test
     client = Client.new([fold(0, 4)])
     original = @workspace.method(:language_client)
     started, release = Queue.new, Queue.new
-    delayed = lambda do |buffer|
+    delayed = lambda do |buffer, feature: nil, **|
       started << true
       release.pop
-      original.call(buffer)
+      original.call(buffer, feature: feature)
     end
 
     with_client(client) do

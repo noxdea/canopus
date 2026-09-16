@@ -335,10 +335,10 @@ class PrepareRenameTest < Minitest::Test
     client = Client.new(range(0, 2, 8))
     original = @workspace.method(:language_client)
     started, release = Queue.new, Queue.new
-    delayed = lambda do |buffer|
+    delayed = lambda do |buffer, feature: nil, **|
       started << true
       release.pop
-      original.call(buffer)
+      original.call(buffer, feature: feature)
     end
     with_client(client) do
       @workspace.stub(:language_client, delayed) do

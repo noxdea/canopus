@@ -72,7 +72,21 @@ module Canopus
         "bottom" => {"$ref" => "#/$defs/dock"}, "panels" => {"type" => "object", "maxProperties" => 1000,
           "additionalProperties" => {"$ref" => "#/$defs/panel"}}}},
       "languages" => {"type" => "object", "additionalProperties" => {"$ref" => "#"}},
-      "language_servers" => {"type" => "object"}}, "$defs" => {
+      "language_servers" => {"type" => "object", "additionalProperties" => {"anyOf" => [
+        {"type" => "null"}, {"$ref" => "#/$defs/language_server"},
+        {"type" => "array", "minItems" => 1, "items" => {"type" => "string", "minLength" => 1}},
+        {"type" => "array", "minItems" => 1, "maxItems" => 16,
+          "items" => {"$ref" => "#/$defs/language_server"}}
+      ]}}}, "$defs" => {
+        "language_server" => {"type" => "object", "additionalProperties" => false,
+          "required" => ["command"], "properties" => {
+            "command" => {"type" => "array", "minItems" => 1,
+              "items" => {"type" => "string", "minLength" => 1}},
+            "env" => {"type" => "object", "additionalProperties" => {"type" => ["string", "null"]}},
+            "initialization_options" => {}, "configuration" => {"type" => "object"},
+            "features" => {"type" => "array", "minItems" => 1, "uniqueItems" => true,
+              "items" => {"type" => "string", "enum" => %w[completion diagnostics codeAction formatting definition typeDefinition implementation hover signatureHelp references rename documentSymbol codeLens inlayHint semanticTokens documentHighlight foldingRange selectionRange callHierarchy typeHierarchy documentLink linkedEditingRange workspaceSymbol]}}
+          }},
         "dock" => {"type" => "object", "required" => %w[size visible], "properties" => {
           "size" => {"type" => "number", "exclusiveMinimum" => 0}, "visible" => {"type" => "boolean"}}},
         "panel" => {"type" => "object", "required" => %w[size visible], "properties" => {
@@ -152,6 +166,8 @@ module Canopus
       validate_breadcrumbs!
       validate_minimap!
       validate_save_actions!
+      validate_language_server_keys!
+      snapshot_language_servers!
       validate_dock!
       @values["languages"] = @values["languages"].to_h do |name, layer|
         raise Error, "language settings must be objects" unless name.is_a?(String) && layer.is_a?(Hash)
@@ -159,6 +175,7 @@ module Canopus
         checked = Settings.new(@values.merge("languages" => {}), layer)
         layer = layer.merge("keymap" => checked["keymap"]) if layer.key?("keymap")
         layer = layer.merge("code_actions_on_save" => checked["code_actions_on_save"]) if layer.key?("code_actions_on_save")
+        layer = layer.merge("language_servers" => checked["language_servers"]) if layer.key?("language_servers")
         [name, layer]
       end
     end
@@ -292,6 +309,30 @@ module Canopus
       @values["code_actions_on_save"] = actions.map { |action| action.dup.freeze }.freeze
       timeout = @values["format_on_save_timeout"]
       raise Error, "invalid format_on_save_timeout" unless timeout.is_a?(Integer) && timeout.between?(1, 60_000)
+    end
+
+    def snapshot_language_servers!
+      snapshot = JSON.parse(JSON.generate(@values["language_servers"]))
+      freeze_value = lambda do |value|
+        value.each { |key, child| key.freeze; freeze_value.call(child) } if value.is_a?(Hash)
+        value.each { |child| freeze_value.call(child) } if value.is_a?(Array)
+        value.freeze
+      end
+      @values["language_servers"] = freeze_value.call(snapshot)
+    rescue JSON::GeneratorError, JSON::ParserError, JSON::NestingError
+      raise Error, "invalid language_servers"
+    end
+
+    def validate_language_server_keys!
+      @values["language_servers"].each do |name, value|
+        raise Error, "language server names must be strings" unless name.is_a?(String)
+        options = value.is_a?(Array) ? value.select { |item| item.is_a?(Hash) } : value.is_a?(Hash) ? [value] : []
+        options.each do |option|
+          raise Error, "language server option keys must be strings" unless option.keys.all? { |key| key.is_a?(String) }
+          env = option["env"]
+          raise Error, "language server env keys must be strings" if env.is_a?(Hash) && !env.keys.all? { |key| key.is_a?(String) }
+        end
+      end
     end
 
     def validate_dock!

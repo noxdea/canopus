@@ -217,10 +217,10 @@ class HierarchyTest < Minitest::Test
     client.capabilities["callHierarchyProvider"] = {}
     original = @workspace.method(:language_client)
     started, release = Queue.new, Queue.new
-    delayed = lambda do |buffer|
+    delayed = lambda do |buffer, feature: nil, **|
       started << true
       release.pop
-      original.call(buffer)
+      original.call(buffer, feature: feature)
     end
     @workspace.stub(:language_client, delayed) do
       @workspace.show_call_hierarchy
