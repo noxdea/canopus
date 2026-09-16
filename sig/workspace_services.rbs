@@ -33,6 +33,7 @@ module Canopus
     attr_reader decorations: Decoration::Registry
     attr_reader providers: Provider::Registry
     attr_reader diagnostics: Diagnostics::Registry
+    attr_reader breakpoints: Debug::Breakpoints
     attr_accessor window: Zaniah::Platform::Headless::Window?
     attr_reader palette: palette_state?
     def palette=: (palette_state? value) -> void
@@ -62,6 +63,13 @@ module Canopus
     def close_language_documents: (?Buffer? buffer) -> void
     def semantic_spans_for: (Buffer buffer, Integer row) -> Array[[Integer, Integer, String]]
     def diagnostic_decorations: (Buffer buffer, Range[Integer] rows) -> Array[Decoration::Item]
+    def breakpoint_decorations: (Buffer buffer, Range[Integer] rows, ?Editor? current) -> Array[Decoration::Item]
+    def toggle_breakpoint: (Editor editor, Integer row) -> Debug::Breakpoints::Entry?
+    def show_breakpoint_menu: (Editor editor, Integer row) -> palette_state?
+    def accept_breakpoint_palette: () -> untyped
+    def attach_breakpoints: (Buffer buffer) -> untyped
+    def relocate_breakpoints: (Buffer buffer) -> untyped
+    def detach_breakpoints: (Buffer buffer) -> bool
     def invalidate_diagnostics: (?Buffer? buffer) -> nil
     def inlay_hint_decorations: (Buffer buffer, Range[Integer] rows) -> Array[Decoration::Item]
     def request_inlay_hints: (Editor editor, Range[Integer] visible_rows, ?start: bool) -> bool

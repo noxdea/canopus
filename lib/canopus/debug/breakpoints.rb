@@ -10,13 +10,15 @@ require_relative "../buffer"
 module Canopus
   module Debug
     class Breakpoints
-      Entry = Data.define(:path, :line, :condition)
-      VERSION = 1
+      Entry = Data.define(:path, :line, :condition, :hit_condition, :log_message, :enabled)
+      VERSION = 2
       RELATIVE_PATH = File.join(".canopus", "breakpoints.json")
       MAX_BYTES = 1_048_576
       MAX_ENTRIES = 10_000
       MAX_PATH_BYTES = 4_096
       MAX_CONDITION_BYTES = 4_096
+      MAX_HIT_CONDITION_BYTES = 4_096
+      MAX_LOG_MESSAGE_BYTES = 4_096
       MAX_LINE = 2_147_483_647
       SAVE_DELAY = 0.02
       UNSET = Object.new.freeze
@@ -24,8 +26,9 @@ module Canopus
 
       attr_reader :root, :entries
 
-      def initialize(root:)
+      def initialize(root:, &on_change)
         @root = canonical_root(root)
+        @on_change = on_change
         @attachments = {}
         @closed = false
         @entries = load_entries
@@ -43,10 +46,10 @@ module Canopus
         entries.select { |entry| entry.path == relative }.freeze
       end
 
-      def add(path, line, condition: nil)
+      def add(path, line, condition: nil, hit_condition: nil, log_message: nil, enabled: true)
         @state_lock.synchronize do
           ensure_open!
-          entry = build_entry(path, line, condition)
+          entry = build_entry(path, line, condition, hit_condition, log_message, enabled)
           existing = entries.find { |item| item.path == entry.path && item.line == entry.line }
           return existing if existing == entry
           replacement = entries.reject { |item| item.path == entry.path && item.line == entry.line }
@@ -66,20 +69,23 @@ module Canopus
         end
       end
 
-      def toggle(path, line, condition: nil)
+      def toggle(path, line, condition: nil, hit_condition: nil, log_message: nil, enabled: true)
         existing = for_path(path).find { |entry| entry.line == line }
         return nil if existing && remove(path, line)
-        add(path, line, condition: condition)
+        add(path, line, condition: condition, hit_condition: hit_condition, log_message: log_message, enabled: enabled)
       end
 
-      def update(path, line, new_line: line, condition: UNSET)
+      def update(path, line, new_line: line, condition: UNSET, hit_condition: UNSET, log_message: UNSET, enabled: UNSET)
         @state_lock.synchronize do
           ensure_open!
           relative, line = normalize_path(path), validate_line(line)
           current = entries.find { |entry| entry.path == relative && entry.line == line }
           raise Error, "breakpoint does not exist" unless current
           condition = current.condition if condition.equal?(UNSET)
-          replacement = build_entry(relative, new_line, condition)
+          hit_condition = current.hit_condition if hit_condition.equal?(UNSET)
+          log_message = current.log_message if log_message.equal?(UNSET)
+          enabled = current.enabled if enabled.equal?(UNSET)
+          replacement = build_entry(relative, new_line, condition, hit_condition, log_message, enabled)
           collision = entries.any? { |entry| !entry.equal?(current) && entry.path == relative && entry.line == replacement.line }
           raise Error, "breakpoint already exists" if collision
           return current if current == replacement
@@ -164,6 +170,7 @@ module Canopus
             if mapped != current
               @entries = sorted_entries([*entries.reject { |entry| entry.path == path }, *mapped])
               schedule_save(@entries)
+              notify_change(path)
             end
             store_snapshot(attachment, patch.after, mapped)
           rescue StandardError
@@ -251,7 +258,8 @@ module Canopus
       def mapped_entry(entry, rope, position)
         position = position.clamp(0, rope.bytesize)
         line = rope.point_at(position).row + 1
-        line == entry.line ? entry : Entry.new(entry.path, line, entry.condition)
+        line == entry.line ? entry : Entry.new(entry.path, line, entry.condition,
+          entry.hit_condition, entry.log_message, entry.enabled)
       end
 
       def commit(values, changed_path:)
@@ -259,6 +267,7 @@ module Canopus
         persist_now(snapshot)
         @entries = snapshot
         refresh_attachments(changed_path)
+        notify_change(changed_path)
       end
 
       def sorted_entries(values)
@@ -406,13 +415,21 @@ module Canopus
 
       def monotonic_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-      def build_entry(path, line, condition)
+      def build_entry(path, line, condition, hit_condition = nil, log_message = nil, enabled = true)
         path = normalize_path(path)
         line = validate_line(line)
         unless condition.nil? || valid_text?(condition, MAX_CONDITION_BYTES)
           raise Error, "invalid breakpoint condition"
         end
-        Entry.new(path.dup.freeze, line, condition&.dup&.freeze)
+        unless hit_condition.nil? || valid_text?(hit_condition, MAX_HIT_CONDITION_BYTES)
+          raise Error, "invalid breakpoint hit condition"
+        end
+        unless log_message.nil? || valid_text?(log_message, MAX_LOG_MESSAGE_BYTES)
+          raise Error, "invalid breakpoint log message"
+        end
+        raise Error, "invalid breakpoint enabled state" unless enabled == true || enabled == false
+        Entry.new(path.dup.freeze, line, condition&.dup&.freeze,
+          hit_condition&.dup&.freeze, log_message&.dup&.freeze, enabled)
       end
 
       def validate_line(line)
@@ -474,16 +491,19 @@ module Canopus
       end
 
       def validate_document(document)
-        unless document.is_a?(Hash) && document.keys.sort == %w[breakpoints version] && document["version"] == VERSION
+        unless document.is_a?(Hash) && document.keys.sort == %w[breakpoints version] && [1, VERSION].include?(document["version"])
           raise Error, "unsupported breakpoint file"
         end
+        version = document["version"]
         values = document["breakpoints"]
         raise Error, "invalid breakpoint list" unless values.is_a?(Array) && values.length <= MAX_ENTRIES
         loaded = values.map do |value|
-          unless value.is_a?(Hash) && value.keys.sort == %w[condition line path]
+          keys = version == 1 ? %w[condition line path] : %w[condition enabled hit_condition line log_message path]
+          unless value.is_a?(Hash) && value.keys.sort == keys
             raise Error, "invalid breakpoint entry"
           end
-          build_entry(value["path"], value["line"], value["condition"])
+          build_entry(value["path"], value["line"], value["condition"],
+            value["hit_condition"], value["log_message"], version == 1 ? true : value["enabled"])
         end
         keys = loaded.map { |entry| [entry.path, entry.line] }
         raise Error, "duplicate breakpoint" unless keys.uniq.length == keys.length
@@ -493,7 +513,8 @@ module Canopus
       def persist(snapshot)
         directory, path = storage_paths(create: true)
         payload = JSON.generate("version" => VERSION, "breakpoints" => snapshot.map do |entry|
-          {"path" => entry.path, "line" => entry.line, "condition" => entry.condition}
+          {"path" => entry.path, "line" => entry.line, "condition" => entry.condition,
+           "hit_condition" => entry.hit_condition, "log_message" => entry.log_message, "enabled" => entry.enabled}
         end)
         raise Error, "breakpoint file exceeds 1 MiB" if payload.bytesize > MAX_BYTES
         Tempfile.create([".breakpoints-", ".json"], directory, mode: File::RDWR, perm: 0o600) do |file|
@@ -522,6 +543,8 @@ module Canopus
       def ensure_open!
         raise Error, "breakpoint registry is closed" if @closed
       end
+
+      def notify_change(path) = @on_change&.call(path)
     end
   end
 end

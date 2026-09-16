@@ -58,7 +58,9 @@ their user interface are implemented separately from configuration loading.
 ## Breakpoints
 
 The breakpoint registry stores project-relative paths, 1-based line numbers,
-and optional conditions in `.canopus/breakpoints.json`. The versioned file is
+optional conditions, hit conditions, log messages, and enabled state in
+`.canopus/breakpoints.json`. Version 1 files are loaded with breakpoints enabled
+and are written as version 2 on the next change. The versioned file is
 limited to 1 MiB and 10,000 entries. Paths must stay within the canonical
 workspace root; paths through outside symlinks are rejected. Breakpoints for
 files that are not currently open remain in the registry.
@@ -73,5 +75,8 @@ Changes are written through a sibling temporary file followed by `fsync` and
 an atomic rename.
 This provides normal same-user workspace consistency; concurrent malicious
 workspace mutation is outside its scope. Buffer attachment is an internal
-lifecycle operation for the later debugger UI; this release does not add
-gutter controls or a DAP session.
+lifecycle operation. Left-click the gutter to add or remove a breakpoint.
+Right-click it to add or edit a condition, hit count, or log message, or to
+enable, disable, and remove the breakpoint. Disabled breakpoints use the muted
+gutter color; enabled breakpoints use the error color. DAP sessions are added
+separately.

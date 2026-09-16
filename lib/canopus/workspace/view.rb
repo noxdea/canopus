@@ -400,12 +400,15 @@ module Canopus
             style = item.style.is_a?(Hash) ? item.style : {color: item.style, rows: 1}
             next unless source_row.between?(item.row, item.row + style.fetch(:rows, 1) - 1)
 
-            marker = Zaniah::Bounds.new(bounds.x + 2, y - 1, 3, @line_height)
+            marker = Zaniah::Bounds.new(bounds.x + style.fetch(:gutter_offset, 2), y - 1,
+              style.fetch(:gutter_width, 3), @line_height)
             paint_instrumented_fill(marker, style.fetch(:color, :accent),
               "syrma:decoration:gutter:#{source_row}:#{instrumentation_component(item.source)}")
             if row.kind == :text && item.on_click
-              region(Zaniah::Bounds.new(bounds.x, y - 1, 10, @line_height), role: :button,
-                label: item.content.to_s, action: [:decoration, item.on_click, editor, source_row])
+              action = item.on_click.respond_to?(:right_click) ? :context_decoration : :decoration
+              region(Zaniah::Bounds.new(bounds.x + style.fetch(:hit_offset, 0), y - 1,
+                style.fetch(:hit_width, 10), @line_height), role: :button,
+                label: item.content.to_s, action: [action, item.on_click, editor, source_row])
             end
           end
           number = editor.relative_line_numbers ? (source_row - editor.buffer.rope.point_at(editor.primary.head).row).abs : source_row + 1
@@ -754,8 +757,9 @@ module Canopus
     def register_overlay_region(editor, item, bounds)
       return unless item.on_click
       offset = item.range&.begin || editor.buffer.rope.line_start(item.row)
+      action = item.on_click.respond_to?(:right_click) ? :context_decoration : :decoration
       region(bounds, role: :button, label: item.content.to_s,
-        action: [:decoration, item.on_click, editor, offset])
+        action: [action, item.on_click, editor, offset])
     end
     def code_spans(editor, source_row, row, highlight_items = [])
       return [] if editor.buffer.rope.respond_to?(:lazy?) && editor.buffer.rope.lazy?
@@ -1027,7 +1031,8 @@ module Canopus
       fill(bounds, "#0007")
       @scene.shadow(box.x, box.y, box.width, box.height, color: "#0008", blur: 14)
       @scene.quad(box.x, box.y, box.width, box.height, color: @theme[:panel], radius: 8, border_width: 1, border_color: @theme[:border])
-      labels = {commands: "Command palette", files: "Open file", search: "Find in buffer", save_as: "Save as", confirm_close: "Unsaved changes"}
+      labels = {commands: "Command palette", files: "Open file", search: "Find in buffer", save_as: "Save as",
+                confirm_close: "Unsaved changes", breakpoint_actions: "Breakpoint", breakpoint_edit: "Breakpoint value"}
       title = labels.fetch(palette[:kind], palette[:kind].to_s)
       if palette[:search_options]
         title += "  Ctrl+Alt " + {regexp: "R:regex", case_sensitive: "C:case", whole_word: "W:word", selection_only: "S:selection"}.filter_map do |key, label|

@@ -1,6 +1,16 @@
 module Canopus
   module Decoration
     type kind = :inline | :block | :gutter | :highlight | :line
+    type click_handler = _ClickHandler | _ContextClickHandler
+
+    interface _ClickHandler
+      def call: (Editor, Integer) -> untyped
+    end
+
+    interface _ContextClickHandler
+      def call: (Editor, Integer) -> untyped
+      def right_click: (Editor, Integer) -> untyped
+    end
 
     class Item < Data
       attr_reader kind: kind
@@ -10,8 +20,8 @@ module Canopus
       attr_reader style: untyped
       attr_reader priority: Numeric
       attr_reader source: Symbol?
-      attr_reader on_click: (^(Editor, Integer) -> untyped)?
-      def self.new: (kind kind, Range[Integer]? range, Integer? row, untyped content, untyped style, Numeric priority, Symbol? source, (^(Editor, Integer) -> untyped)? on_click) -> instance
+      attr_reader on_click: click_handler?
+      def self.new: (kind kind, Range[Integer]? range, Integer? row, untyped content, untyped style, Numeric priority, Symbol? source, click_handler? on_click) -> instance
     end
 
     class Registry

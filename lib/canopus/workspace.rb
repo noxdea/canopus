@@ -32,7 +32,7 @@ module Canopus
       "typeHierarchy" => "typeHierarchyProvider", "documentLink" => "documentLinkProvider",
       "linkedEditingRange" => "linkedEditingRangeProvider", "workspaceSymbol" => "workspaceSymbolProvider"
     }.freeze
-    attr_reader :panes, :active_pane, :buffers, :actions, :commands, :settings, :theme, :project, :clients, :root, :docks, :panels, :decorations, :providers, :minimap, :diagnostics
+    attr_reader :panes, :active_pane, :buffers, :actions, :commands, :settings, :theme, :project, :clients, :root, :docks, :panels, :decorations, :providers, :minimap, :diagnostics, :breakpoints
     attr_reader :terminals, :active_terminal_index
     attr_accessor :window, :terminal_composition, :selected_project_path, :performance
     attr_reader :message, :palette
@@ -80,6 +80,7 @@ module Canopus
       @decorations.register(:inlay_hint) { |buffer, rows| inlay_hint_decorations(buffer, rows) }
       @decorations.register(:code_lens) { |buffer, rows| code_lens_decorations(buffer, rows) }
       @decorations.register(:bracket) { |buffer, rows, current| bracket_decorations(buffer, rows, current) }
+      initialize_breakpoints
       @minimap = Minimap.new
       @diagnostics = Diagnostics::Registry.new do |uri|
         @window ? post { diagnostics_changed(uri) } : diagnostics_changed(uri)
@@ -168,6 +169,7 @@ module Canopus
       buffer = @buffers[absolute] ||= File.file?(absolute) ? Buffer.open(absolute) : Buffer.new("", path: absolute)
       @vim_states[editor]&.deactivate unless editor&.buffer.equal?(buffer)
       opened = @active_pane.open(buffer)
+      attach_breakpoints(buffer)
       @recent_files ||= []
       @recent_files.delete(absolute)
       @recent_files.unshift(absolute)
@@ -213,6 +215,7 @@ module Canopus
       end
       result = buffer.save(target)
       if previous != buffer.path
+        relocate_breakpoints(buffer)
         invalidate_hierarchy(buffer)
         invalidate_prepare_rename(buffer)
         invalidate_document_links(buffer)
@@ -661,6 +664,7 @@ module Canopus
       @palette[:index] = @palette[:index].clamp(0, [@palette[:matches].length - 1, 0].max)
     end
     def palette_accept
+      return accept_breakpoint_palette if [:breakpoint_actions, :breakpoint_edit].include?(@palette[:kind])
       search_state = @palette.slice(:search_options, :selection, :editor, :version)
       after_save = @palette[:after_save]
       if @palette[:kind] == :snippet_choices
@@ -811,17 +815,25 @@ module Canopus
       @palette&.dig(:response)&.fulfill({"applied" => false, "failureReason" => "Workspace closed"})
       self.palette = nil
       @plugins&.close
-      @minimap.close
-      @watcher&.close
-      stop_language_servers
+      failure = nil
+      cleanup = lambda do |&operation|
+        operation.call
+      rescue StandardError => error
+        failure ||= error
+      end
+      cleanup.call { @breakpoints.close }
+      cleanup.call { @minimap.close }
+      cleanup.call { @watcher&.close }
+      cleanup.call { stop_language_servers }
       terminal_closers = @terminals.filter_map do |current|
         Thread.new { current.close } if current.respond_to?(:close)
       end
-      terminal_closers.each(&:join)
+      terminal_closers.each { |thread| cleanup.call { thread.join } }
       @terminals.clear
-      clear_vim_states
-      @panes.each { |pane| pane.editors.each(&:dispose) }
-      @buffers.each_value(&:close)
+      cleanup.call { clear_vim_states }
+      @panes.each { |pane| pane.editors.each { |current| cleanup.call { current.dispose } } }
+      @buffers.each_value { |buffer| cleanup.call { buffer.close } }
+      raise failure if failure
     end
 
     private
@@ -968,6 +980,7 @@ module Canopus
       @minimap.release(buffer)
       invalidate_sticky_symbols(buffer)
       close_language_documents(buffer)
+      detach_breakpoints(buffer)
       @buffers.delete_if { |_, current| current.equal?(buffer) }
       buffer.close
     end
@@ -1024,6 +1037,7 @@ require_relative "workspace/git_aware"
 require_relative "workspace/project_searchable"
 require_relative "workspace/settings_aware"
 require_relative "workspace/file_previewable"
+require_relative "workspace/debug_aware"
 Canopus::Workspace.include Canopus::Workspace::SessionPersistable
 Canopus::Workspace.include Canopus::Workspace::ProjectTreeEditable
 Canopus::Workspace.include Canopus::Workspace::FileChangeAware
@@ -1035,3 +1049,4 @@ Canopus::Workspace.include Canopus::Workspace::GitAware
 Canopus::Workspace.include Canopus::Workspace::ProjectSearchable
 Canopus::Workspace.include Canopus::Workspace::SettingsAware
 Canopus::Workspace.include Canopus::Workspace::FilePreviewable
+Canopus::Workspace.include Canopus::Workspace::DebugAware

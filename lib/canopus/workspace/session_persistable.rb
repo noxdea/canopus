@@ -146,11 +146,13 @@ module Canopus
       terminal_records = validate_session_terminals(data) if @settings["terminal"]["restore_on_startup"]
       clear_vim_states
       close_language_documents
+      @buffers.each_value { |buffer| detach_breakpoints(buffer) }
       @panes.each { |pane| pane.editors.each(&:dispose) }
       @buffers.each_value(&:close)
       @panels.restore(restored_panels, docks: restored_docks)
       @panels.hide("hierarchy") if @panels.key?("hierarchy")
       @panes, @buffers, @layout = restored_panes, restored_buffers, restored_layout
+      @buffers.each_value { |buffer| attach_breakpoints(buffer) unless buffer.is_a?(MultiBuffer) }
       @active_pane = @panes[active]
       @recent_files = Array(data["recent_files"]).select { |item| item.is_a?(String) && File.file?(item) }.first(100)
       restore_terminals(data, terminal_records) if terminal_records

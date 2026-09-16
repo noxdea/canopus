@@ -30,8 +30,9 @@ class DebugBreakpointsTest < Minitest::Test
     assert entry.path.frozen?
     assert entry.condition.frozen?
     document = JSON.parse(File.read(storage_path))
-    assert_equal 1, document["version"]
-    assert_equal({"path" => "lib/missing.rb", "line" => 12, "condition" => "value > 1"},
+    assert_equal 2, document["version"]
+    assert_equal({"path" => "lib/missing.rb", "line" => 12, "condition" => "value > 1",
+      "hit_condition" => nil, "log_message" => nil, "enabled" => true},
       document["breakpoints"].first)
     assert_empty Dir.children(File.join(@root, ".canopus")) - ["breakpoints.json"]
 
@@ -56,6 +57,39 @@ class DebugBreakpointsTest < Minitest::Test
     assert registry.remove(path, 5)
     refute registry.remove(path, 5)
     assert_raises(Canopus::Error) { registry.update(path, 99, condition: "x") }
+  end
+
+  def test_v1_entries_migrate_to_dap_ready_v2_fields
+    FileUtils.mkdir_p(File.dirname(storage_path))
+    write_document("version" => 1, "breakpoints" => [
+      {"path" => "legacy.rb", "line" => 4, "condition" => "ready?"}
+    ])
+
+    registry = build_registry
+    legacy = registry.entries.first
+    assert_equal ["legacy.rb", 4, "ready?", nil, nil, true],
+      [legacy.path, legacy.line, legacy.condition, legacy.hit_condition, legacy.log_message, legacy.enabled]
+
+    updated = registry.update("legacy.rb", 4, hit_condition: "5", log_message: "value={value}", enabled: false)
+    assert_equal ["5", "value={value}", false], [updated.hit_condition, updated.log_message, updated.enabled]
+    document = JSON.parse(File.read(storage_path))
+    assert_equal 2, document["version"]
+    assert_equal({"path" => "legacy.rb", "line" => 4, "condition" => "ready?", "hit_condition" => "5",
+      "log_message" => "value={value}", "enabled" => false}, document["breakpoints"].first)
+  end
+
+  def test_dap_fields_are_bounded_immutable_and_strictly_typed
+    registry = build_registry
+    path = File.join(@root, "example.rb")
+    entry = registry.add(path, 1, hit_condition: "10", log_message: "stopped", enabled: false)
+    assert entry.hit_condition.frozen?
+    assert entry.log_message.frozen?
+    refute entry.enabled
+
+    assert_raises(Canopus::Error) { registry.add(path, 2, hit_condition: "bad\ncount") }
+    assert_raises(Canopus::Error) { registry.add(path, 2, log_message: "x" * 4_097) }
+    assert_raises(Canopus::Error) { registry.add(path, 2, enabled: nil) }
+    assert_raises(Canopus::Error) { registry.add(path, 2, enabled: 1) }
   end
 
   def test_leading_insertion_tracks_and_undo_redo_restore_positions
@@ -722,7 +756,7 @@ class DebugBreakpointsTest < Minitest::Test
     File.binwrite(storage_path, " " * (Canopus::Debug::Breakpoints::MAX_BYTES + 1))
     assert_raises(Canopus::Error) { build_registry }
 
-    write_document("version" => 2, "breakpoints" => [])
+    write_document("version" => 3, "breakpoints" => [])
     assert_raises(Canopus::Error) { build_registry }
     write_document("version" => 1, "breakpoints" => [
       {"path" => "../escape.rb", "line" => 1, "condition" => nil}

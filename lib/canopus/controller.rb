@@ -127,7 +127,8 @@ module Canopus
     end
     def input_text(text)
       if @workspace.palette
-        return if [:workspace_edit, :confirm_close, :confirm_tab_close, :confirm_terminal_close, :confirm_terminal_paste, :trash_file].include?(@workspace.palette[:kind])
+        return if [:workspace_edit, :confirm_close, :confirm_tab_close, :confirm_terminal_close, :confirm_terminal_paste, :trash_file,
+          :breakpoint_actions].include?(@workspace.palette[:kind])
         @workspace.palette[:query] << text
         @workspace.update_palette
       elsif @terminal_focus && @workspace.terminal_visible
@@ -392,7 +393,8 @@ module Canopus
           palette[:details_scroll] = (palette.fetch(:details_scroll, 0) + (stroke == "pageup" ? -step : step)).clamp(0, maximum)
         end
       when "backspace"
-        return if [:workspace_edit, :confirm_close, :confirm_tab_close, :confirm_terminal_close, :confirm_terminal_paste, :trash_file].include?(palette[:kind])
+        return if [:workspace_edit, :confirm_close, :confirm_tab_close, :confirm_terminal_close, :confirm_terminal_paste, :trash_file,
+          :breakpoint_actions].include?(palette[:kind])
         palette[:query] = palette[:query].grapheme_clusters[0...-1].join
         @workspace.update_palette
       when "enter"
@@ -458,8 +460,12 @@ module Canopus
       end
       @terminal_focus = [:terminal, :terminal_tab, :terminal_close].include?(kind)
       case kind
-      when :decoration
-        args[0].call(args[1], args[2]) if event.button == :left
+      when :decoration, :context_decoration
+        if event.button == :left
+          args[0].call(args[1], args[2])
+        elsif event.button == :right && args[0].respond_to?(:right_click)
+          args[0].right_click(args[1], args[2])
+        end
       when :git_hunk then @workspace.toggle_git_hunk(args[0], row: args[1]) if event.button == :left
       when :hover_link
         return unless event.button == :left

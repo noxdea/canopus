@@ -100,7 +100,7 @@ module Canopus
         next if first + count <= rows.begin || first >= rows.end
 
         color = mark.kind == :removed ? :error : mark.kind == :added ? "#80b987" : :accent
-        style = {color: color, rows: count}.freeze
+        style = {color: color, rows: count, hit_width: 7}.freeze
         click = ->(current, row) { toggle_git_hunk(current, row: row) }
         Decoration::Item.new(:gutter, nil, first, "Toggle Git hunk", style, 0, :git, click)
       end

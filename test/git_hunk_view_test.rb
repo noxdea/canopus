@@ -64,6 +64,29 @@ class GitHunkViewTest < Minitest::Test
     refute @editor.buffer.dirty?
   end
 
+  def test_git_and_breakpoint_gutter_lanes_remain_independently_clickable
+    @workspace.git_hunks(async: false)
+    @window = Zaniah::Platform::Headless::Window.new(width: 640, height: 240)
+    controller = Canopus::Controller.new(@workspace, @window)
+    controller.tick
+    git_bounds, = controller.view.regions.find do |_bounds, action|
+      action.first == :decoration && action[2].equal?(@editor) && action[3] == 1
+    end
+    breakpoint_bounds, = controller.view.regions.find do |_bounds, action|
+      action.first == :context_decoration && action[2].equal?(@editor) && action[3] == 1
+    end
+    assert_operator git_bounds.right, :<=, breakpoint_bounds.x
+
+    controller.input(Zaniah::Input::MouseDown.new(
+      Zaniah::Point.new(git_bounds.x + 6, git_bounds.y + 1), :left, [], 1))
+    assert @editor.display_map.block_map.blocks.values.any? { |block| block.kind == :git_diff }
+    assert_empty @workspace.breakpoints.for_path(@editor.buffer.path)
+
+    controller.input(Zaniah::Input::MouseDown.new(
+      Zaniah::Point.new(breakpoint_bounds.x + 1, breakpoint_bounds.y + 1), :left, [], 1))
+    assert_equal [2], @workspace.breakpoints.for_path(@editor.buffer.path).map(&:line)
+  end
+
   def test_gutter_click_in_a_split_updates_only_the_clicked_editor
     first = @editor
     @workspace.split
