@@ -9,6 +9,8 @@ module Canopus
       MAX_DIAGNOSTICS = 1_000
       MATCH_TIMEOUT_SECONDS = 0.002
       ANSI = /\e(?:\[[0-?]*[ -\/]*[@-~]|\][^\a]*(?:\a|\e\\))/n
+      RetryTimeout = Class.new(StandardError)
+      private_constant :RetryTimeout
 
       def initialize(definition, root:, &on_change)
         @definition = definition
@@ -26,6 +28,7 @@ module Canopus
         @diagnostics = {}
         @diagnostic_count = 0
         @sequence = []
+        @retrying_line = false
         @disabled = @discarding_line = @dirty = false
       rescue SystemCallError, TypeError => error
         raise Error, "invalid problem matcher: #{error.message}"
@@ -50,7 +53,12 @@ module Canopus
           break if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
           raw = @pending.byteslice(@cursor, newline - @cursor)
           raw = raw.delete_suffix("\r")
-          consume(raw)
+          begin
+            consume(raw)
+          rescue RetryTimeout
+            break
+          end
+          @retrying_line = false
           break if @disabled
           @cursor = newline + 1
         end
@@ -71,7 +79,14 @@ module Canopus
         return diagnostics if @disabled
         return diagnostics if pending?
         raw = @pending.byteslice(@cursor..)
-        consume(raw) unless raw.nil? || raw.empty? || @discarding_line
+        unless raw.nil? || raw.empty? || @discarding_line
+          begin
+            consume(raw)
+            @retrying_line = false
+          rescue RetryTimeout
+            disable
+          end
+        end
         @pending.clear
         @cursor = 0
         @sequence.clear
@@ -158,6 +173,10 @@ module Canopus
       def safe_match(pattern, line)
         Canopus.with_regexp_timeout(pattern) { pattern.match(line) }
       rescue Regexp::TimeoutError
+        if Canopus::REGEXP_TIMEOUT_COMPAT && !@retrying_line
+          @retrying_line = true
+          raise RetryTimeout
+        end
         disable
         nil
       end
@@ -167,6 +186,7 @@ module Canopus
         @pending.clear
         @cursor = 0
         @sequence.clear
+        @retrying_line = false
         @discarding_line = false
       end
 

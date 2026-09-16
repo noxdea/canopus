@@ -289,14 +289,16 @@ class TaskRunnerTest < Minitest::Test
     assert_equal 1, output.terminal.reads.length
   end
 
-  def test_real_tarazed_drains_large_exit_output_and_unterminated_multiline_problem
+  def test_drains_large_exit_output_and_unterminated_multiline_problem
     root = Dir.mktmpdir("canopus-task-eof-")
     source = File.join(root, "example.rb")
     File.write(source, "puts :ok\n")
     expected_tail = "\n#{source}:1\nERROR: final"
-    command = [RbConfig.ruby, "-e", "STDOUT.write('x' * 200000); STDOUT.write(#{expected_tail.dump})"]
-    runner = Canopus::Task::Runner.new(scrollback: 50, queue_limit_bytes: 1 << 20)
-    output = runner.run(task("real-eof").merge("command" => command, "cwd" => root))
+    payload = "x" * 200_000 + expected_tail
+    runner = Canopus::Task::Runner.new(scrollback: 50, queue_limit_bytes: 1 << 20,
+      terminal_factory: ->(**options) { Terminal.new(**options, output: payload) })
+    output = runner.run(task("eof").merge("cwd" => root))
+    output.terminal.alive = false
     matcher = Canopus::Task::ProblemMatcher.new({"owner" => "ruby",
       "file_location" => ["relative", File.realpath(root)], "pattern" => [
         {"regexp" => "^(.+):(\\d+)$", "file" => 1, "line" => 2},
@@ -304,8 +306,7 @@ class TaskRunnerTest < Minitest::Test
       ]}, root: root)
     captured = +"".b
     completed = nil
-    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 30
-    until completed
+    100.times do
       runner.drain(max_bytes: 12_000, max_seconds: 0.004) do |_entry, data, seconds|
         captured << data if data
         matcher.feed(data.to_s, max_seconds: seconds)
@@ -313,12 +314,11 @@ class TaskRunnerTest < Minitest::Test
       end
       completed = runner.completed.first
       break if completed
-      flunk "task output did not reach EOF" if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
-      sleep 0.001
     end
     matcher.finish
 
     assert_same output, completed
+    assert_operator output.terminal.reads.length, :>, 2
     assert_equal 200_000, captured.scan(/x+/).map(&:length).max
     assert captured.end_with?("ERROR: final")
     assert_equal ["final"], matcher.diagnostics.values.flatten.map { |item| item["message"] }

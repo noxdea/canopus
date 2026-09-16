@@ -100,10 +100,10 @@ class TaskProblemMatcherTest < Minitest::Test
     assert_empty matcher.diagnostics
   end
 
-  def test_first_timeout_disables_watch_matcher_without_trying_later_patterns
+  def test_timeout_disables_watch_matcher_without_trying_later_patterns
     evil = "^((a+)+):(\\d+): (.+)$"
     matcher = build(pattern: {"regexp" => evil, "file" => 1, "line" => 3, "message" => 4},
-      background: {"begins_pattern" => evil, "ends_pattern" => evil, "active_on_start" => true})
+      background: {"begins_pattern" => "^BEGIN$", "ends_pattern" => "^END$", "active_on_start" => true})
     calls = 0
     original = matcher.method(:safe_match)
     matcher.define_singleton_method(:safe_match) do |pattern, line|
@@ -113,17 +113,59 @@ class TaskProblemMatcherTest < Minitest::Test
     line = ("a" * 60_000) + "!:1: broken\n"
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     refute matcher.feed(line * 4, max_seconds: 0.004)
-    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+    first_elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+    assert_operator first_elapsed, :<, 0.5
 
-    assert_operator elapsed, :<, 0.5
-    assert_equal 1, calls
+    if Canopus::REGEXP_TIMEOUT_COMPAT
+      assert_equal 3, calls
+      assert matcher.pending?
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      refute matcher.feed("", max_seconds: 0.004)
+      assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 0.5
+    end
+    expected_calls = Canopus::REGEXP_TIMEOUT_COMPAT ? 6 : 3
+    assert_equal expected_calls, calls
     assert matcher.instance_variable_get(:@disabled)
     refute matcher.pending?
 
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     10.times { refute matcher.feed(line, max_seconds: 0.004) }
     assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 0.05
+    assert_equal expected_calls, calls
+  end
+
+  def test_compatibility_timeout_retries_the_pending_line_on_the_next_feed
+    skip "only the compatibility implementation retries" unless Canopus::REGEXP_TIMEOUT_COMPAT
+    matcher = build(pattern: basic_pattern)
+    calls = 0
+    timeout = lambda do |_pattern, &match|
+      calls += 1
+      raise Regexp::TimeoutError if calls == 1
+      match.call
+    end
+
+    Canopus.stub(:with_regexp_timeout, timeout) do
+      refute matcher.feed("lib/example.rb:1: recovered\n", max_seconds: 1)
+      assert matcher.pending?
+      assert matcher.feed("", max_seconds: 1)
+    end
+    assert_equal ["recovered"], messages(matcher)
+    assert_equal 2, calls
+  end
+
+  def test_compatibility_timeout_does_not_retry_unterminated_input_inside_finish
+    skip "only the compatibility implementation retries" unless Canopus::REGEXP_TIMEOUT_COMPAT
+    matcher = build(pattern: basic_pattern)
+    calls = 0
+    timeout = lambda do |_pattern|
+      calls += 1
+      raise Regexp::TimeoutError
+    end
+    refute matcher.feed("lib/example.rb:1: malicious", max_seconds: 1)
+
+    Canopus.stub(:with_regexp_timeout, timeout) { matcher.finish }
     assert_equal 1, calls
+    assert matcher.instance_variable_get(:@disabled)
   end
 
   def test_feed_coalesces_callbacks_drops_after_limit_and_watch_clear_reopens_capacity

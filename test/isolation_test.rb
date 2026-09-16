@@ -8,7 +8,7 @@ class IsolationTest < Minitest::Test
     root = File.expand_path("..", __dir__)
     output, status = Open3.capture2e(Gem.ruby, "tools/check_dependencies.rb", "test/type/smoke.rb", chdir: root)
     assert status.success?, output
-    assert_includes output, "runtime dependencies: alhena, alkaid, antares, denebola, kochab, megrez, porrima, prism, rouge, sadr, spica, tarazed, thuban, unicode-display_width, zaniah"
+    assert_includes output, "runtime dependencies: alhena, alkaid, antares, denebola, kochab, megrez, porrima, prism, rouge, sadr, spica, tarazed, thuban, timeout, unicode-display_width, zaniah"
   end
 
   def test_cli_resolves_relative_alkaid_path_from_the_repository
@@ -17,7 +17,8 @@ class IsolationTest < Minitest::Test
       dependency = File.join(directory, "alkaid")
       marker = File.join(directory, "loaded")
       FileUtils.mkdir_p(File.join(dependency, "lib"))
-      File.write(File.join(dependency, "lib", "alkaid.rb"), "File.binwrite(#{marker.inspect}, 'yes')\nmodule Alkaid; end\n")
+      File.write(File.join(dependency, "lib", "alkaid.rb"),
+        "File.binwrite(#{marker.inspect}, 'yes')\nmodule Alkaid; class Walker; end; end\n")
       File.write(File.join(dependency, "alkaid.gemspec"), <<~RUBY)
         Gem::Specification.new do |spec|
           spec.name = "alkaid"
