@@ -19,6 +19,7 @@ module Canopus
       "sticky_scroll" => {"enabled" => true, "max_lines" => 5}.freeze,
       "breadcrumbs" => {"enabled" => true}.freeze,
       "minimap" => {"enabled" => false, "width" => 100, "show_diagnostics" => true}.freeze,
+      "format_on_save" => false, "code_actions_on_save" => [].freeze, "format_on_save_timeout" => 2_000,
       "dock" => {"left" => {"size" => 220, "visible" => true}.freeze,
         "right" => {"size" => 260, "visible" => false}.freeze,
         "bottom" => {"size" => 280, "visible" => false}.freeze,
@@ -62,6 +63,10 @@ module Canopus
       "minimap" => {"type" => "object", "required" => %w[enabled width show_diagnostics], "properties" => {
         "enabled" => {"type" => "boolean"}, "width" => {"type" => "integer", "minimum" => 40, "maximum" => 400},
         "show_diagnostics" => {"type" => "boolean"}}},
+      "format_on_save" => {"type" => "boolean"},
+      "code_actions_on_save" => {"type" => "array", "maxItems" => 64, "uniqueItems" => true,
+        "items" => {"type" => "string", "minLength" => 1, "maxLength" => 256}},
+      "format_on_save_timeout" => {"type" => "integer", "minimum" => 1, "maximum" => 60_000},
       "dock" => {"type" => "object", "properties" => {
         "left" => {"$ref" => "#/$defs/dock"}, "right" => {"$ref" => "#/$defs/dock"},
         "bottom" => {"$ref" => "#/$defs/dock"}, "panels" => {"type" => "object", "maxProperties" => 1000,
@@ -130,7 +135,7 @@ module Canopus
         raise Error, "invalid #{key}" unless value.is_a?(Numeric) && range.cover?(value)
       end
       raise Error, "tab_size must be an integer" unless @values["tab_size"].is_a?(Integer)
-      %w[soft_wrap vim_mode use_tabs render_ideographic_space].each { |key| raise Error, "#{key} must be true or false" unless [true, false].include?(@values[key]) }
+      %w[soft_wrap vim_mode use_tabs render_ideographic_space format_on_save].each { |key| raise Error, "#{key} must be true or false" unless [true, false].include?(@values[key]) }
       raise Error, "invalid render_whitespace" unless %w[none boundary selection all].include?(@values["render_whitespace"])
       validate_keymap!
       %w[languages language_servers].each { |key| raise Error, "#{key} must be an object" unless @values[key].is_a?(Hash) }
@@ -146,12 +151,15 @@ module Canopus
       validate_sticky_scroll!
       validate_breadcrumbs!
       validate_minimap!
+      validate_save_actions!
       validate_dock!
       @values["languages"] = @values["languages"].to_h do |name, layer|
         raise Error, "language settings must be objects" unless name.is_a?(String) && layer.is_a?(Hash)
         raise Error, "language settings cannot contain nested languages" if layer.key?("languages")
         checked = Settings.new(@values.merge("languages" => {}), layer)
-        [name, layer.key?("keymap") ? layer.merge("keymap" => checked["keymap"]) : layer]
+        layer = layer.merge("keymap" => checked["keymap"]) if layer.key?("keymap")
+        layer = layer.merge("code_actions_on_save" => checked["code_actions_on_save"]) if layer.key?("code_actions_on_save")
+        [name, layer]
       end
     end
     def validate_keymap!
@@ -272,6 +280,18 @@ module Canopus
         raise Error, "minimap.#{key} must be true or false" unless [true, false].include?(minimap[key])
       end
       raise Error, "invalid minimap.width" unless minimap["width"].is_a?(Integer) && minimap["width"].between?(40, 400)
+    end
+
+    def validate_save_actions!
+      actions = @values["code_actions_on_save"]
+      valid = actions.is_a?(Array) && actions.length <= 64 && actions.uniq.length == actions.length && actions.all? do |action|
+        action.is_a?(String) && action.valid_encoding? && action.bytesize.between?(1, 256) &&
+          action == action.strip && !action.match?(/[\x00-\x1f\x7f]/)
+      end
+      raise Error, "invalid code_actions_on_save" unless valid
+      @values["code_actions_on_save"] = actions.map { |action| action.dup.freeze }.freeze
+      timeout = @values["format_on_save_timeout"]
+      raise Error, "invalid format_on_save_timeout" unless timeout.is_a?(Integer) && timeout.between?(1, 60_000)
     end
 
     def validate_dock!

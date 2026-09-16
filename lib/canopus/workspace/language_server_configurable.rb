@@ -81,8 +81,9 @@ module Canopus
       end
     end
 
-    def ensure_language_server(language, options)
+    def ensure_language_server(language, options, timeout: nil)
       raise Error, "Workspace closed" if @closed
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout if timeout
       @client_options ||= {}
       previous, client = @client_options[language], @clients[language]
       if client && previous && options && previous.except(:configuration) == options.except(:configuration)
@@ -146,6 +147,17 @@ module Canopus
         future = Sadr::Future.new(nil)
         if @closed || @retired_language_clients&.[](replacement)
           future.fulfill({"applied" => false, "failureReason" => "Language server stopped"})
+        elsif @save_action_clients&.key?(replacement)
+          begin
+            edit = params.fetch("edit")
+            raise Error, "save-time code actions cannot change workspace resources" if resource_workspace_edit?(edit)
+            result = apply_workspace_edit(edit)
+            (@save_action_errors ||= {})[replacement] = result["failureReason"].to_s unless result["applied"]
+            future.fulfill(result)
+          rescue StandardError => error
+            (@save_action_errors ||= {})[replacement] = error.message
+            future.fulfill({"applied" => false, "failureReason" => error.message})
+          end
         else
           confirm_workspace_edit(params.fetch("edit"), label: params.fetch("label", "Apply language server changes?"), response: future)
           @palette[:client] = replacement
@@ -157,7 +169,9 @@ module Canopus
       replacement.on("workspace/codeLens/refresh") { invalidate_code_lenses(client: replacement) }
       (@starting_language_clients ||= {})[language] = replacement
       begin
-        replacement.start
+        remaining = deadline && deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        raise Sadr::Timeout, "language server startup timed out" if remaining && remaining <= 0
+        remaining ? replacement.start(timeout: remaining) : replacement.start
         raise Error, "Workspace closed" if @closed
         @clients[language] = replacement
         @opened_lsp_documents ||= {}

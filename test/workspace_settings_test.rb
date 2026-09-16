@@ -66,6 +66,29 @@ class WorkspaceSettingsTest < Minitest::Test
     assert_raises(Canopus::Error) { Canopus::Settings.new("code_lens" => []) }
   end
 
+  def test_save_action_settings_are_defaulted_snapshotted_and_validated
+    assert_equal false, @workspace.settings["format_on_save"]
+    assert_equal [], @workspace.settings["code_actions_on_save"]
+    assert_equal 2_000, @workspace.settings["format_on_save_timeout"]
+    assert_equal "boolean", Canopus::Settings.schema.dig("properties", "format_on_save", "type")
+    actions = ["source.organizeImports"]
+    settings = Canopus::Settings.new("format_on_save" => true, "code_actions_on_save" => actions,
+      "format_on_save_timeout" => 50)
+    actions << "source.fixAll"
+    assert_equal ["source.organizeImports"], settings["code_actions_on_save"]
+    assert settings["code_actions_on_save"].frozen?
+    language_actions = [+"source.fixAll"]
+    settings = Canopus::Settings.new("languages" => {"ruby" => {"code_actions_on_save" => language_actions}})
+    language_actions.first.replace("source.changed")
+    language_actions << "source.organizeImports"
+    assert_equal ["source.fixAll"], settings["languages"].dig("ruby", "code_actions_on_save")
+    assert settings["languages"].dig("ruby", "code_actions_on_save").frozen?
+    assert_raises(Canopus::Error) { Canopus::Settings.new("format_on_save" => "yes") }
+    assert_raises(Canopus::Error) { Canopus::Settings.new("code_actions_on_save" => ["source.fixAll", "source.fixAll"]) }
+    assert_raises(Canopus::Error) { Canopus::Settings.new("code_actions_on_save" => ["bad\nkind"]) }
+    assert_raises(Canopus::Error) { Canopus::Settings.new("format_on_save_timeout" => 0) }
+  end
+
   def test_keymap_values_are_bounded_validated_and_snapshotted
     groups = [{"context" => "Editor && !vim_mode", "bindings" => {"ctrl-k ctrl-s" => "file.save", "cmd-s" => nil}}]
     settings = Canopus::Settings.new("keymap" => groups)

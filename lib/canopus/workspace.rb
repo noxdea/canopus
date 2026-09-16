@@ -185,6 +185,17 @@ module Canopus
       existing = @buffers[target]
       raise Error, "Destination is already open in another buffer" if existing && !existing.equal?(buffer)
       previous = buffer.path
+      @running_save_actions ||= {}.compare_by_identity
+      unless @running_save_actions.key?(buffer)
+        @running_save_actions[buffer] = true
+        begin
+          run_save_actions(buffer) if previous
+        rescue StandardError => error
+          notify("Save actions failed: #{error.message}")
+        ensure
+          @running_save_actions.delete(buffer)
+        end
+      end
       result = buffer.save(target)
       if previous != buffer.path
         invalidate_hierarchy(buffer)

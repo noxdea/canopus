@@ -26,6 +26,25 @@ connection and reopen its documents. A configuration-only change sends
 `workspace/didChangeConfiguration` without restarting. Resource-changing server
 requests require confirmation as described in [workspace edits](workspace_edits.md).
 
+Save-time actions are opt-in and run before the file write. Formatting runs
+first, followed by the first enabled action returned for each configured kind:
+
+```json
+{
+  "format_on_save": true,
+  "code_actions_on_save": ["source.organizeImports", "source.fixAll"],
+  "format_on_save_timeout": 2000
+}
+```
+
+The timeout covers the complete sequence. A timeout, stale or invalid edit, or
+server failure is reported without preventing the save; edits to the saved
+document accepted before a later failure remain grouped as one undo step.
+Server edits use the normal version-checked workspace-edit path. Resource
+operations are rejected during an automatic save action. An untitled document
+establishes its URI on the first Save As, so its save-time actions begin with
+the next save.
+
 Published diagnostics are shown as severity-colored wave underlines. The most
 severe message on each line is also shown at line end by default. Configure this
 with `diagnostics.inline`, `diagnostics.inline_max_length`, and the minimum

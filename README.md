@@ -135,6 +135,9 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
   "sticky_scroll": { "enabled": true, "max_lines": 5 },
   "breadcrumbs": { "enabled": true },
   "minimap": { "enabled": false, "width": 100, "show_diagnostics": true },
+  "format_on_save": false,
+  "code_actions_on_save": [],
+  "format_on_save_timeout": 2000,
   "tabs": { "activate_on_close": "history", "reopen_history_limit": 20 },
   "terminal": { "working_directory": "project", "scrollback_lines": 10000 },
   "dock": {

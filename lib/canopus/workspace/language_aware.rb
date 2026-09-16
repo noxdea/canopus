@@ -71,13 +71,16 @@ module Canopus
       (@main_queue ||= Queue.new) << block
       @window&.request_frame
     end
-    def language_client(buffer = editor.buffer)
+    def language_client(buffer = editor.buffer, timeout: nil)
       raise Error, "language servers are disabled for large read-only documents" if buffer.read_only
       language = definition_for(buffer.path)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout if timeout
       (@client_lock ||= Mutex.new).synchronize do
         options = language_server_options(language.name)
         raise Error, "No language server configured for #{language.name}" unless options
-        client = ensure_language_server(language.name, options)
+        remaining = deadline && deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        raise Sadr::Timeout, "language server startup timed out" if remaining && remaining <= 0
+        client = ensure_language_server(language.name, options, timeout: remaining)
         @opened_lsp_documents ||= {}
         unless @opened_lsp_documents[[client, buffer]]
           open_language_document(client, buffer, language.name)
@@ -132,6 +135,114 @@ module Canopus
       @language_jobs.reject! { |thread| !thread.alive? }
       @message = "#{kind}…"
     end
+
+    def run_save_actions(buffer)
+      language = definition_for(buffer.path)
+      values = @settings.for_language(language.name)
+      kinds = values["code_actions_on_save"]
+      return false unless values["format_on_save"] || !kinds.empty?
+      return false unless language_server_options(language.name)
+
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + values["format_on_save_timeout"] / 1_000.0
+      remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      raise Sadr::Timeout, "save actions timed out" if remaining <= 0
+      client = language_client(buffer, timeout: remaining)
+      raise Sadr::Timeout, "save actions timed out" if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+      capabilities = client.capabilities
+      buffer.begin_undo_group
+      ran = false
+      begin
+        formatting = capabilities["documentFormattingProvider"]
+        if values["format_on_save"] && (formatting == true || formatting.is_a?(Hash))
+          version = buffer.version
+          edits = save_action_await(client.formatting(Sadr::Protocol.uri(buffer.path),
+            {tabSize: values["tab_size"], insertSpaces: !values["use_tabs"]}), deadline)
+          raise Error, "document changed while awaiting save formatting" unless buffer.version == version
+          apply_save_format(buffer, version, edits)
+          ran = true
+        end
+        provider = capabilities["codeActionProvider"]
+        if provider == true || provider.is_a?(Hash)
+          kinds.each { |kind| ran = run_code_action_on_save(client, buffer, kind, provider, deadline) || ran }
+        end
+        ran
+      ensure
+        buffer.end_undo_group
+        @save_action_errors&.delete(client)
+      end
+    end
+
+    def save_action_await(future, deadline)
+      unless future.respond_to?(:done?) && future.respond_to?(:await)
+        raise Error, "language server request did not return a future"
+      end
+      loop do
+        remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        if remaining <= 0
+          future.cancel if !future.done? && future.respond_to?(:cancel)
+          raise Sadr::Timeout, "save actions timed out"
+        end
+        break if future.done?
+        drain
+        sleep([remaining, 0.001].min) unless future.done?
+      end
+      drain
+      future.await(timeout: 0)
+    end
+
+    def apply_save_format(buffer, version, edits)
+      edits ||= []
+      raise Error, "invalid formatting response" unless edits.is_a?(Array)
+      edit = {"documentChanges" => [{"textDocument" => {
+        "uri" => Sadr::Protocol.uri(buffer.path), "version" => version
+      }, "edits" => edits}]}
+      result = apply_workspace_edit(edit)
+      raise Error, result["failureReason"].to_s unless result["applied"]
+    end
+
+    def run_code_action_on_save(client, buffer, kind, provider, deadline)
+      version = buffer.version
+      range = Sadr::Protocol.range(buffer.rope, 0...buffer.rope.bytesize)
+      actions = save_action_await(client.code_action(Sadr::Protocol.uri(buffer.path), range,
+        {diagnostics: diagnostics_for(buffer), only: [kind], triggerKind: 2}), deadline)
+      raise Error, "document changed while awaiting save code actions" unless buffer.version == version
+      actions ||= []
+      raise Error, "invalid code action response" unless actions.is_a?(Array) && actions.all? { |action| action.is_a?(Hash) }
+      candidates = actions.reject { |action| action["disabled"] }
+      action = candidates.find { |item| item["kind"] == kind } ||
+        candidates.find { |item| item["kind"].is_a?(String) && item["kind"].start_with?("#{kind}.") } ||
+        candidates.find { |item| !item.key?("kind") }
+      return false unless action
+
+      if provider.is_a?(Hash) && provider["resolveProvider"] && !action.key?("edit") && !action["command"].is_a?(String)
+        resolved = save_action_await(client.resolve_code_action(action), deadline)
+        raise Error, "invalid resolved code action" unless resolved.nil? || resolved.is_a?(Hash)
+        action = action.merge(resolved || {})
+        raise Error, "document changed while resolving save code action" unless buffer.version == version
+      end
+      if action["edit"]
+        result = apply_workspace_edit(action["edit"])
+        raise Error, result["failureReason"].to_s unless result["applied"]
+      end
+      command = action["command"]
+      command = action if command.is_a?(String)
+      if command
+        raise Error, "invalid code action command" unless command.is_a?(Hash)
+        @save_action_errors&.delete(client)
+        active = @save_action_clients ||= Hash.new(0)
+        active[client] += 1
+        begin
+          request = client.execute_command(command.fetch("command"), arguments: command.fetch("arguments", []))
+          save_action_await(request, deadline)
+        ensure
+          active[client] -= 1
+          active.delete(client) if active[client].zero?
+        end
+        raise Error, @save_action_errors.delete(client) if @save_action_errors&.key?(client)
+      end
+      true
+    end
+    private :save_action_await, :apply_save_format, :run_code_action_on_save
 
     def prepare_rename(current = editor)
       self.palette = nil
