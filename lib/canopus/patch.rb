@@ -7,7 +7,9 @@ module Canopus
     def initialize(before, after, changes)
       @before, @after = before, after
       delta = 0
-      @edits = changes.sort_by { |range, _| range.begin }.map do |range, text|
+      @edits = changes.each_with_index.sort_by do |((range, _), index)|
+        [range.begin, range.end + (range.exclude_end? ? 0 : 1), index]
+      end.map do |((range, text), _)|
         ending = range.end + (range.exclude_end? ? 0 : 1)
         old = range.begin...ending
         start = range.begin + delta

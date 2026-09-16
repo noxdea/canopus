@@ -19,4 +19,36 @@ module Canopus::Debug
     def resolve: (String | Hash[String, Canopus::json] configuration, ?file: String?, ?line_number: Integer?, ?selected_text: String?) -> Hash[String, Canopus::json]
     def adapter: (String type, ?file: String?, ?line_number: Integer?, ?selected_text: String?) -> Hash[String, Canopus::json]
   end
+
+  class Breakpoints
+    class Entry < Data
+      attr_reader path: String
+      attr_reader line: Integer
+      attr_reader condition: String?
+      def self.new: (String path, Integer line, String? condition) -> instance
+    end
+
+    VERSION: Integer
+    RELATIVE_PATH: String
+    MAX_BYTES: Integer
+    MAX_ENTRIES: Integer
+    MAX_PATH_BYTES: Integer
+    MAX_CONDITION_BYTES: Integer
+    MAX_LINE: Integer
+
+    attr_reader root: String
+    attr_reader entries: Array[Entry]
+
+    def initialize: (root: String) -> void
+    def for_path: (String path) -> Array[Entry]
+    def add: (String path, Integer line, ?condition: String?) -> Entry
+    def remove: (String path, Integer line) -> bool
+    def toggle: (String path, Integer line, ?condition: String?) -> Entry?
+    def update: (String path, Integer line, ?new_line: Integer, ?condition: String?) -> Entry
+    def attach: (Canopus::Buffer buffer) -> self
+    def detach: (Canopus::Buffer buffer) -> bool
+    def close: () -> nil
+    def flush: () -> self
+    def error: () -> StandardError?
+  end
 end

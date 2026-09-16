@@ -12,6 +12,7 @@
 - Route each language through ordered language servers, aggregate completion, diagnostics, and code actions, and restart individual servers.
 - Search symbols from every active routed language server with Cmd-T/Ctrl-T and fall back to bounded Alkaid project search.
 - Load bounded JSONC debug configurations, expand explicit launch variables, and resolve configured adapters.
+- Persist bounded conditional breakpoints with coalesced writes and keep their lines aligned through edits, undo, and redo.
 - Preserve registration order for equal-priority decorations across Ruby versions and platforms.
 - Show cached, viewport-scoped language-server inlay hints inline with clickable label locations.
 - Show cached language-server code lenses above source lines and resolve them only when visible.

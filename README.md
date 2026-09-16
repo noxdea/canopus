@@ -206,6 +206,12 @@ Language servers are separate programs and are auto-detected or configured by
 argument array. See [Language servers](docs/lsp.md) for configuration and
 restart behavior.
 
+Debug launch definitions and the persistent, edit-aware breakpoint registry
+are described in [Debug configurations](docs/debugging.md). Debugger UI and
+adapter sessions are added separately. Breakpoint files use an atomic rename
+for normal same-user workspace consistency; concurrent malicious workspace
+mutation is outside that guarantee.
+
 Plugins require explicit trust and permissions:
 
 ```sh

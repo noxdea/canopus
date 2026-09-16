@@ -54,3 +54,24 @@ resolved launch or adapter, and captured environment data is limited to 1 MiB.
 If a project has a `Rakefile` but no launch configuration, the configuration
 loader offers a `Run tests` launch using `bin/rake test`. Debug sessions and
 their user interface are implemented separately from configuration loading.
+
+## Breakpoints
+
+The breakpoint registry stores project-relative paths, 1-based line numbers,
+and optional conditions in `.canopus/breakpoints.json`. The versioned file is
+limited to 1 MiB and 10,000 entries. Paths must stay within the canonical
+workspace root; paths through outside symlinks are rejected. Breakpoints for
+files that are not currently open remain in the registry.
+
+Attached buffers update breakpoint lines after committed edits. Inserting ten
+lines before a breakpoint moves it down ten lines, deleting its complete source
+line removes it, and undo or redo restores the corresponding registry state.
+Tracked edits are coalesced and saved by one background writer; detach and
+close flush pending changes and surface write failures. The registry's `error`
+accessor exposes the latest background failure, and `flush` re-raises it.
+Changes are written through a sibling temporary file followed by `fsync` and
+an atomic rename.
+This provides normal same-user workspace consistency; concurrent malicious
+workspace mutation is outside its scope. Buffer attachment is an internal
+lifecycle operation for the later debugger UI; this release does not add
+gutter controls or a DAP session.
