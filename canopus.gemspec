@@ -23,7 +23,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
   spec.add_dependency "alhena", "~> 0.2.0"
   spec.add_dependency "alkaid", "~> 0.1.0"
-  spec.add_dependency "antares", "~> 0.2.0"
+  spec.add_dependency "antares", "~> 0.2.1"
   spec.add_dependency "denebola", "~> 0.1.0"
   spec.add_dependency "kochab", "~> 0.1.0"
   spec.add_dependency "porrima", "~> 0.1.0"
