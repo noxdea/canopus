@@ -30,7 +30,8 @@ module Canopus
         @version = 0
       end
 
-      def publish(source, uri, diagnostics)
+      def publish(source, uri, diagnostics, notify: true)
+        raise ArgumentError, "invalid diagnostics notification option" unless [true, false].include?(notify)
         source = normalize_source(source)
         uri = normalize_uri(uri)
         values, bytes = normalize_diagnostics(diagnostics)
@@ -54,7 +55,7 @@ module Canopus
           @total, @bytes = total, total_bytes
           @version += 1
         end
-        @on_change&.call(uri)
+        @on_change&.call(uri) if notify
         values
       end
 

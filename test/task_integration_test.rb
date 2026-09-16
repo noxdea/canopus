@@ -14,17 +14,23 @@ class TaskIntegrationTest < Minitest::Test
 
   class Terminal
     attr_reader :grid, :vt, :writes, :signals, :options
-    attr_accessor :alive, :status
+    attr_accessor :alive, :status, :output
 
     def initialize(**options)
       @options = options
       @grid = Tarazed::Grid.new(columns: options[:columns], rows: options[:rows], scrollback: options[:scrollback])
       @vt = Tarazed::VT.new(@grid)
       @writes, @signals = +"", []
+      @output = +""
       @alive = true
     end
-    def read(max_bytes:, max_seconds:) = ""
-    def pending? = false
+    def read(max_bytes:, max_seconds:)
+      return nil if !@alive && @output.empty?
+      value = @output.slice!(0, max_bytes).to_s
+      @vt.feed(value)
+      value
+    end
+    def pending? = !@output.empty?
     def alive? = @alive
     def write(value) = @writes << value
     def key(name, **options) = write(@vt.key(name, **options))
@@ -145,6 +151,102 @@ class TaskIntegrationTest < Minitest::Test
     assert_empty normal.writes
   end
 
+  def test_problem_matcher_publishes_task_diagnostics_and_closing_output_clears_them
+    source = File.join(@root, "example.rb")
+    File.write(source, "puts :ok\n")
+    File.write(File.join(@root, ".canopus", "tasks.jsonc"), JSON.generate(
+      "problem_matchers" => {"ruby" => {"owner" => "ruby",
+        "file_location" => ["relative", "${workspaceFolder}"],
+        "pattern" => {"regexp" => "^(.+):(\\d+): (warning|error): (.+)$",
+          "file" => 1, "line" => 2, "severity" => 3, "message" => 4}}},
+      "tasks" => [task("diagnostics", "never").merge("problem_matcher" => "ruby")]))
+
+    output = @workspace.run_task("diagnostics")
+    output.terminal.output << "example.rb:1: error: broken\n"
+    assert @workspace.drain_task_outputs
+    @controller.tick
+
+    entry = @workspace.diagnostics.all(source: :task).fetch(0)
+    assert_equal Sadr::Protocol.uri(File.realpath(source)), entry.uri
+    assert_equal "broken", entry.diagnostic["message"]
+    assert_equal 1, @workspace.panels.fetch("problems").badge
+
+    @workspace.close_task_output
+    assert_empty @workspace.diagnostics.all(source: :task)
+  end
+
+  def test_stopped_task_finishes_problem_matcher_backlog_before_completion
+    source = File.join(@root, "example.rb")
+    File.write(source, "puts :ok\n")
+    File.write(File.join(@root, ".canopus", "tasks.jsonc"), JSON.generate(
+      "problem_matchers" => {"ruby" => {"owner" => "ruby",
+        "file_location" => ["relative", "${workspaceFolder}"],
+        "pattern" => {"regexp" => "^(.+):(\\d+): (.+)$",
+          "file" => 1, "line" => 2, "message" => 3}}},
+      "tasks" => [task("diagnostics", "never").merge("problem_matcher" => "ruby")]))
+
+    output = @workspace.run_task("diagnostics")
+    output.terminal.output << ("x\n" * 5_000) << "example.rb:1: final\n"
+    assert @workspace.drain_task_outputs
+    matcher = @workspace.instance_variable_get(:@task_matchers).fetch(output.id)
+    assert matcher.pending?
+
+    assert @workspace.stop_task(output)
+    wait_until { output.terminal.closed? }
+    20.times do
+      @workspace.drain_task_outputs
+      break if @workspace.instance_variable_get(:@task_finished)[output.id]
+    end
+
+    assert @workspace.instance_variable_get(:@task_finished)[output.id]
+    assert_equal ["final"], @workspace.diagnostics.all(source: :task)
+      .map { |entry| entry.diagnostic["message"] }
+  end
+
+  def test_task_diagnostics_batch_distinct_uris_and_skip_an_unchanged_snapshot
+    directory = File.join(@root, "cases")
+    FileUtils.mkdir_p(directory)
+    input = 1_000.times.map do |index|
+      path = File.join(directory, "#{index}.rb")
+      File.write(path, "puts :ok\n")
+      "cases/#{index}.rb:1: issue #{index}\n"
+    end.join
+    File.write(File.join(@root, ".canopus", "tasks.jsonc"), JSON.generate(
+      "problem_matchers" => {"ruby" => {"owner" => "ruby",
+        "file_location" => ["relative", "${workspaceFolder}"],
+        "pattern" => {"regexp" => "^(.+):(\\d+): (.+)$",
+          "file" => 1, "line" => 2, "message" => 3}}},
+      "tasks" => [task("diagnostics", "never").merge("problem_matcher" => "ruby")]))
+
+    output = @workspace.run_task("diagnostics")
+    matcher = @workspace.instance_variable_get(:@task_matchers).fetch(output.id)
+    @workspace.problems_tree
+    refreshes = 0
+    refresh = @workspace.method(:refresh_problems)
+    @workspace.define_singleton_method(:refresh_problems) do
+      refreshes += 1
+      refresh.call
+    end
+    queue = @workspace.instance_variable_get(:@main_queue)
+    version = @workspace.diagnostics.version
+
+    assert matcher.feed(input, max_seconds: 5)
+    assert_equal 1_000, @workspace.diagnostics.version - version
+    assert_equal 1_000, @workspace.diagnostics.all(source: :task).length
+    assert_equal 1, queue.size
+    version = @workspace.diagnostics.version
+    refute @workspace.send(:publish_task_diagnostics)
+    assert_equal version, @workspace.diagnostics.version
+    assert_equal 1, queue.size
+
+    @workspace.drain
+    assert_equal 1, refreshes
+    assert_equal 0, queue.size
+    refute @workspace.send(:publish_task_diagnostics)
+    assert_equal 1, refreshes
+    assert_equal 0, queue.size
+  end
+
   private
 
   def task(label, reveal)
@@ -157,11 +259,11 @@ class TaskIntegrationTest < Minitest::Test
     @controller.input(Zaniah::Input::MouseDown.new(position: point, button: :left, modifiers: [], click_count: 1))
   end
 
-  def wait_until
-    100.times do
-      return if yield
-      Thread.pass
+  def wait_until(timeout: 5)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+    until yield
+      flunk "condition was not met" if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+      sleep 0.01
     end
-    flunk "condition was not met"
   end
 end

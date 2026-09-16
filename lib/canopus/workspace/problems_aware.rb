@@ -60,8 +60,13 @@ module Canopus
     end
 
     def diagnostics_changed(uri)
+      uris = uri.is_a?(Array) ? uri : [uri]
+      targets = uris.each_with_object({}) do |value, result|
+        Sadr::Protocol.path(value)
+        result[value] = true
+      end
       @buffers.each_value.uniq.each do |buffer|
-        invalidate_diagnostics(buffer) if buffer.path && Sadr::Protocol.uri(buffer.path) == uri
+        invalidate_diagnostics(buffer) if buffer.path && targets.key?(Sadr::Protocol.uri(buffer.path))
       end
       refresh_problems
     rescue Sadr::Error

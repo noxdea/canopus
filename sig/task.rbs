@@ -5,6 +5,7 @@ module Canopus::Task
     RELATIVE_PATH: String
     MAX_BYTES: Integer
     MAX_TASKS: Integer
+    MAX_PROBLEM_MATCHERS: Integer
     MAX_DEPTH: Integer
     MAX_COLLECTION_SIZE: Integer
     MAX_STRING_BYTES: Integer
@@ -14,8 +15,25 @@ module Canopus::Task
 
     attr_reader root: String
     attr_reader tasks: Array[definition]
+    attr_reader problem_matchers: Hash[String, definition]
     def initialize: (root: String, ?environment: untyped) -> void
+    def problem_matcher: (String name) -> definition?
     def resolve: (String | definition task, ?file: String?, ?line_number: Integer?, ?selected_text: String?) -> definition
+  end
+
+  class ProblemMatcher
+    MAX_LINE_BYTES: Integer
+    MAX_PENDING_BYTES: Integer
+    MAX_BUFFER_BYTES: Integer
+    MAX_DIAGNOSTICS: Integer
+    MATCH_TIMEOUT_SECONDS: Float
+    ANSI: Regexp
+    def initialize: (definition definition, root: String) -> void
+                  | (definition definition, root: String) { (ProblemMatcher) -> void } -> void
+    def diagnostics: () -> Hash[String, Array[Sadr::object]]
+    def pending?: () -> bool
+    def feed: (String bytes, ?max_seconds: Numeric) -> bool
+    def finish: () -> Hash[String, Array[Sadr::object]]
   end
 
   class Runner
@@ -43,6 +61,7 @@ module Canopus::Task
     def running?: (?Output? output) -> bool
     def completed: () -> Array[Output]
     def drain: (max_bytes: Integer, ?max_seconds: Numeric) -> bool
+             | (max_bytes: Integer, ?max_seconds: Numeric) { (Output, String?, Numeric) -> untyped } -> bool
     def pending?: () -> bool
     def resize: (Integer columns, Integer rows) -> void
     def close: () -> nil

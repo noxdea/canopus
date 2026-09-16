@@ -227,7 +227,8 @@ mutation is outside that guarantee.
 Project task definitions, variables, Output tabs, and reveal behavior are
 described in [Tasks](docs/tasks.md). `task.run` opens the task picker,
 `task.stop` stops the selected running Output tab, and `panel.output` toggles
-the panel.
+the panel. Single-line, multi-line, and watch problem matchers publish task
+output into the shared Problems panel and editor diagnostics.
 
 Plugins require explicit trust and permissions:
 

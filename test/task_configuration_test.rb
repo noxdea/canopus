@@ -155,10 +155,46 @@ class TaskConfigurationTest < Minitest::Test
     assert_match(/expanded task data exceeds 1 MiB/, error.message)
   end
 
+  def test_loads_and_bounds_single_multiline_and_watch_problem_matchers
+    patterns = {
+      "single" => matcher({"regexp" => "^(.+):(\\d+): (.+)$", "file" => 1, "line" => 2, "message" => 3}),
+      "multi" => matcher([
+        {"regexp" => "^(.+):(\\d+)$", "file" => 1, "line" => 2},
+        {"regexp" => "^ERROR: (.+)$", "message" => 1}
+      ], "background" => {"begins_pattern" => "^BEGIN$", "ends_pattern" => "^END$", "active_on_start" => true})
+    }
+    write_tasks(JSON.generate("problem_matchers" => patterns, "tasks" => [task("Check", ["ruby"], "problem_matcher" => "single")]))
+    configuration = loader
+
+    assert_equal File.realpath(@root), configuration.problem_matcher("single").fetch("file_location").last
+    assert_equal true, configuration.problem_matcher("multi").dig("background", "active_on_start")
+    assert configuration.problem_matchers.frozen?
+    assert_nil configuration.problem_matcher("missing")
+
+    invalid = [
+      {"problem_matchers" => []},
+      {"problem_matchers" => {"bad" => matcher({"regexp" => "(", "file" => 1, "line" => 2, "message" => 3})}},
+      {"problem_matchers" => {"bad" => matcher({"regexp" => "(.*)", "file" => 0, "line" => 1, "message" => 1})}},
+      {"problem_matchers" => {"bad" => {"owner" => "ruby", "pattern" => {"regexp" => "(.*)", "message" => 1}}}},
+      {"problem_matchers" => {"bad" => matcher({"regexp" => "(.*)", "file" => 1, "line" => 1, "message" => 1},
+        "file_location" => ["relative", "${workspaceFolder}/missing"])}},
+      {"problem_matchers" => {"bad" => matcher({"regexp" => "(.*)", "file" => 1, "line" => 1, "message" => 1},
+        "background" => {"begins_pattern" => "^BEGIN$"})}}
+    ]
+    invalid.each do |document|
+      write_tasks(JSON.generate(document.merge("tasks" => [])))
+      assert_raises(Canopus::Error) { loader }
+    end
+  end
+
   private
 
   def task(label, command = ["ruby"], **options)
     {"label" => label, "command" => command, **options}
+  end
+
+  def matcher(pattern, **options)
+    {"owner" => "ruby", "file_location" => ["relative", "${workspaceFolder}"], "pattern" => pattern, **options}
   end
 
   def loader(environment = {})

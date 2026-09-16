@@ -23,6 +23,8 @@ module Canopus
         @entries, @completed = [], {}
         @close_threads = {}.compare_by_identity
         @closed_outputs = {}.compare_by_identity
+        @eof_outputs = {}.compare_by_identity
+        @blocked_outputs = {}.compare_by_identity
         @active_index = @sequence = @poll_index = 0
       end
 
@@ -47,6 +49,8 @@ module Canopus
           index = @entries.index { |current| current.equal?(evicted) }
           close_later(evicted)
           @completed.delete(evicted.id)
+          @eof_outputs.delete(evicted)
+          @blocked_outputs.delete(evicted)
           @entries[index] = entry
           @closed_outputs.delete(evicted) unless @close_threads.key?(evicted)
           @active_index = index
@@ -75,6 +79,8 @@ module Canopus
         close_later(entry)
         @entries.delete_at(index)
         @completed.delete(entry.id)
+        @eof_outputs.delete(entry)
+        @blocked_outputs.delete(entry)
         @closed_outputs.delete(entry) unless @close_threads.key?(entry)
         @active_index = [index, @entries.length - 1].min.clamp(0, @entries.length)
         entry
@@ -98,7 +104,7 @@ module Canopus
 
       def completed
         @entries.filter_map do |entry|
-          next if @completed[entry.id] || running?(entry)
+          next if @completed[entry.id] || running?(entry) || !@eof_outputs.key?(entry)
           @completed[entry.id] = true
           entry
         end
@@ -106,17 +112,35 @@ module Canopus
 
       def drain(max_bytes:, max_seconds: 0.004)
         raise ArgumentError, "task drain limit must be positive" unless max_bytes.is_a?(Integer) && max_bytes.positive?
-        raise ArgumentError, "task drain budget must be nonnegative" unless max_seconds.is_a?(Numeric) && max_seconds >= 0
+        unless max_seconds.is_a?(Numeric) && max_seconds.finite? && max_seconds >= 0
+          raise ArgumentError, "task drain budget must be nonnegative and finite"
+        end
         reap_closers
-        candidates = @entries.reject { |entry| @closed_outputs.key?(entry) }.map(&:terminal)
+        candidates = @entries.reject { |entry| @eof_outputs.key?(entry) }
+          .select { |entry| !@closed_outputs.key?(entry) || @blocked_outputs.key?(entry) }
         return false if candidates.empty?
 
         deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + max_seconds
         remaining, changed = max_bytes, false
         order = candidates.rotate(@poll_index % candidates.length)
         @poll_index += 1
-        order.each do |current|
+        order.each do |entry|
           break if remaining <= 0 || Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+          if @blocked_outputs.key?(entry)
+            ready = !block_given? || yield(entry, "".b, remaining_time(deadline)) != false
+            if ready
+              @blocked_outputs.delete(entry)
+              if @closed_outputs.key?(entry) && !@close_threads.key?(entry)
+                @eof_outputs[entry] = true
+                next
+              end
+            else
+              next
+            end
+          end
+          next if @closed_outputs.key?(entry)
+          next if remaining_time(deadline).zero?
+          current = entry.terminal
           method = current.method(:read)
           keywords = method.parameters.any? { |kind, _| [:key, :keyreq, :keyrest].include?(kind) }
           data = if keywords
@@ -125,6 +149,9 @@ module Canopus
           else
             current.read
           end
+          ready = !block_given? || yield(entry, data, remaining_time(deadline)) != false
+          @blocked_outputs[entry] = true unless ready
+          @eof_outputs[entry] = true if data.nil? && ready
           changed ||= !!(data && !data.empty?)
           remaining -= data.bytesize if data
         end
@@ -132,8 +159,14 @@ module Canopus
       end
 
       def pending?
+        reap_closers
         @entries.any? do |entry|
-          !@closed_outputs.key?(entry) && entry.terminal.respond_to?(:pending?) && entry.terminal.pending?
+          next running?(entry) if @eof_outputs.key?(entry)
+          if @closed_outputs.key?(entry)
+            next @blocked_outputs.key?(entry) || @close_threads.key?(entry)
+          end
+          @blocked_outputs.key?(entry) || !running?(entry) ||
+            entry.terminal.respond_to?(:pending?) && entry.terminal.pending?
         end
       end
 
@@ -152,6 +185,8 @@ module Canopus
         return if @closed
         @closed = true
         begin
+          @close_threads.each_value(&:join)
+          reap_closers
           @entries.each do |entry|
             next if @closed_outputs.key?(entry)
             begin
@@ -172,6 +207,8 @@ module Canopus
           @close_threads.clear
           @closed_outputs.clear
           @completed.clear
+          @eof_outputs.clear
+          @blocked_outputs.clear
           @sizes&.clear
         end
         raise @close_error if @close_error
@@ -179,6 +216,10 @@ module Canopus
       end
 
       private
+
+      def remaining_time(deadline)
+        [deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC), 0].max
+      end
 
       def validate_task!(task)
         valid = task.is_a?(Hash) && task["label"].is_a?(String) && !task["label"].empty? &&
@@ -189,7 +230,7 @@ module Canopus
 
       def eviction_candidate
         return if @entries.length < MAX_OUTPUTS
-        entry = @entries.find { |candidate| !running?(candidate) }
+        entry = @entries.find { |candidate| @eof_outputs.key?(candidate) && !running?(candidate) }
         raise Error, "at most #{MAX_OUTPUTS} task outputs may run at once" unless entry
         entry
       end
@@ -242,7 +283,14 @@ module Canopus
         @close_threads.delete_if do |entry, thread|
           next false unless thread.join(0)
           @sizes&.delete(entry.terminal)
-          @closed_outputs.delete(entry) unless @entries.any? { |current| current.equal?(entry) }
+          retained = @entries.any? { |current| current.equal?(entry) }
+          if retained
+            @eof_outputs[entry] = true unless @blocked_outputs.key?(entry)
+          else
+            @closed_outputs.delete(entry)
+            @eof_outputs.delete(entry)
+            @blocked_outputs.delete(entry)
+          end
           true
         end
       end

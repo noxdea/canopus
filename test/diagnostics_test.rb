@@ -30,6 +30,9 @@ class DiagnosticsTest < Minitest::Test
       assert_equal({error: 2, warning: 1, information: 0, hint: 0}, registry.counts)
       assert_equal [first, first, second], changed
 
+      registry.publish(:task, second, [diagnostic("quiet")], notify: false)
+      assert_equal [first, first, second], changed
+
       registry.publish(:lsp, first, [])
       assert_equal [:task], registry.for_uri(first).map(&:source)
     end

@@ -17,7 +17,7 @@ module Canopus
       attr_reader version: Integer
       def initialize: () -> void
                     | () { (String) -> void } -> void
-      def publish: (source source, String uri, Array[Sadr::object] diagnostics) -> Array[Sadr::object]
+      def publish: (source source, String uri, Array[Sadr::object] diagnostics, ?notify: bool) -> Array[Sadr::object]
       def for_uri: (String uri) -> Array[Entry]
       def all: (?severity: Integer | severity?, ?source: source?) -> Array[Entry]
       def counts: () -> {error: Integer, warning: Integer, information: Integer, hint: Integer}

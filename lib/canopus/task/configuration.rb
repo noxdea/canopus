@@ -9,6 +9,7 @@ module Canopus
       RELATIVE_PATH = File.join(".canopus", "tasks.jsonc")
       MAX_BYTES = 1_048_576
       MAX_TASKS = 128
+      MAX_PROBLEM_MATCHERS = 128
       MAX_DEPTH = 20
       MAX_COLLECTION_SIZE = 1_024
       MAX_STRING_BYTES = 65_536
@@ -16,13 +17,16 @@ module Canopus
       MAX_ENVIRONMENT_BYTES = 1_048_576
       VARIABLE = /\$\{([^{}]+)\}/
 
-      attr_reader :root, :tasks
+      attr_reader :root, :tasks, :problem_matchers
 
       def initialize(root:, environment: ENV)
         @root = canonical_root(root)
         @environment = snapshot_environment(environment)
+        @problem_matchers = {}.freeze
         @tasks = load_tasks
       end
+
+      def problem_matcher(name) = @problem_matchers[name]
 
       def resolve(task, file: nil, line_number: nil, selected_text: nil)
         source = task.is_a?(String) ? @tasks.find { |item| item["label"] == task } :
@@ -75,6 +79,7 @@ module Canopus
         raise Error, "invalid task configuration: #{RELATIVE_PATH}" unless document.valid?
         root = document.value
         raise Error, "task configuration must be an object" unless root.is_a?(Hash) && root.keys.all? { |key| key.is_a?(String) }
+        @problem_matchers = validate_problem_matchers(root.fetch("problem_matchers", {}))
         entries = root.fetch("tasks", [])
         unless entries.is_a?(Array) && entries.length <= MAX_TASKS
           raise Error, "tasks must be an array of at most #{MAX_TASKS} items"
@@ -86,6 +91,86 @@ module Canopus
         entries.freeze
       rescue SystemCallError => error
         raise Error, "cannot read task configuration: #{error.message}"
+      end
+
+      def validate_problem_matchers(value)
+        unless value.is_a?(Hash) && value.length <= MAX_PROBLEM_MATCHERS && value.keys.all? { |name| name.is_a?(String) }
+          raise Error, "problem_matchers must be an object of at most #{MAX_PROBLEM_MATCHERS} items"
+        end
+        value.to_h do |name, definition|
+          bounded_identifier(name, "problem matcher name", 256)
+          [name.dup.freeze, validate_problem_matcher(definition)]
+        end.freeze
+      end
+
+      def validate_problem_matcher(definition)
+        raise Error, "each problem matcher must be an object" unless definition.is_a?(Hash)
+        validate_json(definition)
+        owner = definition.fetch("owner", "task")
+        bounded_identifier(owner, "problem matcher owner", 128)
+        patterns = definition["pattern"]
+        patterns = [patterns] if patterns.is_a?(Hash)
+        unless patterns.is_a?(Array) && patterns.length.between?(1, 8)
+          raise Error, "problem matcher pattern must contain 1 to 8 patterns"
+        end
+        patterns = patterns.map { |pattern| validate_problem_pattern(pattern) }
+        unless %w[file line message].all? { |key| patterns.any? { |pattern| pattern[key] } }
+          raise Error, "problem matcher patterns require file, line, and message captures"
+        end
+        location = validate_file_location(definition.fetch("file_location", ["relative", "${workspaceFolder}"]))
+        background = validate_problem_background(definition["background"])
+        result = definition.merge("owner" => owner.dup.freeze,
+          "file_location" => location, "pattern" => definition["pattern"].is_a?(Hash) ? patterns.first : patterns)
+        result["background"] = background if background
+        freeze_value(result)
+      rescue KeyError
+        raise Error, "problem matcher pattern is required"
+      end
+
+      def validate_problem_pattern(pattern)
+        raise Error, "problem matcher pattern must be an object" unless pattern.is_a?(Hash)
+        source = pattern["regexp"]
+        valid_string!(source, "problem matcher regexp", 16_384)
+        Regexp.new(source, timeout: 0.05)
+        %w[file line column end_line end_column severity message].each do |name|
+          index = pattern[name]
+          unless index.nil? || index.is_a?(Integer) && index.between?(1, 99)
+            raise Error, "problem matcher #{name} must be a capture index from 1 to 99"
+          end
+        end
+        freeze_value(pattern.dup)
+      rescue RegexpError
+        raise Error, "invalid problem matcher regexp"
+      end
+
+      def validate_file_location(value)
+        if value == "absolute"
+          return ["absolute".freeze, @root].freeze
+        end
+        unless value.is_a?(Array) && value.length == 2 && value.first == "relative" && value.last.is_a?(String)
+          raise Error, "problem matcher file_location must be absolute or [relative, base]"
+        end
+        base = expand_string(value.last, {}, [MAX_EXPANDED_BYTES])
+        base = project_path(base, "problem matcher file location")
+        raise Error, "problem matcher file location must be a directory" unless File.directory?(base)
+        ["relative".freeze, base.freeze].freeze
+      end
+
+      def validate_problem_background(value)
+        return unless value
+        raise Error, "problem matcher background must be an object" unless value.is_a?(Hash)
+        begins = value["begins_pattern"]
+        ends = value["ends_pattern"]
+        valid_string!(begins, "problem matcher begins_pattern", 16_384)
+        valid_string!(ends, "problem matcher ends_pattern", 16_384)
+        unless !value.key?("active_on_start") || [true, false].include?(value["active_on_start"])
+          raise Error, "problem matcher active_on_start must be boolean"
+        end
+        Regexp.new(begins, timeout: 0.05)
+        Regexp.new(ends, timeout: 0.05)
+        freeze_value(value.merge("active_on_start" => value.fetch("active_on_start", false)))
+      rescue RegexpError
+        raise Error, "invalid problem matcher background regexp"
       end
 
       def validate_task(entry)

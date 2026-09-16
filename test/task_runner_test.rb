@@ -2,6 +2,7 @@
 
 require_relative "test_helper"
 require "rbconfig"
+require "tmpdir"
 
 class TaskRunnerTest < Minitest::Test
   class Terminal
@@ -23,6 +24,7 @@ class TaskRunnerTest < Minitest::Test
     def read(max_bytes:, max_seconds:)
       raise IOError, "read after close" if closed?
       @reads << [max_bytes, max_seconds]
+      return nil if !@alive && @output.empty?
       value = @output.slice!(0, max_bytes).to_s
       @vt.feed(value)
       value
@@ -153,6 +155,31 @@ class TaskRunnerTest < Minitest::Test
     assert_empty @runner.entries
   end
 
+  def test_close_joins_existing_full_closer_batch_before_closing_retained_outputs
+    Canopus::Task::Runner::MAX_OUTPUTS.times { |index| @runner.run(task("close-#{index}")) }
+    busy = Object.new
+    finished = false
+    busy.define_singleton_method(:join) do |timeout = :wait|
+      if timeout == :wait
+        finished = true
+        self
+      else
+        finished ? self : nil
+      end
+    end
+    closers = Array.new(Canopus::Task::Runner::MAX_CLOSERS) { [Object.new, busy] }.to_h.compare_by_identity
+    @runner.instance_variable_set(:@close_threads, closers)
+
+    assert_nil @runner.close
+    assert @created.all?(&:closed?)
+    assert @created.all? { |terminal| terminal.close_calls == 1 }
+    assert_empty @runner.instance_variable_get(:@close_threads)
+    assert_empty @runner.instance_variable_get(:@closed_outputs)
+    assert_empty @runner.instance_variable_get(:@completed)
+    assert_empty @runner.instance_variable_get(:@eof_outputs)
+    assert_empty @runner.instance_variable_get(:@blocked_outputs)
+  end
+
   def test_stop_closes_the_terminal_when_signal_or_alive_checks_fail
     [:signal, :alive].each do |failure|
       runner = Canopus::Task::Runner.new(scrollback: 50, queue_limit_bytes: 65_536,
@@ -190,13 +217,114 @@ class TaskRunnerTest < Minitest::Test
     output = @runner.run(task("same"))
     40.times do
       output.terminal.alive = false
+      @runner.drain(max_bytes: 65_536, max_seconds: 1)
       assert_equal [output], @runner.completed
+      assert_empty @runner.completed
       output = @runner.run(task("same"))
       wait_for_close(@created[-2])
     end
 
     assert_operator @runner.instance_variable_get(:@completed).length,
       :<=, Canopus::Task::Runner::MAX_OUTPUTS
+  end
+
+  def test_dead_process_is_completed_only_after_all_output_and_eof_are_read
+    payload = +("x" * 200_000)
+    output = @runner.run(task("buffered"))
+    output.terminal.instance_variable_set(:@output, payload.dup)
+    output.terminal.alive = false
+    captured = +""
+    completed = nil
+
+    100.times do
+      @runner.drain(max_bytes: 12_000, max_seconds: 1) do |_entry, data, _seconds|
+        captured << data if data
+      end
+      completed = @runner.completed.first
+      break if completed
+    end
+
+    assert_same output, completed
+    assert_equal payload, captured
+    assert_operator output.terminal.reads.length, :>, 2
+    assert_empty @runner.completed
+  end
+
+  def test_eof_output_remains_pending_until_its_process_exits
+    output = @runner.run(task("eof-before-exit"))
+    output.terminal.define_singleton_method(:read) { |max_bytes:, max_seconds:| nil }
+
+    refute @runner.drain(max_bytes: 65_536, max_seconds: 1)
+    assert_empty @runner.completed
+    assert @runner.pending?
+
+    output.terminal.alive = false
+    assert_equal [output], @runner.completed
+    assert_empty @runner.completed
+  end
+
+  def test_stopped_output_finishes_blocked_consumer_work_before_completion
+    output = @runner.run(task("blocked-stop"))
+    output.terminal.instance_variable_set(:@output, +"already read\n")
+    calls = 0
+
+    assert @runner.drain(max_bytes: 65_536, max_seconds: 1) { false }
+    assert @runner.stop(output)
+    wait_for_close(output.terminal)
+
+    completed = nil
+    10.times do
+      @runner.drain(max_bytes: 65_536, max_seconds: 1) do |_entry, data, _seconds|
+        assert_equal "".b, data
+        calls += 1
+        calls >= 3
+      end
+      completed = @runner.completed.first
+      break if completed
+    end
+
+    assert_same output, completed
+    assert_equal 3, calls
+    assert_empty @runner.completed
+    assert_equal 1, output.terminal.reads.length
+  end
+
+  def test_real_tarazed_drains_large_exit_output_and_unterminated_multiline_problem
+    root = Dir.mktmpdir("canopus-task-eof-")
+    source = File.join(root, "example.rb")
+    File.write(source, "puts :ok\n")
+    expected_tail = "\n#{source}:1\nERROR: final"
+    command = [RbConfig.ruby, "-e", "STDOUT.write('x' * 200000); STDOUT.write(#{expected_tail.dump})"]
+    runner = Canopus::Task::Runner.new(scrollback: 50, queue_limit_bytes: 1 << 20)
+    output = runner.run(task("real-eof").merge("command" => command, "cwd" => root))
+    matcher = Canopus::Task::ProblemMatcher.new({"owner" => "ruby",
+      "file_location" => ["relative", File.realpath(root)], "pattern" => [
+        {"regexp" => "^(.+):(\\d+)$", "file" => 1, "line" => 2},
+        {"regexp" => "^ERROR: (.+)$", "message" => 1}
+      ]}, root: root)
+    captured = +"".b
+    completed = nil
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 10
+    until completed
+      runner.drain(max_bytes: 12_000, max_seconds: 0.004) do |_entry, data, seconds|
+        captured << data if data
+        matcher.feed(data.to_s, max_seconds: seconds)
+        !matcher.pending?
+      end
+      completed = runner.completed.first
+      break if completed
+      flunk "task output did not reach EOF" if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+      sleep 0.001
+    end
+    matcher.finish
+
+    assert_same output, completed
+    assert_equal 200_000, captured.scan(/x+/).map(&:length).max
+    assert captured.end_with?("ERROR: final")
+    assert_equal ["final"], matcher.diagnostics.values.flatten.map { |item| item["message"] }
+  ensure
+    runner&.close
+    FileUtils.remove_entry(root) if root && File.exist?(root)
   end
 
   def test_output_count_scrollback_queue_and_frame_reads_are_bounded
@@ -206,10 +334,49 @@ class TaskRunnerTest < Minitest::Test
     assert_equal 65_536, @created.last.options[:queue_limit_bytes]
     assert_raises(Canopus::Error) { @runner.run(task("overflow")) }
 
-    @runner.entries.first.terminal.alive = false
+    victim = @runner.entries.first
+    victim.terminal.alive = false
+    refute @runner.drain(max_bytes: 65_536, max_seconds: 1)
     replacement = @runner.run(task("replacement"))
     assert_includes @runner.entries, replacement
     assert_equal Canopus::Task::Runner::MAX_OUTPUTS, @runner.entries.length
+  end
+
+  def test_full_runner_preserves_dead_output_until_tail_and_blocked_work_reach_eof
+    Canopus::Task::Runner::MAX_OUTPUTS.times { |index| @runner.run(task("task-#{index}")) }
+    victim = @runner.entries.first
+    victim.terminal.instance_variable_set(:@output, +"unread tail")
+    victim.terminal.alive = false
+
+    assert_raises(Canopus::Error) { @runner.run(task("before-tail")) }
+    assert_same victim, @runner.entries.first
+
+    captured = +""
+    changed = @runner.drain(max_bytes: 65_536, max_seconds: 1) do |output, data, _seconds|
+      if output.equal?(victim)
+        captured << data.to_s
+        false
+      else
+        true
+      end
+    end
+    assert changed
+    assert_equal "unread tail", captured
+    assert_raises(Canopus::Error) { @runner.run(task("while-blocked")) }
+    assert_same victim, @runner.entries.first
+
+    calls = 0
+    changed = @runner.drain(max_bytes: 65_536, max_seconds: 1) do |output, _data, _seconds|
+      calls += 1 if output.equal?(victim)
+      true
+    end
+    refute changed
+    assert_equal 2, calls
+    assert_equal [victim], @runner.completed
+
+    replacement = @runner.run(task("after-eof"))
+    assert_same replacement, @runner.entries.first
+    refute_includes @runner.entries, victim
   end
 
   def test_drain_shares_one_byte_budget_and_resize_skips_unchanged_dimensions
@@ -227,6 +394,23 @@ class TaskRunnerTest < Minitest::Test
     assert_equal [[80, 24]], second.terminal.resizes
   end
 
+  def test_drain_rejects_nonfinite_time_budgets
+    [Float::NAN, Float::INFINITY, -1].each do |seconds|
+      assert_raises(ArgumentError) { @runner.drain(max_bytes: 100, max_seconds: seconds) }
+    end
+  end
+
+  def test_drain_yields_each_output_chunk
+    first = @runner.run(task("first"))
+    second = @runner.run(task("second"))
+    first.terminal.instance_variable_set(:@output, +"first\n")
+    second.terminal.instance_variable_set(:@output, +"second\n")
+    chunks = []
+
+    assert @runner.drain(max_bytes: 100, max_seconds: 1) { |output, data, _seconds| chunks << [output, data] }
+    assert_equal [[first, "first\n"], [second, "second\n"]], chunks
+  end
+
   private
 
   def task(label)
@@ -234,12 +418,12 @@ class TaskRunnerTest < Minitest::Test
      "presentation" => {"panel" => "output", "reveal" => "always"}}
   end
 
-  def wait_for_close(terminal)
-    100.times do
-      return if terminal.closed?
-      Thread.pass
+  def wait_for_close(terminal, timeout: 5)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+    until terminal.closed?
+      flunk "terminal did not close" if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+      sleep 0.01
     end
-    flunk "terminal did not close"
   end
 
   def wait_until(timeout: 5)
