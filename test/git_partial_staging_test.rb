@@ -187,6 +187,8 @@ class GitPartialStagingTest < Minitest::Test
   end
 
   def test_control_characters_in_paths_do_not_shift_diff_actions
+    skip "Windows forbids newlines in file names" if Gem.win_platform?
+
     path = "odd\nname.txt"
     write(path, "base\n")
     git("add", path)
