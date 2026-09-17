@@ -1041,7 +1041,8 @@ module Canopus
       @scene.shadow(box.x, box.y, box.width, box.height, color: "#0008", blur: 14)
       @scene.quad(box.x, box.y, box.width, box.height, color: @theme[:panel], radius: 8, border_width: 1, border_color: @theme[:border])
       labels = {commands: "Command palette", files: "Open file", search: "Find in buffer", save_as: "Save as",
-                confirm_close: "Unsaved changes", breakpoint_actions: "Breakpoint", breakpoint_edit: "Breakpoint value"}
+                confirm_close: "Unsaved changes", breakpoint_actions: "Breakpoint", breakpoint_edit: "Breakpoint value",
+                git_file_history: "File history", git_revision_compare: "Compare revisions (FROM..TO)"}
       title = labels.fetch(palette[:kind], palette[:kind].to_s)
       if palette[:search_options]
         title += "  Ctrl+Alt " + {regexp: "R:regex", case_sensitive: "C:case", whole_word: "W:word", selection_only: "S:selection"}.filter_map do |key, label|

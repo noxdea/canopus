@@ -126,6 +126,7 @@ module Canopus
       value
     end
     def palette=(value)
+      @palette_generation = @palette_generation.to_i + 1
       if @workspace_symbol_request && value&.dig(:workspace_symbol_generation) != @workspace_symbol_generation
         cancel_workspace_symbol_search
       end
@@ -655,9 +656,11 @@ module Canopus
         return
       end
       if [:locations, :symbols, :code_actions, :outline, :branches, :settings_keys, :snippet_choices,
-          :breadcrumbs, :hierarchy_roots, :language_servers, :debug_configurations, :debug_watch_remove, :tasks].include?(@palette[:kind])
+          :breadcrumbs, :hierarchy_roots, :language_servers, :debug_configurations, :debug_watch_remove, :tasks,
+          :git_file_history].include?(@palette[:kind])
         labels = @palette[:all_matches] ||= @palette[:matches].dup
-        index = @palette[:kind] == :language_servers ? Spica::Index.new(labels, tie_break: :index) : Spica::Index.new(labels)
+        index = [:language_servers, :git_file_history].include?(@palette[:kind]) ?
+          Spica::Index.new(labels, tie_break: :index) : Spica::Index.new(labels)
         session = @palette[:search] ||= index.session
         session.query = @palette[:query]
         matches = session.matches(12)
@@ -730,6 +733,18 @@ module Canopus
         query = @palette[:query]
         self.palette = nil
         return apply_problem_filter(query)
+      elsif @palette[:kind] == :git_file_history
+        current = @palette
+        index = current[:indices] ? current[:indices][current[:index]] : current[:index]
+        entry = index && current[:items][index]
+        self.palette = nil
+        return compare_git_revisions(entry.parent, entry.oid, path: entry.path) if entry
+      elsif @palette[:kind] == :git_revision_compare
+        current = @palette
+        revisions = current[:query].split("..", -1)
+        self.palette = nil
+        raise Error, "Enter revisions as FROM..TO" unless revisions.length == 2 && revisions.all? { |revision| !revision.empty? }
+        return compare_git_revisions(revisions.first, revisions.last, path: current[:path])
       elsif @palette[:kind] == :rename && @palette[:rename]
         current = @submitting_rename_palette = @palette
         begin
@@ -898,6 +913,9 @@ module Canopus
       register_action("git.stage_line", description: "Stage Line") { stage_git_line }
       register_action("git.unstage_line", description: "Unstage Line") { unstage_git_line }
       register_action("git.commit", description: "Commit Staged Changes") { commit_git }
+      register_action("git.diff.toggle_mode", description: "Toggle Inline / Side-by-Side Diff") { toggle_git_diff_mode }
+      register_action("git.compare_revisions", description: "Compare Git Revisions") { show_git_revision_compare }
+      register_action("git.file_history", description: "Show File History") { show_git_file_history }
       register_action("git.toggle_hunk") { toggle_git_hunk }
       register_action("git.blame") { show_git_blame }
       register_action("git.revert_hunk") { revert_current_hunk }
@@ -1083,6 +1101,7 @@ require_relative "workspace/hierarchy_aware"
 require_relative "workspace/problems_aware"
 require_relative "workspace/git_aware"
 require_relative "workspace/git_staging"
+require_relative "workspace/git_diff_view"
 require_relative "workspace/project_searchable"
 require_relative "workspace/settings_aware"
 require_relative "workspace/file_previewable"
@@ -1098,6 +1117,7 @@ Canopus::Workspace.include Canopus::Workspace::HierarchyAware
 Canopus::Workspace.include Canopus::Workspace::ProblemsAware
 Canopus::Workspace.include Canopus::Workspace::GitAware
 Canopus::Workspace.include Canopus::Workspace::GitStaging
+Canopus::Workspace.include Canopus::Workspace::GitDiffView
 Canopus::Workspace.include Canopus::Workspace::ProjectSearchable
 Canopus::Workspace.include Canopus::Workspace::SettingsAware
 Canopus::Workspace.include Canopus::Workspace::FilePreviewable

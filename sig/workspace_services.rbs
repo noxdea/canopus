@@ -1,4 +1,36 @@
 module Canopus
+  module Workspace::GitDiffView
+    MAX_DIFF_BYTES: Integer
+    MAX_HISTORY: Integer
+    MAX_HISTORY_SCAN: Integer
+    MAX_PATH_BYTES: Integer
+    MAX_REVISION_BYTES: Integer
+    SIDE_COLUMN_WIDTH: Integer
+
+    def show_scm_diff: (?Hash[Symbol, untyped]? change, ?mode: :inline | :side_by_side, ?async: bool) -> (Editor | Thread)
+    def show_git_diff: (?mode: :inline | :side_by_side, ?async: bool) -> (Editor | Thread)
+    def compare_git_revisions: (String? before, String after, ?path: String?, ?mode: :inline | :side_by_side, ?async: bool) -> (Editor | Thread)
+    def show_git_revision_diff: (String? before, String after, ?path: String?, ?mode: :inline | :side_by_side, ?async: bool) -> (Editor | Thread)
+    def show_revision_diff: (String? before, String after, ?path: String?, ?mode: :inline | :side_by_side, ?async: bool) -> (Editor | Thread)
+    def toggle_git_diff_mode: (?Editor current, ?async: bool) -> (Editor | Thread)
+    def toggle_scm_diff_mode: (?Editor current, ?async: bool) -> (Editor | Thread)
+    def git_file_history: (?String? path, ?revision: String, ?limit: Integer) -> Array[GitHistoryEntry]
+    def show_git_file_history: (?String? path, ?revision: String, ?limit: Integer, ?async: bool) -> (Hash[Symbol, untyped] | Thread)
+    def show_git_revision_compare: (?String? path) -> Hash[Symbol, untyped]
+    def scm_diff_decorations: (Buffer buffer, Range[Integer] rows) -> Array[Decoration::Item]
+    def close_git: () -> untyped
+
+    class GitHistoryEntry < Data
+      attr_reader oid: String
+      attr_reader parent: String?
+      attr_reader subject: String
+      attr_reader author: String
+      attr_reader time: Integer
+      attr_reader path: String
+      def self.new: (String oid, String? parent, String subject, String author, Integer time, String path) -> instance
+    end
+  end
+
   class Project::Tree
     class Entry < Data
       attr_reader path: String
@@ -114,7 +146,7 @@ module Canopus
     def git_hunks: (?Buffer buffer, ?async: bool) -> Array[Porrima::Hunk]
     def git_gutter_marks: (?Buffer buffer) -> Array[Porrima::Mark]
     def git_decorations: (Buffer buffer, Range[Integer] rows) -> Array[Decoration::Item]
-    def show_git_diff: () -> Language::Document
+    def show_git_diff: (?mode: :inline | :side_by_side, ?async: bool) -> (Editor | Thread)
     def toggle_git_hunk: (?Editor current, ?row: Integer?) -> bool
     def show_git_blame: () -> String
     def revert_current_hunk: () -> patch?
@@ -129,8 +161,16 @@ module Canopus
     def unstage_git_hunk: (?Integer? index, ?buffer: Buffer, ?row: Integer?) -> String
     def stage_git_line: (?Integer? index, ?buffer: Buffer, ?row: Integer?) -> String
     def unstage_git_line: (?Integer? index, ?buffer: Buffer, ?row: Integer?) -> String
-    def show_scm_diff: (?Hash[Symbol, untyped]? change) -> Editor
+    def show_scm_diff: (?Hash[Symbol, untyped]? change, ?mode: :inline | :side_by_side, ?async: bool) -> (Editor | Thread)
     def scm_diff_decorations: (Buffer buffer, Range[Integer] rows) -> Array[Decoration::Item]
+    def compare_git_revisions: (String? before, String after, ?path: String?, ?mode: :inline | :side_by_side, ?async: bool) -> (Editor | Thread)
+    def show_git_revision_diff: (String? before, String after, ?path: String?, ?mode: :inline | :side_by_side, ?async: bool) -> (Editor | Thread)
+    def show_revision_diff: (String? before, String after, ?path: String?, ?mode: :inline | :side_by_side, ?async: bool) -> (Editor | Thread)
+    def toggle_git_diff_mode: (?Editor current, ?async: bool) -> (Editor | Thread)
+    def toggle_scm_diff_mode: (?Editor current, ?async: bool) -> (Editor | Thread)
+    def git_file_history: (?String? path, ?revision: String, ?limit: Integer) -> Array[Workspace::GitDiffView::GitHistoryEntry]
+    def show_git_file_history: (?String? path, ?revision: String, ?limit: Integer, ?async: bool) -> (palette_state | Thread)
+    def show_git_revision_compare: (?String? path) -> palette_state
     def search_query: (String query, palette_state state) -> [String | Regexp, search_options]
     def search_project: (String query, ?regexp: bool, ?case_sensitive: bool, ?whole_word: bool, ?async: bool) -> (Thread | MultiBuffer | nil)
     def replace_in_buffer: (String | Regexp pattern, String replacement, ?case_sensitive: bool, ?whole_word: bool, ?range: Range[Integer]?) -> Integer

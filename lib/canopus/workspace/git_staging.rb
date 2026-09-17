@@ -5,6 +5,9 @@ require "zaniah/ui"
 module Canopus
   module Workspace::GitStaging
     SCM_SECTIONS = {staged: "Staged", unstaged: "Changes", untracked: "Untracked"}.freeze
+    SCM_DIFF_MAX_BYTES = 10 << 20
+    SCM_DIFF_MAX_LINES = 200_000
+    SCM_DIFF_BUDGET = Porrima::Budget.new(max_bytes: 1 << 20, max_lines: 2_000)
     SCM_COMMIT_SUBJECT_GUIDE = 50
     SCM_COMMIT_BODY_GUIDE = 72
     SCMContent = Data.define(:exists, :raw, :text, :encoding, :bom, :mode)
@@ -166,7 +169,8 @@ module Canopus
       path, kind = change.values_at(:path, :kind)
       state = git_state
       raise Error, "Not a Git repository" unless state
-      snapshot, text = state.synchronize { |repository| capture_scm_diff(repository, path, kind) }
+      capture = state.synchronize { |repository| capture_scm_diff(repository, path, kind) }
+      snapshot, text = materialize_scm_diff(capture)
       buffer = Buffer.new(text, read_only: true)
       buffer.instance_variable_set(:@scm_diff_snapshot, snapshot)
       @decorations.invalidate(:scm_diff, buffer: buffer)
@@ -252,28 +256,56 @@ module Canopus
       display_path = scm_display_path(path)
       if [head_entry, index_entry].compact.any? { |entry| entry.mode == 0o160000 }
         raw_before, raw_after = gitlink_diff(repository, path, kind, head_entry, index_entry)
+        return [metadata.freeze, before, after, display_path.freeze,
+          [raw_before.freeze, raw_after.freeze].freeze].freeze
+      end
+      [metadata.freeze, before, after, display_path.freeze, nil].freeze
+    end
+
+    def materialize_scm_diff(capture)
+      metadata, before, after, display_path, gitlink_pair = capture
+      if gitlink_pair
         snapshot = SCMDiffSnapshot.new(*metadata, before, after, nil, [].freeze, [].freeze, {}.freeze, {}.freeze)
-        return [snapshot, Porrima.unified(raw_before, raw_after, old_name: "a/#{display_path}", new_name: "b/#{display_path}")]
+        text = Porrima.unified(*gitlink_pair, old_name: "a/#{display_path}", new_name: "b/#{display_path}")
+        return [snapshot, text, gitlink_pair]
       end
       unless before.text && after.text
         snapshot = SCMDiffSnapshot.new(*metadata, before, after, nil, [].freeze, [].freeze, {}.freeze, {}.freeze)
-        return [snapshot, "Binary file changed: #{display_path}\n"]
+        return [snapshot, "Binary file changed: #{display_path}\n", [nil, nil].freeze]
+      end
+      if (reason = scm_diff_budget_reason(before.text, after.text))
+        snapshot = SCMDiffSnapshot.new(*metadata, before, after, nil, [].freeze, [].freeze, {}.freeze, {}.freeze)
+        return [snapshot, "Diff unavailable: #{display_path} #{scm_diff_budget_description(reason)}\n",
+          [before.text, after.text].freeze]
       end
 
-      diff = Porrima.diff(before.text, after.text)
+      diff = Porrima.diff(before.text, after.text, budget: before.text == after.text ? nil : SCM_DIFF_BUDGET)
       diff.edits
       diff.marks
       diff.rows
       diff.stat
       hunks, lines, hunk_rows, line_rows = scm_diff_targets(diff, before, after)
       snapshot = SCMDiffSnapshot.new(*metadata, before, after, diff, hunks, lines, hunk_rows, line_rows)
-      text = Porrima.unified(before.text, after.text, old_name: "a/#{display_path}", new_name: "b/#{display_path}")
+      text = diff.to_unified(old_name: "a/#{display_path}", new_name: "b/#{display_path}")
       text << "@@ metadata @@\n #{scm_metadata_change(before, after)}\n" if diff.empty? && !hunks.empty?
-      [snapshot, text]
+      [snapshot, text, [before.text, after.text].freeze]
+    end
+
+    def scm_diff_budget_reason(before, after)
+      return :bytes if before.bytesize + after.bytesize > SCM_DIFF_MAX_BYTES
+      lines = ->(text) { text.count("\n") + (!text.empty? && !text.end_with?("\n") ? 1 : 0) }
+      return :lines if lines.call(before) + lines.call(after) > SCM_DIFF_MAX_LINES
+      :line_endings if before != after && [before, after].any? { |text| text.match?(/\r(?!\n)|[\u2028\u2029]/) }
+    end
+
+    def scm_diff_budget_description(reason)
+      return "exceeds 10 MiB" if reason == :bytes
+      return "exceeds 200,000 lines" if reason == :lines
+      "uses unsupported line separators"
     end
 
     def scm_display_path(path)
-      !path.valid_encoding? || path.match?(/[\x00-\x1f\x7f]/) ? path.dump[1...-1] : path
+      !path.valid_encoding? || path.match?(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/) ? path.dump[1...-1] : path
     end
 
     def scm_metadata_change(before, after)
@@ -303,6 +335,7 @@ module Canopus
 
     def scm_content(exists, raw, mode)
       raw = raw&.dup&.freeze
+      raise EncodingError if raw && raw.bytesize > SCM_DIFF_MAX_BYTES
       text, encoding, bom = Buffer.decode_bytes(raw.to_s)
       raise EncodingError if raw && raw != bom + text.encode(encoding).b
 

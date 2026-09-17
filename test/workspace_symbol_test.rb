@@ -300,6 +300,26 @@ class WorkspaceSymbolTest < Minitest::Test
     window&.close
   end
 
+  def test_result_install_invalidates_an_older_palette_job
+    future = BlockingFuture.new([location("Alpha", "lib/alpha.rb")])
+    client = Client.new
+    client.future = future
+    install_clients({"ruby" => [client]}, {"ruby" => [{features: ["workspaceSymbol"], legacy: false}]})
+    job = @workspace.request_workspace_symbols("symbols")
+    future.entered.pop
+    loading_generation = @workspace.instance_variable_get(:@palette_generation)
+    @workspace.instance_variable_set(:@git_history_generation, 1)
+
+    future.release
+    settle(job)
+    @workspace.send(:finish_git_history, nil, 1, loading_generation, "lib/alpha.rb", [], nil)
+
+    assert_operator @workspace.instance_variable_get(:@palette_generation), :>, loading_generation
+    assert_equal :workspace_symbol_results, @workspace.palette.fetch(:kind)
+  ensure
+    future&.release
+  end
+
   def test_palette_replacement_and_settings_reload_cancel_stale_results
     first, second = BlockingFuture.new, BlockingFuture.new
     client = SequenceClient.new([first, second])

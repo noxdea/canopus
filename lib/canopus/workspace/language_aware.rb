@@ -455,7 +455,7 @@ module Canopus
         +""
       end
       prepared = prepared.merge(query: query)
-      @palette = prepared
+      self.palette = prepared
       update_palette unless query.empty?
       count = prepared.fetch(:items).length
       @message = count.zero? ? "No workspace symbols found" : "#{count} workspace symbols"
