@@ -161,7 +161,7 @@ class TestRunnerTest < Minitest::Test
     unless Gem.win_platform?
       begin
         File.binwrite(File.join(@root.b, "invalid_\xFF_test.rb".b), "class InvalidName; def test_bad; end; end\n")
-      rescue Errno::EPERM
+      rescue Errno::EPERM, Errno::EILSEQ
         # Some macOS volumes reject byte-invalid filenames.
       end
     end
@@ -382,7 +382,7 @@ class TestRunnerTest < Minitest::Test
     unless Gem.win_platform?
       begin
         File.binwrite(File.join(@root.b, "bad_\xFF_test.rb".b), "class Bad; def test_bad; end; end\n")
-      rescue Errno::EPERM
+      rescue Errno::EPERM, Errno::EILSEQ
         # The boundary itself remains covered when the volume rejects this filename.
       end
     end
