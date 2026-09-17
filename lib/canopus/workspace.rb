@@ -847,6 +847,7 @@ module Canopus
       cleanup.call { @breakpoints.close }
       cleanup.call { @minimap.close }
       cleanup.call { @watcher&.close }
+      cleanup.call { close_git }
       cleanup.call { stop_language_servers }
       cleanup.call { close_tests }
       cleanup.call { close_tasks }
@@ -891,7 +892,7 @@ module Canopus
       register_action("git.toggle_hunk") { toggle_git_hunk }
       register_action("git.blame") { show_git_blame }
       register_action("git.revert_hunk") { revert_current_hunk }
-      register_action("git.branches") { self.palette = {kind: :branches, query: +"", index: 0, matches: git ? git.branches : []} }
+      register_action("git.branches") { self.palette = {kind: :branches, query: +"", index: 0, matches: git_branches} }
       register_action("command.palette") { palette_open(:commands) }
       register_action("pane.split_right") { split(:horizontal) }
       register_action("pane.split_down") { split(:vertical) }

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "../git/state"
+
 module Canopus
   module Workspace::GitAware
     def git
@@ -10,26 +12,27 @@ module Canopus
       @git = nil
     end
     def git_status
-      return @git_status if @git_status
-      return {} unless git
+      state = git_state
+      return {} unless state
+      return state.snapshot.entries if state.snapshot
       if @window
         unless @git_status_job&.alive?
-          generation = @git_generation
+          generation = @git_generation ||= 0
           @git_status_job = Thread.new do
-            status = git.status.to_h { |entry| [entry.path, entry.code] }
-            post { @git_status = status if generation == @git_generation } unless @closed
+            snapshot = state.capture
+            post { install_git_snapshot(state, snapshot) if generation == @git_generation } unless @closed
           rescue StandardError => error
             post { @message = "Git status: #{error.message}" } unless @closed
           end
         end
         {}
       else
-        @git_status = git.status.to_h { |entry| [entry.path, entry.code] }
+        install_git_snapshot(state, state.capture).entries
       end
     end
     def invalidate_git
       @git_generation = (@git_generation || 0) + 1
-      @git_status = @git_diff_cache = nil
+      @git_state&.invalidate
       @decorations.invalidate(:git)
       @panes.each do |pane|
         pane.editors.each do |current|
@@ -41,18 +44,18 @@ module Canopus
     def poll_git_changes(now: Process.clock_gettime(Process::CLOCK_MONOTONIC))
       return if @last_git_poll && now - @last_git_poll < 1
       @last_git_poll = now
-      return unless git
-      index = File.join(git.git_dir, "index")
-      stat = File.stat(index) if File.file?(index)
-      state = [git.head, git.branch, stat&.mtime, stat&.size, stat&.ino]
-      return if @git_state == state
-      initial = !defined?(@git_state)
-      @git_state = state
-      return if initial
-      invalidate_git
-      @window&.request_frame
-    rescue SystemCallError, ArgumentError => error
-      @message = "Git: #{error.message}"
+      state = git_state
+      return unless state
+      unless @git_poll_job&.alive?
+        generation = @git_generation ||= 0
+        @git_poll_job = Thread.new do
+          identity = state.identity
+          post { install_git_identity(identity) if generation == @git_generation } unless @closed
+        rescue StandardError => error
+          post { @message = "Git: #{error.message}" } unless @closed
+        end
+      end
+      nil
     end
     def git_relative_path(buffer = editor.buffer)
       raise Error, "Current document is not in a Git repository" unless git && buffer.path && buffer.path.start_with?(git.root + File::SEPARATOR)
@@ -61,22 +64,25 @@ module Canopus
     def git_diff(buffer = editor.buffer, async: true)
       return unless git && buffer.path && buffer.path.start_with?(git.root + File::SEPARATOR) && buffer.rope.bytesize < 10 << 20
       path = git_relative_path(buffer)
-      @git_diff_cache ||= {}
-      key = [buffer.object_id, path, buffer.version, git.head]
-      @git_diff_cache.clear if @git_diff_cache.length > 20
-      return @git_diff_cache[key] if @git_diff_cache.key?(key)
+      state = git_state
+      key = [buffer.object_id, path, buffer.version, state.snapshot&.head]
+      cached = state.cached_diff(key)
+      return cached if cached
       if @window && async
         @git_diff_jobs ||= {}
         unless @git_diff_jobs[buffer]&.alive?
           snapshot = buffer.rope
+          generation = @git_generation ||= 0
           @git_diff_jobs[buffer] = Thread.new do
-            before = Buffer.decode_bytes(git.blob(path, reference: key.last || "HEAD").to_s).first
+            before = Buffer.decode_bytes(state.synchronize { |repository| repository.blob(path, reference: key.last || "HEAD") }.to_s).first
             diff = Porrima.diff(before, snapshot.to_s, context: 0)
             diff.hunks
             diff.marks
             post do
-              (@git_diff_cache ||= {})[key] = diff
-              @decorations.invalidate(:git, buffer: buffer)
+              if generation == @git_generation
+                state.store_diff(key, diff)
+                @decorations.invalidate(:git, buffer: buffer)
+              end
             end unless @closed
           rescue StandardError => error
             post { @message = "Git diff: #{error.message}" } unless @closed
@@ -84,11 +90,11 @@ module Canopus
         end
         nil
       else
-        before = Buffer.decode_bytes(git.blob(path).to_s).first
+        before = Buffer.decode_bytes(state.synchronize { |repository| repository.blob(path, reference: key.last || "HEAD") }.to_s).first
         diff = Porrima.diff(before, buffer.text, context: 0)
         diff.hunks
         diff.marks
-        @git_diff_cache[key] = diff
+        state.store_diff(key, diff)
       end
     end
     def git_hunks(buffer = editor.buffer, async: true) = git_diff(buffer, async: async)&.hunks || []
@@ -107,7 +113,7 @@ module Canopus
     end
     def show_git_diff
       path = git_relative_path
-      before = Buffer.decode_bytes(git.blob(path).to_s).first
+      before = Buffer.decode_bytes(git_state.synchronize { |repository| repository.blob(path) }.to_s).first
       buffer = Buffer.new(Porrima.unified(before, editor.buffer.text, old_name: "a/#{path}", new_name: "b/#{path}"), read_only: true)
       @buffers[buffer.object_id] = buffer
       @active_pane.open(buffer).language = Language::Definition.new("diff", "diff", [], "", /\A\z/, /\A\z/, [])
@@ -117,7 +123,7 @@ module Canopus
       row ||= current.buffer.rope.point_at(current.primary.head).row
       hunk = git_diff(current.buffer, async: false)&.hunk_at(new_line: row + 1)
       raise Error, "No change at the cursor" unless hunk
-      id = [:git_hunk, current.buffer.path, current.buffer.version, git.head, hunk.old_start, hunk.new_start]
+      id = [:git_hunk, current.buffer.path, current.buffer.version, git_state.snapshot&.head, hunk.old_start, hunk.new_start]
       map = current.display_map
       if map.block_map.blocks.key?(id)
         map.remove_block(id)
@@ -139,7 +145,7 @@ module Canopus
     end
     def show_git_blame
       path = git_relative_path
-      lines = git.blame(path)
+      lines = git_state.synchronize { |repository| repository.blame(path) }
       @hover_card = lines.map { |line| "#{line.commit.to_s[0, 8]} #{line.author} #{line.text}" }.join
     end
     def revert_current_hunk
@@ -151,12 +157,48 @@ module Canopus
     end
     def checkout_branch(name)
       raise Error, "Save or discard all buffer changes before switching branches" if @buffers.values.any?(&:dirty?)
-      raise Error, "Not a Git repository" unless git
-      git.checkout(name)
+      raise Error, "Not a Git repository" unless git_state
+      git_state.synchronize { |repository| repository.checkout(name) }
       invalidate_git
       refresh_files
       @buffers.values.each { |buffer| buffer.reload if buffer.path && File.file?(buffer.path) && !buffer.read_only }
       @message = "Switched to #{name}"
+    end
+
+    private
+
+    def git_state
+      return @git_state if defined?(@git_state)
+      @git_state = Git::State.new(git) if git
+    end
+
+    def install_git_snapshot(state, snapshot)
+      state.install(snapshot)
+      @git_identity = snapshot.identity
+      snapshot
+    end
+
+    def install_git_identity(identity)
+      initial = !defined?(@git_identity)
+      changed = !initial && @git_identity != identity
+      @git_identity = identity
+      return unless changed
+
+      invalidate_git
+      @window&.request_frame
+    end
+
+    def git_branches
+      state = git_state
+      state ? state.synchronize { |repository| repository.branches } : []
+    end
+
+    def close_git
+      [@git_status_job, @git_poll_job, *@git_diff_jobs&.values].compact.uniq.each do |thread|
+        thread.join unless thread.equal?(Thread.current)
+      end
+      @git_diff_jobs&.clear
+      nil
     end
   end
 end
