@@ -5,6 +5,9 @@ require "zaniah/ui"
 module Canopus
   module Workspace::GitStaging
     SCM_SECTIONS = {staged: "Staged", unstaged: "Changes", untracked: "Untracked"}.freeze
+    SCMContent = Data.define(:exists, :raw, :text, :encoding, :bom, :mode)
+    SCMDiffSnapshot = Data.define(:path, :kind, :head, :index_entries, :worktree, :conflicted, :before, :after,
+      :diff, :hunks, :lines, :hunk_rows, :line_rows)
 
     def scm_tree
       return @scm_tree if @scm_tree
@@ -45,7 +48,7 @@ module Canopus
             index.stage(path, oid, 0o160000, stat: stat)
           else
             content = repository.worktree_content(path)
-            mode = stat.symlink? ? 0o120000 : stat.executable? ? 0o100755 : 0o100644
+            mode = scm_file_mode(repository, stat, index[path] || repository.tree[path])
             index.stage(path, repository.write_blob(content), mode, stat: stat)
           end
         else
@@ -58,6 +61,22 @@ module Canopus
     rescue Thuban::RefLockError
       refresh_after_index_write
       raise
+    end
+
+    def stage_git_hunk(index = nil, buffer: editor.buffer, row: nil)
+      change_scm_hunk(:stage, index, buffer, row)
+    end
+
+    def unstage_git_hunk(index = nil, buffer: editor.buffer, row: nil)
+      change_scm_hunk(:unstage, index, buffer, row)
+    end
+
+    def stage_git_line(index = nil, buffer: editor.buffer, row: nil)
+      change_scm_line(:stage, index, buffer, row)
+    end
+
+    def unstage_git_line(index = nil, buffer: editor.buffer, row: nil)
+      change_scm_line(:unstage, index, buffer, row)
     end
 
     def unstage_git_file(path = nil)
@@ -87,30 +106,10 @@ module Canopus
       path, kind = change.values_at(:path, :kind)
       state = git_state
       raise Error, "Not a Git repository" unless state
-      before, after = state.synchronize do |repository|
-        head = repository.tree[path]
-        staged = repository.index[path]
-        if head&.mode == 0o160000 || staged&.mode == 0o160000
-          gitlink_diff(repository, path, kind, head, staged)
-        else
-          case kind
-          when :staged
-            [repository.blob(path), repository.staged_blob(path)]
-          when :unstaged
-            [repository.staged_blob(path), repository.worktree_content(path)]
-          else
-            [nil, repository.worktree_content(path)]
-          end
-        end
-      end
-      text = begin
-        old_text = Buffer.decode_bytes(before.to_s).first
-        new_text = Buffer.decode_bytes(after.to_s).first
-        Porrima.unified(old_text, new_text, old_name: "a/#{path}", new_name: "b/#{path}")
-      rescue EncodingError, Error
-        "Binary file changed: #{path}\n"
-      end
+      snapshot, text = state.synchronize { |repository| capture_scm_diff(repository, path, kind) }
       buffer = Buffer.new(text, read_only: true)
+      buffer.instance_variable_set(:@scm_diff_snapshot, snapshot)
+      @decorations.invalidate(:scm_diff, buffer: buffer)
       @buffers[buffer.object_id] = buffer
       document = @active_pane.open(buffer)
       document.language = Language::Definition.new("diff", "diff", [], "", /\A\z/, /\A\z/, [])
@@ -118,7 +117,260 @@ module Canopus
       document
     end
 
+    def scm_diff_decorations(buffer, rows)
+      snapshot = buffer.instance_variable_get(:@scm_diff_snapshot)
+      return [] unless snapshot&.diff && !snapshot.conflicted
+
+      action = snapshot.kind == :staged ? :unstage : :stage
+      verb = action == :stage ? "Stage" : "Unstage"
+      line_items = snapshot.line_rows.filter_map do |display_row, index|
+        next unless rows.cover?(display_row)
+
+        click = ->(current, row) { change_scm_line(action, index, current.buffer, row) }
+        Decoration::Item.new(:gutter, nil, display_row, "#{verb} line",
+          {color: :accent, gutter_offset: 2, gutter_width: 3, hit_width: 10}.freeze,
+          1, :scm_diff, click)
+      end
+      hunk_items = snapshot.hunk_rows.filter_map do |display_row, index|
+        next unless rows.cover?(display_row) && !snapshot.line_rows.key?(display_row)
+
+        click = ->(current, row) { change_scm_hunk(action, index, current.buffer, row) }
+        Decoration::Item.new(:gutter, nil, display_row, "#{verb} hunk",
+          {color: :muted, gutter_offset: 2, gutter_width: 3, hit_width: 10}.freeze,
+          2, :scm_diff, click)
+      end
+      line_items + hunk_items
+    end
+
     private
+
+    def capture_scm_diff(repository, path, kind)
+      head_oid = repository.head
+      index = repository.index
+      head_entry = repository.tree(head_oid || "HEAD")[path]
+      index_entry = index[path]
+      worktree = scm_worktree_content(repository, path, index_entry || head_entry)
+      head = scm_entry_content(repository, head_entry)
+      staged = scm_entry_content(repository, index_entry)
+      before, after = case kind
+      when :staged then [head, staged]
+      when :unstaged then [staged, worktree]
+      else [scm_content(false, nil, nil), worktree]
+      end
+      entries = scm_index_entries(index, path)
+      conflicted = index.entries.any? { |entry| entry.path == path && !entry.stage.zero? }
+      metadata = [path.dup.freeze, kind, head_oid&.dup&.freeze, entries, worktree, conflicted]
+      display_path = scm_display_path(path)
+      if [head_entry, index_entry].compact.any? { |entry| entry.mode == 0o160000 }
+        raw_before, raw_after = gitlink_diff(repository, path, kind, head_entry, index_entry)
+        snapshot = SCMDiffSnapshot.new(*metadata, before, after, nil, [].freeze, [].freeze, {}.freeze, {}.freeze)
+        return [snapshot, Porrima.unified(raw_before, raw_after, old_name: "a/#{display_path}", new_name: "b/#{display_path}")]
+      end
+      unless before.text && after.text
+        snapshot = SCMDiffSnapshot.new(*metadata, before, after, nil, [].freeze, [].freeze, {}.freeze, {}.freeze)
+        return [snapshot, "Binary file changed: #{display_path}\n"]
+      end
+
+      diff = Porrima.diff(before.text, after.text)
+      diff.edits
+      diff.marks
+      diff.rows
+      diff.stat
+      hunks, lines, hunk_rows, line_rows = scm_diff_targets(diff, before, after)
+      snapshot = SCMDiffSnapshot.new(*metadata, before, after, diff, hunks, lines, hunk_rows, line_rows)
+      text = Porrima.unified(before.text, after.text, old_name: "a/#{display_path}", new_name: "b/#{display_path}")
+      text << "@@ metadata @@\n #{scm_metadata_change(before, after)}\n" if diff.empty? && !hunks.empty?
+      [snapshot, text]
+    end
+
+    def scm_display_path(path)
+      !path.valid_encoding? || path.match?(/[\x00-\x1f\x7f]/) ? path.dump[1...-1] : path
+    end
+
+    def scm_metadata_change(before, after)
+      return "new empty file (mode #{after.mode.to_s(8)})" unless before.exists
+      return "deleted empty file (mode #{before.mode.to_s(8)})" unless after.exists
+
+      "mode #{before.mode.to_s(8)} -> #{after.mode.to_s(8)}"
+    end
+
+    def scm_entry_content(repository, entry)
+      raw = entry && entry.mode != 0o160000 ? repository.object(entry.oid).last : nil
+      scm_content(!entry.nil?, raw, entry&.mode)
+    end
+
+    def scm_worktree_content(repository, path, baseline = nil)
+      absolute = repository.worktree_path(path)
+      exists = File.exist?(absolute) || File.symlink?(absolute)
+      return scm_content(false, nil, nil) unless exists
+
+      stat = File.lstat(absolute)
+      mode = scm_file_mode(repository, stat, baseline)
+      raw = stat.file? || stat.symlink? ? repository.worktree_content(path) : nil
+      scm_content(true, raw, mode)
+    rescue Errno::ENOENT, Errno::ENOTDIR
+      scm_content(false, nil, nil)
+    end
+
+    def scm_content(exists, raw, mode)
+      raw = raw&.dup&.freeze
+      text, encoding, bom = Buffer.decode_bytes(raw.to_s)
+      raise EncodingError if raw && raw != bom + text.encode(encoding).b
+
+      SCMContent.new(exists, raw, text.freeze, encoding, bom.dup.freeze, mode)
+    rescue EncodingError, Error
+      SCMContent.new(exists, raw, nil, nil, nil, mode)
+    end
+
+    def scm_file_mode(repository, stat, baseline)
+      return 0o120000 if stat.symlink?
+      return 0o040000 unless stat.file?
+      unless repository.filemode?
+        return baseline.mode if [0o100644, 0o100755].include?(baseline&.mode)
+        return 0o100644
+      end
+
+      (stat.mode & 0o100).positive? ? 0o100755 : 0o100644
+    end
+
+    def scm_index_entries(index, path)
+      index.entries.select { |entry| entry.path == path }.map do |entry|
+        entry.members.map { |member| value = entry.public_send(member); value.is_a?(String) ? value.dup.freeze : value }.freeze
+      end.freeze
+    end
+
+    def scm_diff_targets(diff, before, after)
+      hunks = diff.hunks.dup
+      synthetic = diff.empty? && (before.exists != after.exists || before.mode != after.mode)
+      if synthetic
+        edit = Porrima::Hunk.new(old_start: 0, old_count: 0, new_start: 0, new_count: 0, edits: [].freeze).freeze
+        return [[edit].freeze, [edit].freeze, {2 => 0, 3 => 0}.freeze, {}.freeze]
+      end
+
+      lines = []
+      hunk_rows = {}
+      line_rows = {}
+      display_row = 2
+      hunks.each_with_index do |hunk, hunk_index|
+        header_row = display_row
+        hunk_rows[header_row] = hunk_index
+        display_row += 1
+        unit_by_edit = {}
+        index = 0
+        while index < hunk.edits.length
+          if hunk.edits[index].kind == :equal
+            index += 1
+            next
+          end
+          changed = []
+          while index < hunk.edits.length && hunk.edits[index].kind != :equal
+            changed << hunk.edits[index]
+            index += 1
+          end
+          deleted = changed.select { |edit| edit.kind == :delete }
+          inserted = changed.select { |edit| edit.kind == :insert }
+          [deleted.length, inserted.length].max.times do |offset|
+            old, new = deleted[offset], inserted[offset]
+            old_start = old ? old.old_line : new.old_line - 1
+            new_start = new ? new.new_line : old.new_line - 1 + inserted.length
+            edits = [old, new].compact.freeze
+            unit = Porrima::Hunk.new(old_start: old_start, old_count: old ? 1 : 0,
+              new_start: new_start, new_count: new ? 1 : 0, edits: edits).freeze
+            unit_index = lines.length
+            lines << unit
+            edits.each { |edit| unit_by_edit[edit.object_id] = unit_index }
+          end
+        end
+        hunk.edits.each do |edit|
+          hunk_rows[display_row] = hunk_index
+          line_rows[display_row] = unit_by_edit.fetch(edit.object_id) unless edit.kind == :equal
+          display_row += 1
+          unless edit.text.end_with?("\n")
+            hunk_rows[display_row] = hunk_index
+            line_rows[display_row] = unit_by_edit.fetch(edit.object_id) unless edit.kind == :equal
+            display_row += 1
+          end
+        end
+      end
+      [hunks.freeze, lines.freeze, hunk_rows.freeze, line_rows.freeze]
+    end
+
+    def change_scm_hunk(action, index, buffer, row)
+      snapshot = scm_snapshot_for(buffer, action)
+      row ||= buffer.rope.point_at(editor.primary.head).row
+      index ||= snapshot.hunk_rows[row]
+      raise Error, "Place the cursor in a Git hunk" unless index
+
+      apply_scm_change(snapshot, action, snapshot.hunks.fetch(index))
+    end
+
+    def change_scm_line(action, index, buffer, row)
+      snapshot = scm_snapshot_for(buffer, action)
+      row ||= buffer.rope.point_at(editor.primary.head).row
+      index ||= snapshot.line_rows[row]
+      raise Error, "Place the cursor on a changed line" unless index
+
+      apply_scm_change(snapshot, action, snapshot.lines.fetch(index))
+    end
+
+    def scm_snapshot_for(buffer, action)
+      snapshot = buffer.instance_variable_get(:@scm_diff_snapshot)
+      raise Error, "Open an SCM diff first" unless snapshot
+      allowed = action == :stage ? %i[unstaged untracked] : %i[staged]
+      raise Error, "This diff cannot be #{action}d" unless allowed.include?(snapshot.kind)
+      raise Error, "Merge conflicts cannot be partially staged" if snapshot.conflicted
+      raise Error, "Binary files and submodules cannot be partially staged" unless snapshot.diff
+      snapshot
+    end
+
+    def apply_scm_change(snapshot, action, hunk)
+      state = git_state
+      raise Error, "Not a Git repository" unless state
+
+      state.synchronize do |repository|
+        index = repository.index
+        validate_scm_snapshot!(repository, index, snapshot)
+        source, target = action == :stage ? [snapshot.before, snapshot.after] : [snapshot.after, snapshot.before]
+        text = action == :stage ? Porrima.apply(source.text, hunk) : Porrima.revert(source.text, hunk)
+        exists = text == target.text ? target.exists : text == source.text ? source.exists : target.exists || !text.empty?
+        if exists
+          raw = if text == target.text && target.exists
+            target.raw
+          elsif text == source.text && source.exists
+            source.raw
+          else
+            codec = source.exists ? source : target
+            codec.bom + text.encode(codec.encoding).b
+          end
+          mode = text == target.text && target.exists ? target.mode : source.mode || target.mode
+          raise Error, "Cannot partially stage this file type" unless [0o100644, 0o100755, 0o120000].include?(mode)
+          index.stage(snapshot.path, repository.write_blob(raw), mode)
+        else
+          index.remove(snapshot.path)
+        end
+        validate_scm_worktree_and_head!(repository, snapshot)
+        index.write
+      end
+      refresh_after_index_write
+      snapshot.path
+    rescue Thuban::RefLockError
+      refresh_after_index_write
+      raise
+    end
+
+    def validate_scm_snapshot!(repository, index, snapshot)
+      stale = repository.head != snapshot.head || scm_index_entries(index, snapshot.path) != snapshot.index_entries ||
+        scm_worktree_signature(scm_worktree_content(repository, snapshot.path, snapshot.worktree)) != scm_worktree_signature(snapshot.worktree)
+      raise Error, "Git diff is stale; reopen it before staging" if stale
+    end
+
+    def validate_scm_worktree_and_head!(repository, snapshot)
+      stale = repository.head != snapshot.head ||
+        scm_worktree_signature(scm_worktree_content(repository, snapshot.path, snapshot.worktree)) != scm_worktree_signature(snapshot.worktree)
+      raise Error, "Git diff is stale; reopen it before staging" if stale
+    end
+
+    def scm_worktree_signature(content) = [content.exists, content.raw, content.mode]
 
     def gitlink_diff(repository, path, kind, head, staged)
       case kind
@@ -178,7 +430,7 @@ module Canopus
     def scm_file_node(change)
       path, kind, code = change.values_at(:path, :kind, :code)
       mark = kind == :untracked ? "?" : kind == :staged ? code[0] : code[1]
-      {id: [:scm_file, kind, path].freeze, label: "#{mark} #{path}".freeze, value: change}.freeze
+      {id: [:scm_file, kind, path].freeze, label: "#{mark} #{scm_display_path(path)}".freeze, value: change}.freeze
     end
 
     def select_scm_change(change, event = nil)

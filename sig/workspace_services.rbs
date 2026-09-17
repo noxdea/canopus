@@ -123,7 +123,12 @@ module Canopus
     def refresh_scm: () -> nil
     def stage_git_file: (?String? path) -> String
     def unstage_git_file: (?String? path) -> String
+    def stage_git_hunk: (?Integer? index, ?buffer: Buffer, ?row: Integer?) -> String
+    def unstage_git_hunk: (?Integer? index, ?buffer: Buffer, ?row: Integer?) -> String
+    def stage_git_line: (?Integer? index, ?buffer: Buffer, ?row: Integer?) -> String
+    def unstage_git_line: (?Integer? index, ?buffer: Buffer, ?row: Integer?) -> String
     def show_scm_diff: (?Hash[Symbol, untyped]? change) -> Editor
+    def scm_diff_decorations: (Buffer buffer, Range[Integer] rows) -> Array[Decoration::Item]
     def search_query: (String query, palette_state state) -> [String | Regexp, search_options]
     def search_project: (String query, ?regexp: bool, ?case_sensitive: bool, ?whole_word: bool, ?async: bool) -> (Thread | MultiBuffer | nil)
     def replace_in_buffer: (String | Regexp pattern, String replacement, ?case_sensitive: bool, ?whole_word: bool, ?range: Range[Integer]?) -> Integer

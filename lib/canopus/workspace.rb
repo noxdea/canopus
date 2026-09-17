@@ -80,6 +80,7 @@ module Canopus
         end
       end
       @decorations.register(:git) { |buffer, rows| git_decorations(buffer, rows) }
+      @decorations.register(:scm_diff) { |buffer, rows| scm_diff_decorations(buffer, rows) }
       @decorations.register(:diagnostics) { |buffer, rows| diagnostic_decorations(buffer, rows) }
       @decorations.register(:document_highlight) { |buffer, rows, current| document_highlight_decorations(buffer, rows, current) }
       @decorations.register(:document_link) { |buffer, rows, current| document_link_decorations(buffer, rows, current) }
@@ -892,6 +893,10 @@ module Canopus
       register_action("git.diff") { show_git_diff }
       register_action("git.stage", description: "Stage File") { stage_git_file }
       register_action("git.unstage", description: "Unstage File") { unstage_git_file }
+      register_action("git.stage_hunk", description: "Stage Hunk") { stage_git_hunk }
+      register_action("git.unstage_hunk", description: "Unstage Hunk") { unstage_git_hunk }
+      register_action("git.stage_line", description: "Stage Line") { stage_git_line }
+      register_action("git.unstage_line", description: "Unstage Line") { unstage_git_line }
       register_action("git.toggle_hunk") { toggle_git_hunk }
       register_action("git.blame") { show_git_blame }
       register_action("git.revert_hunk") { revert_current_hunk }

@@ -139,6 +139,19 @@ class GitStagingTest < Minitest::Test
     assert_equal " M", @workspace.git_status.fetch("tracked.txt")
   end
 
+  def test_full_staging_preserves_index_mode_when_core_filemode_is_false
+    git("update-index", "--chmod=+x", "tracked.txt")
+    git("commit", "-qm", "mark executable")
+    git("config", "core.filemode", "false")
+    File.binwrite(File.join(@root, "tracked.txt"), "restaged\n")
+    @workspace.invalidate_git
+
+    @workspace.stage_git_file("tracked.txt")
+
+    assert_equal "100755", git("ls-files", "--stage", "tracked.txt").split.first
+    assert_equal "restaged\n", git("show", ":tracked.txt")
+  end
+
   private
 
   def scm_change(kind, path)
@@ -168,7 +181,7 @@ class GitStagingTest < Minitest::Test
   end
 
   def git_in(directory, *arguments)
-    output, error, status = Open3.capture3("git", "-C", directory, *arguments)
+    output, error, status = Open3.capture3("git", "-C", directory, *arguments, binmode: true)
     raise error unless status.success?
     output
   end
