@@ -122,6 +122,20 @@ Dir.mktmpdir("canopus-public-api-") do |root|
   check(repository.worktree_content("tracked.txt") == "before\n", "Git hunk revert")
   check(repository.blame("tracked.txt").first.commit == commit, "Git blame")
   check(Porrima.unified("a\n", "b\n").include?("+b"), "unified diff")
+  repository.write("tracked.txt", "committed\n")
+  staged = repository.index
+  staged.stage("tracked.txt", repository.write_blob("committed\n"), 0o100644,
+    stat: File.stat(File.join(root, "tracked.txt")))
+  staged.write
+  updated_commit = repository.commit!(message: "Update tracked file",
+    author: Thuban::Signature.new(name: "Test", email: "test@example.invalid", time: 1, offset: "+0000"))
+  check(repository.head == updated_commit && repository.commit.parents == [commit] &&
+    repository.blob("tracked.txt") == "committed\n" &&
+    repository.status.none? { |item| item.path == "tracked.txt" }, "Git write/commit")
+  merge = Porrima::Merge.three_way(base: "base\n", ours: "ours\n", theirs: "theirs\n")
+  region = merge.regions.first
+  resolved = Porrima::Merge.resolve(merge, region.index, :ours)
+  check(region.output_start.zero? && Porrima::Merge.to_resolved_text(resolved) == "ours\n", "merge resolution")
 
   grid = Tarazed::Grid.new(columns: 20, rows: 3, scrollback: 4)
   replies = []
