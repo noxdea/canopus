@@ -110,28 +110,27 @@ class TaskProblemMatcherTest < Minitest::Test
       calls += 1
       original.call(pattern, line)
     end
-    line = ("a" * 60_000) + "!:1: broken\n"
-    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    refute matcher.feed(line * 4, max_seconds: 0.004)
-    first_elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
-    assert_operator first_elapsed, :<, 0.5
-
-    if Canopus::REGEXP_TIMEOUT_COMPAT
-      assert_equal 3, calls
-      assert matcher.pending?
-      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      refute matcher.feed("", max_seconds: 0.004)
-      assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 0.5
+    timeout = lambda do |pattern, &match|
+      raise Regexp::TimeoutError if pattern.source == evil
+      match.call
     end
-    expected_calls = Canopus::REGEXP_TIMEOUT_COMPAT ? 6 : 3
-    assert_equal expected_calls, calls
-    assert matcher.instance_variable_get(:@disabled)
-    refute matcher.pending?
 
-    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    10.times { refute matcher.feed(line, max_seconds: 0.004) }
-    assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 0.05
-    assert_equal expected_calls, calls
+    Canopus.stub(:with_regexp_timeout, timeout) do
+      line = "aaaa!:1: broken\n"
+      refute matcher.feed(line * 4, max_seconds: 1)
+      if Canopus::REGEXP_TIMEOUT_COMPAT
+        assert_equal 3, calls
+        assert matcher.pending?
+        refute matcher.feed("", max_seconds: 1)
+      end
+      expected_calls = Canopus::REGEXP_TIMEOUT_COMPAT ? 6 : 3
+      assert_equal expected_calls, calls
+      assert matcher.instance_variable_get(:@disabled)
+      refute matcher.pending?
+
+      10.times { refute matcher.feed(line, max_seconds: 1) }
+      assert_equal expected_calls, calls
+    end
   end
 
   def test_compatibility_timeout_retries_the_pending_line_on_the_next_feed

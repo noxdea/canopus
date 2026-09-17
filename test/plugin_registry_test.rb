@@ -55,12 +55,12 @@ class PluginRegistryTest < Minitest::Test
   def test_http_api_checks_permission_and_scheme_in_both_modes
     [true, false].each do |isolated|
       with_plugin('register_action("fetch") { |api| api.notify(api.http_get("file:///etc/hosts")) }') do |workspace, path|
-        workspace.plugins.load(path, trusted: true, isolated: isolated)
+        workspace.plugins.load(path, trusted: true, isolated: isolated, timeout: 10)
         workspace.call("fetch")
         assert_includes workspace.message, "requires network"
       end
       with_plugin('register_action("fetch") { |api| api.notify(api.http_get("file:///etc/hosts")) }') do |workspace, path|
-        workspace.plugins.load(path, trusted: true, permissions: [:network], isolated: isolated)
+        workspace.plugins.load(path, trusted: true, permissions: [:network], isolated: isolated, timeout: 10)
         workspace.call("fetch")
         assert_includes workspace.message, "HTTP or HTTPS URL required"
       end
