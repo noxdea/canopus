@@ -2,6 +2,7 @@
 
 | Date | Repository | Version | Canopus follow-up | Reason |
 | --- | --- | --- | --- | --- |
+| 2026-09-17 | thuban | 0.4.1 | 2026-09-17 | Lazy remote provider loading for headless startup |
 | 2026-09-17 | tarazed | 0.2.2 | 2026-09-17 | Drain final Windows ConPTY output after process exit |
 | 2026-09-16 | megrez | 0.1.1 | 2026-09-16 | Debug Adapter Protocol session lifecycle |
 | 2026-09-16 | antares | 0.2.1 | 2026-09-16 | CRLF-safe selection range columns |
