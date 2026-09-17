@@ -70,7 +70,8 @@ module Canopus
           valid_name?(test.name) && test.groups.is_a?(Array) && test.groups.length <= MAX_GROUPS &&
           test.groups.all? { |group| valid_name?(group) } &&
           test.line.is_a?(Integer) && test.line.positive? &&
-          [test.column, test.offset].all? { |value| value.is_a?(Integer) && value >= 0 }
+          [test.column, test.offset].all? { |value| value.is_a?(Integer) && value >= 0 } &&
+          valid_name?(test.selector)
       end
 
       def valid_name?(value)

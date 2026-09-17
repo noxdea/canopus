@@ -17,8 +17,33 @@ module Canopus::TestRunner
     attr_reader line: Integer
     attr_reader column: Integer
     attr_reader offset: Integer
+    attr_reader selector: String
     def self.new: (:minitest | :rspec framework, String path, String name, Array[String] groups,
-      Integer line, Integer column, Integer offset) -> instance
+      Integer line, Integer column, Integer offset, String selector) -> instance
+  end
+
+  class Result < Data
+    attr_reader status: :running | :success | :failure | :skipped
+    attr_reader path: String?
+    attr_reader line: Integer?
+    attr_reader message: String?
+    def self.new: (:running | :success | :failure | :skipped status, String? path, Integer? line, String? message) -> instance
+  end
+
+  class Execution
+    MAX_OUTPUT_BYTES: Integer
+    MAX_PARSE_LINES: Integer
+    MAX_FILTER_BYTES: Integer
+    ANSI: Regexp
+    attr_reader test: Test
+    attr_reader tests: Array[Test]
+    attr_reader output: Canopus::Task::Runner::Output
+    attr_reader generation: Integer?
+    def self.task: (Test test, root: String, ?tests: Array[Test]) -> Canopus::Task::definition
+    def initialize: (Test test, Canopus::Task::Runner::Output output, ?generation: Integer?, ?tests: Array[Test]) -> void
+    def append: (String? bytes) -> nil
+    def cancel: () -> true
+    def finish: (untyped status) -> Result
   end
 
   class Minitest
@@ -71,10 +96,13 @@ end
 module Canopus
   class Workspace
     attr_reader tests: Array[TestRunner::Test]
+    def test_results: () -> Hash[TestRunner::Test, TestRunner::Result]
     def initialize_tests: () -> nil
     def test_tree: () -> Zaniah::UI::TreeView
     def refresh_tests: () -> Thread
     def test_discovery_pending?: () -> bool
+    def run_test: (TestRunner::Test test) -> Canopus::Task::Runner::Output
+    def run_tests: (Array[TestRunner::Test] tests) -> Canopus::Task::Runner::Output
     def toggle_tests: () -> nil
     def close_tests: () -> nil
   end

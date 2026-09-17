@@ -18,9 +18,25 @@ Minitest spec-style `describe` / `context` groups with `it` or `specify`
 examples. The RSpec adapter recognizes nested `describe`, `context`, and
 `feature` groups plus their focused and skipped aliases, and `it`, `specify`,
 `example`, and `scenario` examples. Test nodes retain only their framework,
-workspace-relative path, static name, group path, and source position.
+workspace-relative path, static name, group path, source position, and bounded
+framework selector.
 Selecting a test opens its current source line after rechecking that the file
-is still a regular file inside the canonical workspace.
+is still a regular file inside the canonical workspace. Each discovered test
+also has a gutter button. The marker changes from run to running, passed,
+failed, or skipped; clicking it starts that one static test through the shared
+Task Output runner. Multiple declarations on one line run together.
+
+Minitest runs use an exact suite/method filter. RSpec combines the discovered
+source line with an exact full-description filter. Commands are fixed argument
+arrays rather than shell strings. A regular workspace `Gemfile` is run with
+`bundle exec`; inherited editor bundle state is
+removed before the child starts. Output remains available in the bounded
+Output panel and stopping or closing its tab cancels the run.
+
+Failed runs publish a `test` diagnostic and retain a 256 KiB tail of output to
+locate the test frame. Selecting a failed test, or its Problems entry, opens
+that failure line. If no safe frame is present, Canopus falls back to the
+discovered declaration.
 
 Discovery does not follow symlinks. It scans at most 50,000 workspace files,
 2,000 candidate test files, and 10,000 tests, with a maximum traversal depth of
@@ -30,6 +46,4 @@ oversized, and escaped paths are skipped. Refresh cancels stale work and keeps
 at most one discovery worker active; closing the workspace cancels and joins
 that worker.
 
-This stage provides discovery and source navigation only. Running tests,
-showing gutter results, navigating failures, and generating debug launches are
-separate features.
+Generating a debug launch remains a separate feature.

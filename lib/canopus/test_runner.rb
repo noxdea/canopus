@@ -8,7 +8,8 @@ alkaid_path ? require(File.expand_path("lib/alkaid", File.expand_path(alkaid_pat
 
 module Canopus
   module TestRunner
-    Test = Data.define(:framework, :path, :name, :groups, :line, :column, :offset)
+    Test = Data.define(:framework, :path, :name, :groups, :line, :column, :offset, :selector)
+    Result = Data.define(:status, :path, :line, :message)
     MAX_PATH_BYTES = 16_384
 
     class << self
@@ -48,5 +49,6 @@ require_relative "test_runner/safe_walker"
 require_relative "test_runner/minitest"
 require_relative "test_runner/rspec"
 require_relative "test_runner/discovery"
+require_relative "test_runner/execution"
 
 Canopus::TestRunner.private_constant :SafeWalker

@@ -41,6 +41,7 @@ module Canopus
         ensure_closer_capacity! if evicted && !@closed_outputs.key?(evicted)
         dimensions = @dimensions || [100, 12]
         terminal = @terminal_factory.call(command: task.fetch("command"), cwd: task.fetch("cwd"),
+          env: task.fetch("env", {}),
           columns: dimensions.first, rows: dimensions.last, scrollback: @scrollback,
           queue_limit_bytes: @queue_limit_bytes)
         @sequence += 1
@@ -222,10 +223,24 @@ module Canopus
       end
 
       def validate_task!(task)
+        environment = task.is_a?(Hash) ? task.fetch("env", {}) : nil
         valid = task.is_a?(Hash) && task["label"].is_a?(String) && !task["label"].empty? &&
           task["command"].is_a?(Array) && !task["command"].empty? && task["command"].all? { |part| part.is_a?(String) } &&
-          task["cwd"].is_a?(String) && task["presentation"].is_a?(Hash)
+          task["cwd"].is_a?(String) && task["presentation"].is_a?(Hash) && valid_environment?(environment)
         raise ArgumentError, "resolved task required" unless valid
+      end
+
+      def valid_environment?(environment)
+        return false unless environment.is_a?(Hash) && environment.length <= 4_096
+
+        bytes = 0
+        environment.all? do |key, value|
+          next false unless key.is_a?(String) && key.ascii_only? && key.match?(/\A[A-Za-z_][A-Za-z0-9_]*\z/)
+          next false unless value.nil? || value.is_a?(String) && value.valid_encoding? && !value.include?("\0")
+
+          bytes += key.bytesize + value.to_s.bytesize
+          bytes <= 1_048_576
+        end
       end
 
       def eviction_candidate

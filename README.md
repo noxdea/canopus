@@ -232,7 +232,9 @@ output into the shared Problems panel and editor diagnostics.
 
 The [Test explorer](docs/testing.md) discovers Minitest and RSpec declarations
 with a bounded Alkaid walk and Prism AST inspection. `panel.test` opens the
-tree, `test.refresh` rescans it, and selecting a test opens its declaration.
+tree and `test.refresh` rescans it. Gutter buttons run static tests in bounded
+Task Output tabs and show running, passed, failed, or skipped state; selecting
+a failed test opens its reported failure line.
 
 Plugins require explicit trust and permissions:
 

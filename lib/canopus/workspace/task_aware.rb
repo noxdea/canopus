@@ -83,6 +83,7 @@ module Canopus
 
       def stop_task(output = task_output)
         stopped = @task_runner.stop(output)
+        cancel_test_output(output) if stopped
         self.message = "No running task selected" unless stopped
         @window&.request_frame
         stopped
@@ -90,6 +91,7 @@ module Canopus
 
       def drain_task_outputs
         changed = @task_runner.drain(max_bytes: @settings["terminal"]["max_bytes_per_frame"]) do |output, data, seconds|
+          capture_test_output(output, data)
           matcher = @task_matchers[output.id]
           matcher&.feed(data.to_s, max_seconds: seconds)
           !matcher || !matcher.pending?
@@ -98,6 +100,7 @@ module Canopus
           unless @task_finished[output.id]
             @task_finished[output.id] = true
             @task_matchers[output.id]&.finish
+            complete_test_output(output)
           end
           next unless output.presentation.fetch("reveal") == "silent"
           status = output.terminal.status if output.terminal.respond_to?(:status)
@@ -146,6 +149,7 @@ module Canopus
       end
 
       def forget_task_output(output)
+        forget_test_output(output)
         @task_matchers.delete(output.id)
         @task_finished.delete(output.id)
         publish_task_diagnostics

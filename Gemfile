@@ -13,6 +13,7 @@ group :development, :test do
   gem "rake", "~> 13.0"
   gem "minitest", "~> 5.0"
   gem "rbs", "~> 3.9"
+  gem "rspec-core", "~> 3.12"
   gem "diff-lcs", "~> 1.6"
   gem "fiddle", "~> 1.1"
 end

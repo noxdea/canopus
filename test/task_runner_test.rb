@@ -411,6 +411,13 @@ class TaskRunnerTest < Minitest::Test
     assert_equal [[first, "first\n"], [second, "second\n"]], chunks
   end
 
+  def test_run_forwards_a_bounded_environment_to_the_terminal
+    output = @runner.run(task("env").merge("env" => {"BUNDLE_GEMFILE" => nil, "TOKEN" => "value"}))
+
+    assert_equal({"BUNDLE_GEMFILE" => nil, "TOKEN" => "value"}, output.terminal.options[:env])
+    assert_raises(ArgumentError) { @runner.run(task("bad-env").merge("env" => {"BAD-NAME" => "value"})) }
+  end
+
   private
 
   def task(label)
