@@ -8,6 +8,7 @@ module Canopus
       return @git if defined?(@git)
       @git = Thuban::Repository.new(@root)
       @git = nil unless @git.root
+      @git
     rescue ArgumentError
       @git = nil
     end
@@ -175,6 +176,7 @@ module Canopus
     def install_git_snapshot(state, snapshot)
       state.install(snapshot)
       @git_identity = snapshot.identity
+      refresh_scm if @scm_tree
       snapshot
     end
 
@@ -185,6 +187,7 @@ module Canopus
       return unless changed
 
       invalidate_git
+      refresh_scm if @scm_tree
       @window&.request_frame
     end
 

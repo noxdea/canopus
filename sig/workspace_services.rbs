@@ -119,6 +119,11 @@ module Canopus
     def show_git_blame: () -> String
     def revert_current_hunk: () -> patch?
     def checkout_branch: (String name) -> String
+    def scm_tree: () -> Zaniah::UI::TreeView
+    def refresh_scm: () -> nil
+    def stage_git_file: (?String? path) -> String
+    def unstage_git_file: (?String? path) -> String
+    def show_scm_diff: (?Hash[Symbol, untyped]? change) -> Editor
     def search_query: (String query, palette_state state) -> [String | Regexp, search_options]
     def search_project: (String query, ?regexp: bool, ?case_sensitive: bool, ?whole_word: bool, ?async: bool) -> (Thread | MultiBuffer | nil)
     def replace_in_buffer: (String | Regexp pattern, String replacement, ?case_sensitive: bool, ?whole_word: bool, ?range: Range[Integer]?) -> Integer

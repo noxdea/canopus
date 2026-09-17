@@ -59,6 +59,7 @@ module Canopus
       @panels.register(Panel::Definition.new("terminal", "Terminal", nil, :bottom, -> { terminal }, nil))
       @panels.register(Panel::Definition.new("search", "Search", nil, :left, -> { palette_open(:project_search) }, nil))
       @panels.register(Panel::Definition.new("explorer", "Explorer", nil, :left, -> { project_tree }, nil))
+      @panels.register(Panel::Definition.new("scm", "Source Control", nil, :left, -> { scm_tree }, nil), visible: false)
       @panels.register(Panel::Definition.new("hierarchy", "Hierarchy", nil, :right, -> { hierarchy_tree }, nil), visible: false)
       @panels.register(Panel::Definition.new("problems", "Problems", nil, :right, -> { problems_tree }, nil), visible: false)
       @panels.register(Panel::Definition.new("debug", "Debug", nil, :left, -> { debug_tree }, nil), visible: false)
@@ -889,6 +890,8 @@ module Canopus
       register_action("project.rename") { project_prompt(:rename_file) }
       register_action("project.trash") { project_prompt(:trash_file) }
       register_action("git.diff") { show_git_diff }
+      register_action("git.stage", description: "Stage File") { stage_git_file }
+      register_action("git.unstage", description: "Unstage File") { unstage_git_file }
       register_action("git.toggle_hunk") { toggle_git_hunk }
       register_action("git.blame") { show_git_blame }
       register_action("git.revert_hunk") { revert_current_hunk }
@@ -935,6 +938,7 @@ module Canopus
       register_action("language.restart_server") { show_language_server_restart }
       register_action("view.project") { @panels.toggle("explorer") }
       register_action("panel.explorer") { @panels.toggle("explorer") }
+      register_action("panel.scm") { @panels.toggle("scm"); refresh_scm if @panels.visible?("scm") }
       register_action("panel.search") { @panels.fetch("search").build.call }
       register_action("panel.terminal") { @terminals.empty? ? new_terminal : @panels.toggle("terminal") }
       register_action("panel.hierarchy") { @panels.toggle("hierarchy") if @hierarchy_state }
@@ -1072,6 +1076,7 @@ require_relative "workspace/language_aware"
 require_relative "workspace/hierarchy_aware"
 require_relative "workspace/problems_aware"
 require_relative "workspace/git_aware"
+require_relative "workspace/git_staging"
 require_relative "workspace/project_searchable"
 require_relative "workspace/settings_aware"
 require_relative "workspace/file_previewable"
@@ -1086,6 +1091,7 @@ Canopus::Workspace.include Canopus::Workspace::LanguageAware
 Canopus::Workspace.include Canopus::Workspace::HierarchyAware
 Canopus::Workspace.include Canopus::Workspace::ProblemsAware
 Canopus::Workspace.include Canopus::Workspace::GitAware
+Canopus::Workspace.include Canopus::Workspace::GitStaging
 Canopus::Workspace.include Canopus::Workspace::ProjectSearchable
 Canopus::Workspace.include Canopus::Workspace::SettingsAware
 Canopus::Workspace.include Canopus::Workspace::FilePreviewable
