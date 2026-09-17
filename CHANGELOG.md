@@ -38,6 +38,7 @@
 - Navigate files and the cached declaration hierarchy from editor breadcrumbs.
 - Add an opt-in GUI minimap with shared, edit-aware line textures and Git, search, and diagnostic overview marks.
 - Route LSP, snippet, and extension completion through a bounded provider registry with stable fuzzy ranking.
+- Stage Git files, hunks, and lines and create or amend commits from the Source Control panel.
 
 ## 0.4.0 — 2026-09-15
 

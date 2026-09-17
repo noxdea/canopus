@@ -18,11 +18,15 @@ module Canopus
 
       def capture
         synchronize do |repository|
-          entries = repository.status.to_h do |entry|
-            [entry.path.dup.freeze, entry.code.dup.freeze]
-          end.freeze
-          Snapshot.new(freeze_string(repository.head), freeze_string(repository.branch),
-            index_stamp(repository), entries)
+          3.times do
+            before = repository_identity
+            entries = repository.status.to_h do |entry|
+              [entry.path.dup.freeze, entry.code.dup.freeze]
+            end.freeze
+            after = repository_identity
+            return Snapshot.new(*after, entries) if before == after
+          end
+          raise Thuban::RefLockError, "Git HEAD or index changed while reading status"
         end
       end
 
@@ -50,7 +54,18 @@ module Canopus
         @diff_cache[key] = diff
       end
 
-      def synchronize(&block) = @repository_lock.synchronize { block.call(@repository) }
+      def synchronize(snapshot: nil, index_lock: false, &block)
+        @repository_lock.synchronize do
+          operation = lambda do
+            if snapshot && snapshot.identity != repository_identity
+              raise Thuban::RefLockError, "Git HEAD or index changed since it was displayed"
+            end
+
+            block.call(@repository)
+          end
+          index_lock ? with_index_lock(&operation) : operation.call
+        end
+      end
 
       private
 
@@ -64,6 +79,21 @@ module Canopus
         [stat.mtime.to_i, stat.mtime.nsec, stat.size, stat.ino].freeze
       rescue Errno::ENOENT, Errno::ENOTDIR
         nil
+      end
+
+      def repository_identity
+        [freeze_string(@repository.head), freeze_string(@repository.branch), index_stamp(@repository)].freeze
+      end
+
+      def with_index_lock
+        path = File.join(@repository.git_dir, "index.lock")
+        lock = File.open(path, File::WRONLY | File::CREAT | File::EXCL | File::BINARY, 0o644)
+        yield
+      rescue Errno::EEXIST
+        raise Thuban::RefLockError, "Git index is locked: #{path}"
+      ensure
+        lock&.close
+        File.unlink(path) if lock && File.exist?(path)
       end
     end
   end

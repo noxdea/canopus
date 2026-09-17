@@ -120,7 +120,9 @@ module Canopus
     def revert_current_hunk: () -> patch?
     def checkout_branch: (String name) -> String
     def scm_tree: () -> Zaniah::UI::TreeView
+    def scm_panel: () -> Zaniah::Div
     def refresh_scm: () -> nil
+    def commit_git: (?String? message, ?amend: bool?) -> Thread
     def stage_git_file: (?String? path) -> String
     def unstage_git_file: (?String? path) -> String
     def stage_git_hunk: (?Integer? index, ?buffer: Buffer, ?row: Integer?) -> String

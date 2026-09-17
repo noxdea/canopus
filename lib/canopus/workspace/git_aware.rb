@@ -197,7 +197,7 @@ module Canopus
     end
 
     def close_git
-      [@git_status_job, @git_poll_job, *@git_diff_jobs&.values].compact.uniq.each do |thread|
+      [@git_status_job, @git_poll_job, @git_commit_job, *@git_diff_jobs&.values].compact.uniq.each do |thread|
         thread.join unless thread.equal?(Thread.current)
       end
       @git_diff_jobs&.clear

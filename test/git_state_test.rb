@@ -100,6 +100,25 @@ class GitStateTest < Minitest::Test
     assert_equal({"example.rb" => "M "}, snapshot.entries)
   end
 
+  def test_capture_retries_when_the_index_changes_during_status
+    original = @repository.method(:status)
+    changed = false
+    @repository.define_singleton_method(:status) do
+      entries = original.call
+      unless changed
+        changed = true
+        @entries = [Entry.new("hidden.rb", "M", " ")]
+        File.binwrite(File.join(@git_dir, "index"), "index-two-longer")
+      end
+      entries
+    end
+
+    snapshot = Canopus::Git::State.new(@repository).capture
+
+    assert_equal({"hidden.rb" => "M "}, snapshot.entries)
+    assert_equal File.stat(File.join(@directory, ".git", "index")).size, snapshot.index_stamp[2]
+  end
+
   def test_poll_reads_repository_state_in_background_and_refreshes_the_snapshot
     @workspace.git_status
     wait_until { @workspace.git_status["example.rb"] }

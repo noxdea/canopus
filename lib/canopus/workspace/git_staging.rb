@@ -5,6 +5,8 @@ require "zaniah/ui"
 module Canopus
   module Workspace::GitStaging
     SCM_SECTIONS = {staged: "Staged", unstaged: "Changes", untracked: "Untracked"}.freeze
+    SCM_COMMIT_SUBJECT_GUIDE = 50
+    SCM_COMMIT_BODY_GUIDE = 72
     SCMContent = Data.define(:exists, :raw, :text, :encoding, :bom, :mode)
     SCMDiffSnapshot = Data.define(:path, :kind, :head, :index_entries, :worktree, :conflicted, :before, :after,
       :diff, :hunks, :lines, :hunk_rows, :line_rows)
@@ -18,6 +20,64 @@ module Canopus
       SCM_SECTIONS.each_key { |kind| @scm_tree.expand([:scm_section, kind]) }
       refresh_scm
       @scm_tree
+    end
+
+    def scm_panel
+      @scm_commit_message ||= +""
+      @scm_commit_input ||= Zaniah::UI::TextArea.new(@scm_commit_message, rows: 5,
+        label: "Commit message", placeholder: "Subject\n\nBody").on_change do |value|
+        @scm_commit_message = value
+      end
+      @scm_commit_amend ||= false
+      @scm_commit_amend_control ||= Zaniah::UI::Checkbox.new("Amend", value: @scm_commit_amend).on_change do |value, *, **|
+        @scm_commit_amend = value
+      end
+      @scm_commit_button ||= Zaniah::UI::Button.new("Commit").on_click { submit_scm_commit }
+      guide = Zaniah::UI::Label.new(
+        "Subject guide: #{SCM_COMMIT_SUBJECT_GUIDE} columns · Body guide: #{SCM_COMMIT_BODY_GUIDE} columns",
+        tone: :muted, size: :xs, wrap: :word
+      )
+      controls = Zaniah::Div.new.flex_row.items_center.gap(8)
+        .children([@scm_commit_amend_control, @scm_commit_button])
+      Zaniah::Div.new.flex_col.gap(8).p(4)
+        .children([@scm_commit_input, guide, controls, scm_tree.flex_1])
+    end
+
+    def commit_git(message = nil, amend: nil)
+      message = message.nil? ? @scm_commit_message.to_s : String(message)
+      amend = !!@scm_commit_amend if amend.nil?
+      raise ArgumentError, "amend must be true or false" unless [true, false].include?(amend)
+      raise Error, "Enter a commit message" if message.strip.empty?
+      raise Error, "Git commit already in progress" if @git_commit_job&.alive?
+
+      state = git_state
+      raise Error, "Not a Git repository" unless state
+      snapshot = state.snapshot
+      snapshot ||= state.capture unless @window
+      raise Error, "Git status is still loading; try again" unless snapshot
+      raise Error, "Cannot commit from a detached HEAD" unless snapshot.branch
+      staged = snapshot.entries.any? { |_, code| !code.start_with?(" ", "?") }
+      raise Error, "Stage changes before committing" unless amend || staged
+
+      submitted = message.dup.freeze
+      set_scm_commit_busy(true)
+      @git_commit_job = Thread.new do
+        oid = state.synchronize(snapshot: snapshot, index_lock: true) do |repository|
+          current = repository.commit
+          raise Error, "Cannot amend an unborn branch" if amend && !current
+
+          author = amend ? current.signature(role: :author) : repository.signature(role: :author)
+          committer = repository.signature(role: :committer)
+          repository.commit!(message: submitted, author: author, committer: committer, amend: amend)
+        end
+        latest = state.capture rescue nil
+        worker = Thread.current
+        post { finish_git_commit(worker, state, latest, submitted, oid, nil) } unless @closed
+      rescue StandardError => error
+        latest = state.capture rescue nil
+        worker = Thread.current
+        post { finish_git_commit(worker, state, latest, submitted, nil, error) } unless @closed
+      end
     end
 
     def refresh_scm
@@ -143,6 +203,35 @@ module Canopus
     end
 
     private
+
+    def submit_scm_commit
+      commit_git
+    rescue StandardError => error
+      self.message = error.message
+    end
+
+    def set_scm_commit_busy(value)
+      @scm_commit_input&.disabled(value)
+      @scm_commit_amend_control&.disabled(value)
+      @scm_commit_button&.loading(value)
+      @window&.request_frame
+    end
+
+    def finish_git_commit(worker, state, snapshot, submitted, oid, error)
+      @git_commit_job = nil if @git_commit_job.equal?(worker)
+      set_scm_commit_busy(false)
+      invalidate_git
+      install_git_snapshot(state, snapshot) if snapshot
+      if error
+        self.message = "Git commit: #{error.message}"
+        return
+      end
+
+      if @scm_commit_message == submitted
+        @scm_commit_input ? @scm_commit_input.clear : @scm_commit_message = +""
+      end
+      self.message = "Committed #{oid[0, 8]}"
+    end
 
     def capture_scm_diff(repository, path, kind)
       head_oid = repository.head

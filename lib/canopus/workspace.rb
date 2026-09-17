@@ -59,7 +59,7 @@ module Canopus
       @panels.register(Panel::Definition.new("terminal", "Terminal", nil, :bottom, -> { terminal }, nil))
       @panels.register(Panel::Definition.new("search", "Search", nil, :left, -> { palette_open(:project_search) }, nil))
       @panels.register(Panel::Definition.new("explorer", "Explorer", nil, :left, -> { project_tree }, nil))
-      @panels.register(Panel::Definition.new("scm", "Source Control", nil, :left, -> { scm_tree }, nil), visible: false)
+      @panels.register(Panel::Definition.new("scm", "Source Control", nil, :left, -> { scm_panel }, nil), visible: false)
       @panels.register(Panel::Definition.new("hierarchy", "Hierarchy", nil, :right, -> { hierarchy_tree }, nil), visible: false)
       @panels.register(Panel::Definition.new("problems", "Problems", nil, :right, -> { problems_tree }, nil), visible: false)
       @panels.register(Panel::Definition.new("debug", "Debug", nil, :left, -> { debug_tree }, nil), visible: false)
@@ -897,6 +897,7 @@ module Canopus
       register_action("git.unstage_hunk", description: "Unstage Hunk") { unstage_git_hunk }
       register_action("git.stage_line", description: "Stage Line") { stage_git_line }
       register_action("git.unstage_line", description: "Unstage Line") { unstage_git_line }
+      register_action("git.commit", description: "Commit Staged Changes") { commit_git }
       register_action("git.toggle_hunk") { toggle_git_hunk }
       register_action("git.blame") { show_git_blame }
       register_action("git.revert_hunk") { revert_current_hunk }

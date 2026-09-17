@@ -34,6 +34,9 @@ module Canopus
       workspace.new_buffer unless workspace.editor
     end
     def input(event)
+      return if focused_ui_widget? &&
+        [Zaniah::Input::KeyDown, Zaniah::Input::TextInput, Zaniah::Input::Composition].any? { |type| event.is_a?(type) }
+
       case event
       when Zaniah::Input::KeyUp, Zaniah::Input::MouseDown, Zaniah::Input::FileDrop
         @suppress_key_text = false
@@ -336,6 +339,8 @@ module Canopus
     end
 
     private
+    def focused_ui_widget? = !@window.dispatcher.focused.nil?
+
     def reload_keymap
       language = @workspace.editor&.language_document&.definition&.name
       groups = @workspace.settings["languages"].dig(language, "keymap") || @workspace.settings["keymap"]
@@ -461,6 +466,7 @@ module Canopus
     def mouse_down(event)
       action = @view.hit(event.position)
       return unless action
+      @window.dispatcher.focus(nil)
       kind, *args = action
       return if @workspace.palette && (kind != :palette || event.button != :left)
       if [:file, :directory].include?(kind)
