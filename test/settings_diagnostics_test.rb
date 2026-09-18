@@ -6,6 +6,7 @@ require "tmpdir"
 class SettingsDiagnosticsTest < Minitest::Test
   def setup
     @root = Dir.mktmpdir("canopus-settings-diagnostics-")
+    FileUtils.mkdir_p(File.join(@root, ".canopus"))
     @workspace = Canopus::Workspace.new(root: @root)
   end
 

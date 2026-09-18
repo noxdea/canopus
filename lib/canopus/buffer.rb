@@ -3,35 +3,10 @@
 require "digest"
 require "tempfile"
 require "denebola"
+require_relative "denebola_compat"
 menkar_path = ENV["MENKAR_PATH"]
 menkar_root = File.expand_path("../..", __dir__)
 menkar_path ? require(File.expand_path("lib/menkar", File.expand_path(menkar_path, menkar_root))) : require("menkar")
-
-# Canopus asks lazy ropes for a bounded line window while moving cursors. Keep
-# this small compatibility shim until that helper is part of Denebola's API.
-unless Denebola::LazyRope.method_defined?(:line_window)
-  class Denebola::LazyRope
-    def line_end(row)
-      start = line_start(row)
-      ending = row + 1 < line_count(exact: true) ? line_start(row + 1) : bytesize
-      tail_start = [ending - 3, start].max
-      tail = send(:read_bytes, tail_start, [ending - tail_start, 3].min)
-      ending - (tail.end_with?("\r\n") ? 2 : tail.end_with?("\r", "\n") ? 1 : 0)
-    end
-
-    def line_window(row, from: 0, max_bytes: 16_384)
-      start, ending = line_start(row), line_end(row)
-      offset = (start + from).clamp(start, ending)
-      offset -= 1 while offset > start && offset < ending && (send(:read_bytes, offset, 1).getbyte(0) & 0xc0) == 0x80
-      value = send(:read_bytes, offset, [max_bytes, ending - offset].min)
-      finish = value.bytesize
-      while finish.positive? && !value.byteslice(0, finish).force_encoding(Encoding::UTF_8).valid_encoding?
-        finish -= 1
-      end
-      [value.byteslice(0, finish).to_s.force_encoding(Encoding::UTF_8), offset - start]
-    end
-  end
-end
 
 module Canopus
   class Buffer
@@ -75,7 +50,7 @@ module Canopus
 
     def self.detect_bytes(raw, encoding: nil)
       requested = encoding && Menkar.detect("".b, hint: encoding).encoding
-      detected = Menkar.detect(raw)
+      detected = Menkar.detect(raw, hint: requested || bom_encoding(raw))
       return detected unless requested
       return detected unless detected.bom.empty?
 
@@ -87,12 +62,22 @@ module Canopus
     # @return [Array(String, Encoding, String)] UTF-8 text, source encoding, BOM
     def self.decode_bytes(raw)
       raw = raw.b unless raw.encoding == Encoding::BINARY
-      detection = Menkar.detect(raw)
-      raise Error, "binary file contains NUL bytes" if detection.binary
+      hint = bom_encoding(raw)
+      detection = Menkar.detect(raw, hint: hint)
+      raise Error, "binary file contains NUL bytes" if detection.binary || (raw.include?("\0") && hint.nil?)
       [Menkar.decode(raw, detection), detection.encoding, detection.bom]
     rescue Menkar::Error => error
       raise Error, error.message
     end
+
+    def self.bom_encoding(raw)
+      return Encoding::UTF_32LE if raw.start_with?("\xFF\xFE\x00\x00".b)
+      return Encoding::UTF_32BE if raw.start_with?("\x00\x00\xFE\xFF".b)
+      return Encoding::UTF_16LE if raw.start_with?("\xFF\xFE".b)
+      return Encoding::UTF_16BE if raw.start_with?("\xFE\xFF".b)
+      nil
+    end
+    private_class_method :bom_encoding
 
     def initialize(text = "", path: nil, encoding: nil, bom: "".b, disk_digest: nil, read_only: false,
       draft: false, rope: nil, detection: nil)

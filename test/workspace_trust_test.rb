@@ -11,7 +11,7 @@ class WorkspaceTrustTest < Minitest::Test
       refute trust.trusted?
       assert_equal :trusted, trust.trust! && trust.status
       assert File.file?(state)
-      assert_equal 0o600, File.stat(state).mode & 0o777
+      assert_equal 0o600, File.stat(state).mode & 0o777 unless Gem.win_platform?
       refute_includes File.read(state), root
       assert Canopus::Workspace::Trust.new(root, state_path: state).trusted?
       refute Canopus::Workspace::Trust.new(root, state_path: state).untrust!

@@ -4,7 +4,7 @@ require "ripper"
 require_relative "test_helper"
 
 class FileLayoutTest < Minitest::Test
-  LAYOUT_EXCEPTIONS = %w[data_compat.rb match_data_compat.rb regexp_compat.rb].freeze
+  LAYOUT_EXCEPTIONS = %w[data_compat.rb denebola_compat.rb match_data_compat.rb regexp_compat.rb].freeze
   VAGUE_SUFFIX = /(?:Services|Actions|Methods|Mixin|Concern|Module)\z/
   MIXED_ACRONYM = /(?:\A|[a-z\d])(?:Api|Cli|Lsp|Odb|Pty|Ui|Vt)(?:\z|[A-Z])/
   ACRONYMS = {"api" => "API", "cli" => "CLI", "lsp" => "LSP", "pty" => "PTY", "rspec" => "RSpec", "vt" => "VT"}.freeze

@@ -21,7 +21,7 @@ class SettingsGuiTest < Minitest::Test
 
     @workspace.settings.merge!("theme" => "Canopus Light")
     @workspace.settings_browse(changed_only: true)
-    assert_equal ["theme"], @workspace.palette[:fields].map { |field| field[:path] }
+    assert_equal [["theme"]], @workspace.palette[:fields].map { |field| field[:path] }
   end
 
   def test_palette_edit_writes_nested_setting_and_reloads
