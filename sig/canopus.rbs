@@ -1,7 +1,7 @@
 module Canopus
   VERSION: String
   type json = nil | bool | Integer | Float | String | Array[json] | Hash[String | Symbol, json]
-  type rope = Denebola::Rope | LazyRope
+  type rope = Denebola::Rope | Denebola::LazyRope | LazyRope
   type patch = Patch | Patch::Composite | Patch::Reload
   type changes = Array[[Range[Integer], String]]
   type bias = :left | :right
@@ -84,19 +84,21 @@ module Canopus
       attr_reader kind: Symbol
       attr_reader time: Numeric
     end
-    def self.open: (String path, ?large_file_threshold: Integer) -> instance
+    def self.open: (String path, ?large_file_threshold: Integer, ?encoding: Encoding?) -> instance
     def self.decode_bytes: (String raw) -> [String, Encoding, String]
-    def initialize: (?String text, ?path: String?, ?encoding: Encoding, ?bom: String, ?disk_digest: String?, ?read_only: bool, ?draft: bool, ?rope: rope?) -> void
+    def initialize: (?String text, ?path: String?, ?encoding: Encoding, ?bom: String, ?disk_digest: String?, ?read_only: bool, ?draft: bool, ?rope: rope?, ?detection: untyped) -> void
     attr_reader rope: rope
     attr_reader path: String?
     attr_reader encoding: Encoding
     attr_reader line_ending: String
+    attr_reader newline: Symbol?
     attr_reader version: Integer
     attr_reader history: Array[Transaction]
     attr_reader notification_errors: Array[Error]
     attr_reader read_only: bool
     attr_reader disk_digest: String?
     attr_reader bom: String
+    attr_reader detection: untyped
     attr_accessor selections: Array[Selection]
     def text: () -> String
     def relocate: (String path) -> String
@@ -104,7 +106,7 @@ module Canopus
     def line: (Integer row) -> String
     def line_count: () -> Integer
     def dirty?: () -> bool
-    def reload: (?force: bool) -> self
+    def reload: (?force: bool, ?encoding: Encoding?) -> self
     def on_edit: () { (patch) -> void } -> Zaniah::Subscription
     def anchor: (Integer offset, ?bias: bias) -> Anchor
     def resolve: (Anchor anchor) -> Integer
@@ -116,7 +118,11 @@ module Canopus
     def redo: () -> bool
     def persistent_undo_record: (max_entries: Integer) -> Hash[String, untyped]?
     def restore_persistent_undo!: (Hash[String, untyped] record) -> true
-    def save: (?String? path, ?force: bool) -> self
+    def save: (?String? path, ?force: bool, ?encoding: Encoding?) -> self
+    def roundtrip?: (?encoding: Encoding?) -> bool
+    def mixed_line_endings?: () -> bool
+    def convert_line_endings: (?to: :lf | :crlf | :cr) -> bool
+    def convert_newlines: (?to: :lf | :crlf | :cr) -> bool
     def trim_trailing_whitespace: () -> patch?
     def ensure_final_newline: () -> bool
   end
@@ -373,7 +379,7 @@ module Canopus
     def vim: () -> Vim
     def open: (String path) -> Editor
     def canonical_path: (String path) -> String
-    def save_buffer: (?Buffer buffer, ?path: String?) -> Buffer
+    def save_buffer: (?Buffer buffer, ?path: String?, ?encoding: Encoding?, ?confirmed: bool) -> Buffer
     def new_buffer: () -> Editor
     def focus: (Pane pane) -> void
     def activate_tab: (Pane pane, Editor tab) -> void

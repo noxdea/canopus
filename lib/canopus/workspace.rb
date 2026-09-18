@@ -221,15 +221,20 @@ module Canopus
       end
       File.join(File.realpath(parent), *pieces)
     end
-    def save_buffer(buffer = editor.buffer, path: buffer.path)
+    def save_buffer(buffer = editor.buffer, path: buffer.path, encoding: nil, confirmed: false)
       if buffer.is_a?(MultiBuffer)
-        buffer.excerpts.map(&:buffer).uniq.each { |source| save_buffer(source) if source.dirty? }
+        buffer.excerpts.map(&:buffer).uniq.each { |source| save_buffer(source, encoding: encoding) if source.dirty? }
         return buffer
       end
       target = path && canonical_path(path)
       raise Error, "Choose a path before saving" unless target
       existing = @buffers[target]
       raise Error, "Destination is already open in another buffer" if existing && !existing.equal?(buffer)
+      unless confirmed || buffer.roundtrip?(encoding: encoding)
+        self.palette = {kind: :confirm_encoding_save, query: "Encoding cannot represent all characters. Save anyway?",
+          index: 1, matches: ["Save anyway", "Cancel"], buffer: buffer, target: target, encoding: encoding}
+        return buffer
+      end
       previous = buffer.path
       prepare_editorconfig_save(buffer, target)
       @running_save_actions ||= {}.compare_by_identity
@@ -243,7 +248,7 @@ module Canopus
           @running_save_actions.delete(buffer)
         end
       end
-      result = buffer.save(target)
+      result = buffer.save(target, encoding: encoding)
       if previous != buffer.path
         relocate_breakpoints(buffer)
         invalidate_hierarchy(buffer)
@@ -280,6 +285,34 @@ module Canopus
         end
       end
       result
+    end
+
+    def show_encoding_actions(buffer = editor&.buffer)
+      return unless buffer&.path && !buffer.read_only
+
+      choices = [Encoding::UTF_8, Encoding::UTF_16LE, Encoding::UTF_16BE, Encoding::UTF_32LE, Encoding::UTF_32BE,
+        Encoding::Windows_31J,
+        Encoding::EUC_JP, Encoding::ISO_2022_JP].uniq
+      actions = choices.flat_map do |encoding|
+        [["Reload as #{encoding.name}", :reload, encoding], ["Save as #{encoding.name}", :save, encoding]]
+      end
+      self.palette = {kind: :encoding_actions, query: +"", index: 0, matches: actions.map(&:first),
+        encoding_actions: actions, buffer: buffer}
+      @palette
+    end
+
+    def convert_line_endings(to, confirmed: false)
+      buffer = editor&.buffer
+      return unless buffer && !buffer.read_only
+      if buffer.mixed_line_endings? && !confirmed
+        self.palette = {kind: :confirm_line_ending_conversion,
+          query: "Mixed line endings will be normalized. Continue?", index: 1,
+          matches: ["Convert line endings", "Cancel"], buffer: buffer, to: to}
+        return buffer
+      end
+
+      buffer.convert_line_endings(to: to)
+      self.message = "Line endings converted to #{to.to_s.upcase}"
     end
     def new_buffer
       @vim_states[editor]&.deactivate
@@ -799,6 +832,39 @@ module Canopus
     end
     def palette_accept
       return accept_task_palette if @palette[:kind] == :tasks
+      if @palette[:kind] == :encoding_actions
+        current = @palette
+        action = current[:encoding_actions][current[:index]]
+        self.palette = nil
+        return unless action
+
+        buffer = current[:buffer]
+        return unless @buffers.value?(buffer) || editor&.buffer.equal?(buffer)
+        if action[1] == :reload
+          buffer.reload(force: false, encoding: action[2])
+          self.message = "Reloaded as #{action[2].name}"
+        else
+          save_buffer(buffer, encoding: action[2])
+          self.message = "Saved as #{action[2].name}" unless @palette&.fetch(:kind, nil) == :confirm_encoding_save
+        end
+        return buffer
+      end
+      if @palette[:kind] == :confirm_line_ending_conversion
+        current = @palette
+        self.palette = nil
+        return if current[:index] != 0
+
+        buffer = current[:buffer]
+        return unless @buffers.value?(buffer) || editor&.buffer.equal?(buffer)
+        return convert_line_endings(current[:to], confirmed: true)
+      end
+      if @palette[:kind] == :confirm_encoding_save
+        current = @palette
+        self.palette = nil
+        return if current[:index] != 0
+
+        return save_buffer(current[:buffer], path: current[:target], encoding: current[:encoding], confirmed: true)
+      end
       return accept_breakpoint_palette if [:breakpoint_actions, :breakpoint_edit].include?(@palette[:kind])
       return accept_debug_watch_palette if [:debug_watch_add, :debug_watch_remove].include?(@palette[:kind])
       return accept_debug_console_palette if @palette[:kind] == :debug_console
@@ -1030,6 +1096,10 @@ module Canopus
     def register_actions
       register_action("file.new") { new_buffer }
       register_action("file.save") { editor.buffer.path || editor.buffer.is_a?(MultiBuffer) ? save_buffer : palette_open(:save_as) }
+      register_action("file.encoding", description: "Encoding and Line Endings") { show_encoding_actions }
+      register_action("file.newline.lf", description: "Convert Line Endings to LF") { convert_line_endings(:lf) }
+      register_action("file.newline.crlf", description: "Convert Line Endings to CRLF") { convert_line_endings(:crlf) }
+      register_action("file.newline.cr", description: "Convert Line Endings to CR") { convert_line_endings(:cr) }
       register_action("file.close") { request_close }
       register_action("tab.close") { request_close }
       register_action("tab.close_others") { request_close(@active_pane.editors.reject { |current| current.equal?(editor) }) }

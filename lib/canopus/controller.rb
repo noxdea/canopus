@@ -541,6 +541,7 @@ module Canopus
         uri = URI.parse(args.first)
         @window.open_url(uri.to_s) if %w[http https].include?(uri.scheme) && uri.host && @window.respond_to?(:open_url)
       when :dismiss_notification then @workspace.dismiss_notification(args.first)
+      when :buffer_format then @workspace.show_encoding_actions(args.first) if event.button == :left
       when :pane then @workspace.focus(args.first)
       when :split_resize, :dock_resize then @resize_drag = action
       when :scrollbar

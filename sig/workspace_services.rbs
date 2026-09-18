@@ -27,6 +27,8 @@ module Canopus
     def settings_for_editor: (Editor editor) -> Settings
     def invalidate_editorconfig: () -> nil
     def prepare_editorconfig_save: (Buffer buffer, String path) -> void
+    def show_encoding_actions: (?Buffer? buffer) -> Hash[Symbol, untyped]?
+    def convert_line_endings: (:lf | :crlf | :cr to, ?confirmed: bool) -> void
   end
 
   module Workspace::PersistentUndo

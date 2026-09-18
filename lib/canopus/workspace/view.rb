@@ -922,10 +922,14 @@ module Canopus
       language = editor.language_document.definition.name
       servers = @workspace.language_server_states(language)
       lsp = servers.empty? ? "" : " LSP:#{servers.map { |server| "#{server[:name]}=#{server[:state]}" }.join(',')}"
-      right = "#{diagnostics}#{language}#{lsp}   #{point.row + 1}:#{point.column + 1}   #{editor.use_tabs ? 'Tab' : 'Spaces'}:#{editor.tab_size}   #{editor.buffer.encoding.name}"
+      newline = editor.buffer.mixed_line_endings? ? "mixed" : editor.buffer.newline.to_s.upcase
+      right = "#{diagnostics}#{language}#{lsp}   #{point.row + 1}:#{point.column + 1}   #{editor.use_tabs ? 'Tab' : 'Spaces'}:#{editor.tab_size}   #{editor.buffer.encoding.name} #{newline}"
       @scene.clip(bounds) do
         text(left, 12, bounds.y + 6, color: :foreground, size: 12)
-        text(right, [bounds.width - right.length * 7.2 - 16, bounds.width * 0.5].max, bounds.y + 6, color: :muted, size: 12)
+        x = [bounds.width - right.length * 7.2 - 16, bounds.width * 0.5].max
+        text(right, x, bounds.y + 6, color: :muted, size: 12)
+        region(Zaniah::Bounds.new(x, bounds.y, bounds.width - x, bounds.height), role: :button,
+          label: "Encoding #{editor.buffer.encoding.name}, line endings #{newline}", action: [:buffer_format, editor.buffer])
       end
     end
     def paint_hover(bounds)

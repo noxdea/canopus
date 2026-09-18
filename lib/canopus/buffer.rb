@@ -2,56 +2,112 @@
 
 require "digest"
 require "tempfile"
+require "denebola"
+menkar_path = ENV["MENKAR_PATH"]
+menkar_root = File.expand_path("../..", __dir__)
+menkar_path ? require(File.expand_path("lib/menkar", File.expand_path(menkar_path, menkar_root))) : require("menkar")
+
+# Canopus asks lazy ropes for a bounded line window while moving cursors. Keep
+# this small compatibility shim until that helper is part of Denebola's API.
+unless Denebola::LazyRope.method_defined?(:line_window)
+  class Denebola::LazyRope
+    def line_end(row)
+      start = line_start(row)
+      ending = row + 1 < line_count(exact: true) ? line_start(row + 1) : bytesize
+      tail_start = [ending - 3, start].max
+      tail = send(:read_bytes, tail_start, [ending - tail_start, 3].min)
+      ending - (tail.end_with?("\r\n") ? 2 : tail.end_with?("\r", "\n") ? 1 : 0)
+    end
+
+    def line_window(row, from: 0, max_bytes: 16_384)
+      start, ending = line_start(row), line_end(row)
+      offset = (start + from).clamp(start, ending)
+      offset -= 1 while offset > start && offset < ending && (send(:read_bytes, offset, 1).getbyte(0) & 0xc0) == 0x80
+      value = send(:read_bytes, offset, [max_bytes, ending - offset].min)
+      finish = value.bytesize
+      while finish.positive? && !value.byteslice(0, finish).force_encoding(Encoding::UTF_8).valid_encoding?
+        finish -= 1
+      end
+      [value.byteslice(0, finish).to_s.force_encoding(Encoding::UTF_8), offset - start]
+    end
+  end
+end
 
 module Canopus
   class Buffer
     Transaction = Struct.new(:before, :after, :before_selections, :after_selections, :patch, :kind, :time)
     Anchor = Data.define(:id, :bias)
-    attr_reader :rope, :path, :encoding, :line_ending, :version, :history, :read_only, :disk_digest, :bom, :notification_errors
+    attr_reader :rope, :path, :encoding, :line_ending, :newline, :version, :history, :read_only, :disk_digest,
+      :bom, :detection, :notification_errors
     attr_accessor :selections
 
-    def self.open(path, large_file_threshold: 100 << 20)
+    def self.open(path, large_file_threshold: 100 << 20, encoding: nil)
       if File.size(path) >= large_file_threshold
+        detection = detect_file(path, encoding: encoding)
+        raise Error, "large-file mode requires UTF-8 text" unless detection.encoding == Encoding::UTF_8
         require_relative "lazy_rope"
-        rope = LazyRope.new(path)
-        return new("", path: path, read_only: true, rope: rope)
+        rope = Denebola::LazyRope.open(path, chunk_size: 65_536, cache_chunks: 32)
+        rope.line_count(exact: true)
+        return new("", path: path, read_only: true, rope: rope, encoding: detection.encoding,
+          bom: detection.bom, detection: detection)
       end
       raw = File.binread(path)
-      text, encoding, bom = decode_bytes(raw)
-      new(text, path: path, encoding: encoding, bom: bom, disk_digest: Digest::SHA256.hexdigest(raw))
+      detection = detect_bytes(raw, encoding: encoding)
+      raise Error, "cannot edit binary file" if detection.binary
+      text = Menkar.decode(raw, detection)
+      new(text, path: path, encoding: detection.encoding, bom: detection.bom, detection: detection,
+        disk_digest: Digest::SHA256.hexdigest(raw))
+    rescue Menkar::Error => error
+      raise Error, error.message
     rescue EncodingError => error
       raise Error, "cannot decode #{path}: #{error.message}"
     end
+
+    def self.detect_file(path, encoding: nil)
+      return Menkar.detect_file(path) unless encoding
+
+      sample = File.open(path, "rb") { |file| file.read(Menkar::DEFAULT_SAMPLE + 1) || "".b }
+      detect_bytes(sample, encoding: encoding)
+    rescue Menkar::Error => error
+      raise Error, error.message
+    end
+    private_class_method :detect_file
+
+    def self.detect_bytes(raw, encoding: nil)
+      requested = encoding && Menkar.detect("".b, hint: encoding).encoding
+      detected = Menkar.detect(raw)
+      return detected unless requested
+      return detected unless detected.bom.empty?
+
+      Menkar.detect(raw, hint: requested).with(encoding: requested, confidence: 1.0, bom: "".b, binary: false)
+    end
+    private_class_method :detect_bytes
 
     # Decode worktree files and historical Git blobs by the same rules.
     # @return [Array(String, Encoding, String)] UTF-8 text, source encoding, BOM
     def self.decode_bytes(raw)
       raw = raw.b unless raw.encoding == Encoding::BINARY
-      bom, encoding = if raw.start_with?("\xEF\xBB\xBF".b)
-        ["\xEF\xBB\xBF".b, Encoding::UTF_8]
-      elsif raw.start_with?("\xFF\xFE".b)
-        ["\xFF\xFE".b, Encoding::UTF_16LE]
-      elsif raw.start_with?("\xFE\xFF".b)
-        ["\xFE\xFF".b, Encoding::UTF_16BE]
-      elsif raw.dup.force_encoding(Encoding::UTF_8).valid_encoding?
-        ["".b, Encoding::UTF_8]
-      else
-        ["".b, Encoding::Windows_31J]
-      end
-      text = raw.byteslice(bom.bytesize..).force_encoding(encoding).encode(Encoding::UTF_8)
-      raise Error, "binary file contains NUL bytes" if text.include?("\0")
-      [text, encoding, bom]
+      detection = Menkar.detect(raw)
+      raise Error, "binary file contains NUL bytes" if detection.binary
+      [Menkar.decode(raw, detection), detection.encoding, detection.bom]
+    rescue Menkar::Error => error
+      raise Error, error.message
     end
 
-    def initialize(text = "", path: nil, encoding: Encoding::UTF_8, bom: "".b, disk_digest: nil, read_only: false, draft: false, rope: nil)
+    def initialize(text = "", path: nil, encoding: nil, bom: "".b, disk_digest: nil, read_only: false,
+      draft: false, rope: nil, detection: nil)
       @rope = rope || Denebola::Rope.new(text)
       @save_mutex = Mutex.new
       @path = path && File.expand_path(path)
-      @encoding, @bom, @disk_digest = encoding, bom, disk_digest
+      requested = encoding && Menkar.detect("".b, hint: encoding).encoding
+      @detection = detection || self.class.send(:detection_for_text, text, encoding: requested, bom: bom)
+      @encoding, @bom, @disk_digest = @detection.encoding || requested || Encoding::UTF_8,
+        @detection.bom.empty? ? bom : @detection.bom, disk_digest
       @saved_rope, @version, @history, @redo = @rope, 0, [], []
       @saved_rope = nil if draft
       @listeners, @anchors, @next_anchor, @selections = [], {}, 0, []
       @notification_errors = [].freeze
+      @newline = @detection.newline
       @line_ending = text[/\r\n|\n|\r|\u2028|\u2029/] || "\n"
       @line_ending = if rope.respond_to?(:line_ending)
         rope.line_ending
@@ -61,6 +117,8 @@ module Canopus
         @line_ending
       end
       @read_only = read_only
+    rescue Menkar::Error => error
+      raise Error, error.message
     end
     def text = rope.to_s
     def relocate(path) = @path = File.expand_path(path)
@@ -68,16 +126,16 @@ module Canopus
     def line(row) = rope.line(row)
     def line_count = rope.line_count
     def dirty? = !@rope.equal?(@saved_rope)
-    def reload(force: false)
+    def reload(force: false, encoding: nil)
       raise SaveConflict, "buffer has unsaved changes" if dirty? && !force
       raise Error, "buffer has no file path" unless @path
       if @rope.respond_to?(:lazy?) && @rope.lazy?
-        fresh = Buffer.open(@path, large_file_threshold: 0)
+        fresh = Buffer.open(@path, large_file_threshold: 0, encoding: encoding)
         old = @rope
         apply_snapshot(fresh.rope, Patch::Reload.new(old, fresh.rope))
         old.close
       else
-        fresh = Buffer.open(@path)
+        fresh = Buffer.open(@path, encoding: encoding)
         raise Error, "file grew beyond the editable limit; reopen it read-only" if fresh.read_only
         before, after = text, fresh.text
         if before != after
@@ -93,7 +151,8 @@ module Canopus
         end
       end
       @saved_rope = @rope
-      @disk_digest, @encoding, @bom, @line_ending = fresh.disk_digest, fresh.encoding, fresh.bom, fresh.line_ending
+      @disk_digest, @encoding, @bom, @line_ending, @newline, @detection = fresh.disk_digest, fresh.encoding, fresh.bom,
+        fresh.line_ending, fresh.newline, fresh.detection
       self
     ensure
       fresh&.close unless fresh&.rope.equal?(@rope)
@@ -214,7 +273,7 @@ module Canopus
     end
 
     # Encode first, write and fsync a sibling temporary file, atomically rename.
-    def save(path = @path, force: false)
+    def save(path = @path, force: false, encoding: nil)
       @save_mutex.synchronize do
         raise Error, "no file path" unless path
         raise Error, "buffer is read-only" if @read_only
@@ -227,7 +286,8 @@ module Canopus
         end
         raise SaveConflict, "destination exists: #{path}" if !force && original && (!same_file || !@disk_digest)
         snapshot = @rope
-        encoded = @bom + snapshot.to_s.encode(@encoding).b
+        detection = encoding ? detection_for_encoding(encoding) : @detection
+        encoded = Menkar.encode(snapshot.to_s, detection)
         Tempfile.create([".canopus-", ".tmp"], File.dirname(destination), binmode: true) do |file|
           file.chmod(File.stat(destination).mode & 0o777) if original
           file.write(encoded)
@@ -239,12 +299,42 @@ module Canopus
           File.rename(file.path, destination)
         end
         @path = File.expand_path(path)
+        if encoding
+          @detection = detection
+          @encoding, @bom = detection.encoding, detection.bom
+        end
         @saved_rope, @disk_digest = snapshot, Digest::SHA256.hexdigest(encoded)
         self
       end
     rescue EncodingError => error
       raise Error, "cannot save using #{@encoding}: #{error.message}"
+    rescue Menkar::Error => error
+      raise Error, error.message
     end
+
+    def roundtrip?(encoding: nil)
+      return true unless @detection && !@detection.binary
+
+      detection = encoding ? detection_for_encoding(encoding) : @detection
+      Menkar.roundtrip?(text, detection)
+    rescue Menkar::Error => error
+      raise Error, error.message
+    end
+
+    def mixed_line_endings? = @newline == :mixed
+
+    def convert_line_endings(to: :lf)
+      normalized, = Menkar.normalize_newlines(text, to: to)
+      return false if normalized == text
+
+      edit([[0...rope.bytesize, normalized]], kind: :format)
+      @line_ending, @newline = {lf: "\n", crlf: "\r\n", cr: "\r"}.fetch(to), to
+      @detection = @detection.with(newline: to) if @detection.respond_to?(:with)
+      true
+    rescue Menkar::Error => error
+      raise Error, error.message
+    end
+    alias convert_newlines convert_line_endings
 
     def trim_trailing_whitespace
       changes = []
@@ -265,6 +355,29 @@ module Canopus
     end
 
     private
+    def self.detection_for_text(text, encoding:, bom:)
+      detection = Menkar.detect(text.b, hint: encoding)
+      return detection if encoding.nil? && bom.empty?
+
+      detection.with(encoding: encoding || detection.encoding, bom: bom, binary: false)
+    end
+    private_class_method :detection_for_text
+
+    def detection_for_encoding(encoding)
+      encoding = Menkar.detect("".b, hint: encoding).encoding
+      bom = case encoding
+      when Encoding::UTF_16LE then "\xFF\xFE".b
+      when Encoding::UTF_16BE then "\xFE\xFF".b
+      when Encoding::UTF_32LE then "\xFF\xFE\x00\x00".b
+      when Encoding::UTF_32BE then "\x00\x00\xFE\xFF".b
+      else "".b
+      end
+      Menkar::Detection.new(encoding, 1.0, bom, @newline, @detection.indent, false)
+    rescue ArgumentError
+      raise Error, "unknown encoding: #{encoding}"
+    rescue Menkar::Error => error
+      raise Error, error.message
+    end
     def persistent_undo_transaction(transaction)
       {"kind" => transaction.kind.to_s,
         "before_selections" => persistent_undo_selection_list(transaction.before_selections),

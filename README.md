@@ -44,6 +44,7 @@ installable.
 - Rectangular selection with Alt-drag and vertical cursor insertion
 - Multi-cursor expansion to selected line starts, line ends, or every regular-expression match
 - Lazy call and type hierarchy trees with bidirectional navigation
+- Menkar-based encoding detection, newline display and conversion, and encoding-aware saves
 - Ranked, extensible completion and inline-completion provider registry
 - Viewport-scoped LSP inlay hints with clickable label locations
 - Nested bracket colors and active indentation guides backed by Antares structure analysis
@@ -335,16 +336,17 @@ bundle exec ruby tools/check_dependencies.rb test/type/smoke.rb
 ```
 
 Before component releases are available, use sibling checkouts with
-`SADR_PATH=../sadr MEGREZ_PATH=../megrez TARAZED_PATH=../tarazed ALKAID_PATH=../alkaid ANTARES_PATH=../antares bundle install`.
+`SADR_PATH=../sadr MEGREZ_PATH=../megrez MENKAR_PATH=../menkar TARAZED_PATH=../tarazed ALKAID_PATH=../alkaid ANTARES_PATH=../antares bundle install`.
 
 Run `bundle exec rake bench` for performance checks. Contributions can be
 submitted through [GitHub issues and pull requests](https://github.com/noxdea/canopus/issues).
 
 ## Limits
 
-- Files larger than 100 MiB use a read-only UTF-8 path without wrapping or folding.
+- Files larger than 100 MiB use Denebola's read-only, UTF-8 `LazyRope` path with bounded page caching; wrapping and folding remain disabled.
 - Persistent undo records are limited to 16 MiB per file and 256 MiB per project.
-- Large-file UTF-16 and legacy encodings are unsupported.
+- Smaller text files use Menkar to detect UTF-8/16/32 and common legacy encodings; binary files are not opened as editable buffers.
+- Mixed line endings are shown as `mixed` in the status bar and can be normalized to LF, CRLF, or CR from the encoding actions.
 - Git support targets SHA-1 repositories and does not implement every index or object extension.
 - The integrated terminal uses a POSIX PTY on macOS/Linux and ConPTY on 64-bit Windows.
 - Desktop packages are unsigned and do not bundle Ruby or automatic updates.
