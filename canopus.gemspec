@@ -33,6 +33,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "prism", "~> 1.0"
   spec.add_dependency "rouge", "~> 5.0"
   spec.add_dependency "sadr", "~> 0.2.0"
+  spec.add_dependency "saiph", "~> 0.1.0"
   spec.add_dependency "spica", "~> 0.1.0"
   spec.add_dependency "tarazed", "~> 0.2.4"
   spec.add_dependency "thuban", "~> 0.6.0"

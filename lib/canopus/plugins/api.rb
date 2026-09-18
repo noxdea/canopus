@@ -9,7 +9,9 @@ module Canopus
         @workspace, @permissions = workspace, permissions
       end
       def permit!(permission)
-        raise Canopus::Plugins::PermissionDenied, "plugin requires #{permission}" unless @permissions.include?(permission)
+        requested = permission.to_s
+        normalized = requested == "process" ? "exec" : requested
+        raise Canopus::Plugins::PermissionDenied, "plugin requires #{requested}" unless @permissions.include?(normalized)
       end
       def text
         permit!("read_buffer")
@@ -25,7 +27,7 @@ module Canopus
       end
       def notify(message) = @workspace.message = message.to_s
       def run(command)
-        permit!("process")
+        permit!("exec")
         raise ArgumentError, "command must be a nonempty argument array" unless command.is_a?(Array) && !command.empty?
         Open3.capture3(*command, chdir: @workspace.root)
       end

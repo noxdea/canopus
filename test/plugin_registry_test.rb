@@ -66,4 +66,27 @@ class PluginRegistryTest < Minitest::Test
       end
     end
   end
+
+  def test_sandbox_policy_maps_project_permissions
+    with_plugin('register_action("noop") { |_api| "ok" }') do |workspace, _path|
+      runtime = Canopus::Plugins::IsolatedRuntime.allocate
+      runtime.instance_variable_set(:@workspace, workspace)
+      runtime.instance_variable_set(:@permissions, %w[read_project write_project network exec])
+      policy = runtime.send(:sandbox_policy)
+      assert_equal [workspace.root], policy.read_paths
+      assert_equal [workspace.root], policy.write_paths
+      assert policy.network
+      assert policy.exec
+    end
+  end
+
+  def test_required_sandbox_rejects_unsupported_backend
+    skip if Saiph.available?
+
+    with_plugin('register_action("noop") { |_api| "ok" }') do |workspace, path|
+      workspace.settings.merge!("plugins" => {"sandbox" => "required"})
+      error = assert_raises(Canopus::Error) { workspace.plugins.load(path, trusted: true) }
+      assert_includes error.message, "sandbox is required"
+    end
+  end
 end

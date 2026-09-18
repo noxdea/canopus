@@ -3,9 +3,12 @@
 require "json"
 require "open3"
 require "rbconfig"
+saiph_path = ENV["SAIPH_PATH"]
+saiph_root = File.expand_path("../..", __dir__)
+saiph_path ? require(File.expand_path("lib/saiph", File.expand_path(saiph_path, saiph_root))) : require("saiph")
 
 # Separate-process execution isolates crashes and accidental global state.
-# It is NOT an OS sandbox: Ruby plugins remain trusted executable code.
+# Saiph adds an OS sandbox when the host backend supports the requested policy.
 module Canopus
   module Plugins
     class IsolatedRuntime
@@ -21,7 +24,8 @@ module Canopus
         @context, @permissions, @edits, @messages = context, permissions, [], []
       end
       def permit!(name)
-        raise "plugin requires #{name}" unless @permissions.include?(name)
+        normalized = name.to_s == "process" ? "exec" : name.to_s
+        raise "plugin requires #{name}" unless @permissions.include?(normalized)
       end
       def text
         permit!("read_buffer")
@@ -37,7 +41,7 @@ module Canopus
       end
       def notify(message) = @messages << message.to_s
       def run(command)
-        permit!("process")
+        permit!("exec")
         raise "command must be an argument array" unless command.is_a?(Array) && !command.empty?
         Open3.capture3(*command, chdir: @context.fetch("root"))
       end
@@ -95,12 +99,12 @@ module Canopus
   RUBY
 
       def initialize(workspace, source, path, permissions, timeout: 2)
-        @workspace, @permissions, @timeout = workspace, permissions, timeout
-        @input, @output, @process = Open3.popen2(RbConfig.ruby, "-e", WORKER)
+        @workspace, @permissions, @timeout = workspace, permissions.map { |permission| permission.to_s == "process" ? "exec" : permission.to_s }.uniq, timeout
+        start_process
         @input.sync = true
         @output.binmode
         @pending, @lock = +"".b, Mutex.new
-        @input.puts(JSON.generate(source: source, path: path, permissions: permissions))
+        @input.puts(JSON.generate(source: source, path: path, permissions: @permissions))
         manifest = response
         manifest.fetch("actions").each do |name, description|
           workspace.register_action(name, description: description) { invoke(:action, name) }
@@ -138,12 +142,56 @@ module Canopus
       def close
         @input&.close unless @input&.closed?
         if @process && !@process.join(0.2)
-          Process.kill("KILL", @process.pid) rescue Errno::ESRCH
+          Process.kill("KILL", @pid) rescue Errno::ESRCH
           @process.join
         end
         @output&.close unless @output&.closed?
       end
   private
+      def start_process
+        command = [RbConfig.ruby, "-e", WORKER]
+        mode = @workspace.settings["plugins"].fetch("sandbox", "auto")
+        return start_open3(command) if mode == "off"
+
+        start_saiph(command)
+      rescue Saiph::Unsupported => error
+        raise Canopus::Error, "plugin sandbox is required: #{error.message}" if mode == "required"
+
+        @workspace.message = "Plugin OS sandbox disabled: #{error.message}"
+        start_open3(command)
+      end
+
+      def start_open3(command)
+        @input, @output, @process = Open3.popen2(*command)
+        @pid = @process.pid
+      end
+
+      def start_saiph(command)
+        child_input, input = IO.pipe
+        output, child_output = IO.pipe
+        @pid = Saiph.spawn(command, policy: sandbox_policy, in: child_input, out: child_output)
+        child_input.close
+        child_output.close
+        @input, @output = input, output
+        @process = Process.detach(@pid)
+      rescue Exception
+        child_input&.close unless child_input&.closed?
+        child_output&.close unless child_output&.closed?
+        input&.close unless input&.closed?
+        output&.close unless output&.closed?
+        raise
+      end
+
+      def sandbox_policy
+        Saiph::Policy.new(
+          @permissions.include?("read_project") ? [@workspace.root] : [],
+          @permissions.include?("write_project") ? [@workspace.root] : [],
+          @permissions.include?("network"),
+          @permissions.include?("exec"),
+          []
+        )
+      end
+
       def response
         deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + @timeout
         loop do

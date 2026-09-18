@@ -3,7 +3,7 @@
 module Canopus
   module Plugins
     class Registry
-      PERMISSIONS = %w[read_buffer edit_buffer read_project process network].freeze
+      PERMISSIONS = %w[read_buffer edit_buffer read_project write_project exec process network].freeze
 
       def initialize(workspace)
         @workspace, @loaded = workspace, []
@@ -11,7 +11,7 @@ module Canopus
 
       def load(path, trusted: false, permissions: [], isolated: true, timeout: 2)
         raise PermissionDenied, "plugins execute Ruby code; explicitly mark this plugin trusted" unless trusted
-        permissions = permissions.map(&:to_s)
+        permissions = permissions.map { |permission| permission.to_s == "process" ? "exec" : permission.to_s }.uniq
         raise PermissionDenied, "unknown plugin permission" unless (permissions - PERMISSIONS).empty?
         source = File.read(path, 256 * 1024 + 1, encoding: "UTF-8")
         raise Error, "plugin source exceeds 256KB" if source.bytesize > 256 * 1024

@@ -13,7 +13,7 @@ smoke = ARGV.first && File.expand_path(ARGV.fetch(0))
 abort "Usage: ruby tools/check_dependencies.rb [smoke.rb]" if ARGV.length > 1 || (smoke && !File.file?(smoke))
 specification = Gem::Specification.load(File.join(root, "#{entry}.gemspec"))
 dependencies = specification.runtime_dependencies.map(&:name).sort
-expected = %w[alhena alkaid antares denebola editorconfig kochab megrez menkar porrima prism rouge sadr spica tarazed thuban timeout unicode-display_width zaniah]
+expected = %w[alhena alkaid antares denebola editorconfig kochab megrez menkar porrima prism rouge sadr saiph spica tarazed thuban timeout unicode-display_width zaniah]
 abort "unexpected runtime gem dependencies" unless dependencies == expected
 abort "native extension declaration" unless specification.extensions.empty?
 abort "packaged native binary" if specification.files.any? { |path| path.match?(/\.(?:so|bundle|dll|dylib|a|o)\z/i) }
@@ -33,9 +33,9 @@ Dir.mktmpdir("#{entry}-install-") do |directory|
   environment = ENV.each_key.grep(/\ABUNDLE/).to_h { |key| [key, nil] }.merge(
     "GEM_HOME" => installation, "GEM_PATH" => ([installation] + Gem.path).join(File::PATH_SEPARATOR),
     "RUBYLIB" => nil, "RUBYOPT" => nil, "ALKAID_PATH" => nil, "ANTARES_PATH" => nil,
-    "MEGREZ_PATH" => nil, "MENKAR_PATH" => nil, "SADR_PATH" => nil, "TARAZED_PATH" => nil
+    "MEGREZ_PATH" => nil, "MENKAR_PATH" => nil, "SADR_PATH" => nil, "SAIPH_PATH" => nil, "TARAZED_PATH" => nil
   )
-  {"ALKAID_PATH" => "alkaid", "ANTARES_PATH" => "antares", "MEGREZ_PATH" => "megrez", "MENKAR_PATH" => "menkar", "SADR_PATH" => "sadr",
+  {"ALKAID_PATH" => "alkaid", "ANTARES_PATH" => "antares", "MEGREZ_PATH" => "megrez", "MENKAR_PATH" => "menkar", "SADR_PATH" => "sadr", "SAIPH_PATH" => "saiph",
    "TARAZED_PATH" => "tarazed"}.each do |variable, name|
     next unless ENV[variable]
 

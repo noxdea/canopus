@@ -307,9 +307,10 @@ canopus --plugin examples/plugins/word_count.rb \
   --trust-plugins --grant read_buffer
 ```
 
-The default separate process contains plugin crashes and timeouts, but it is not
-an OS sandbox. Trusted Ruby code retains the invoking user's filesystem and
-network privileges.
+The default separate process also requests Saiph's OS sandbox. Set
+`plugins.sandbox` to `"required"` to reject plugins when the host has no
+supported backend, or to `"off"` to retain the legacy process-only isolation.
+The legacy `process` permission is accepted as an alias for `exec`.
 
 ## Documentation
 
@@ -331,12 +332,12 @@ git clone https://github.com/noxdea/canopus.git
 cd canopus
 bundle install
 bundle exec rake test
-bundle exec rbs -I sig -r kochab -r porrima -r thuban -r alhena -r antares -r denebola -r zaniah -r sadr -r megrez -r tarazed -r alkaid -r stringio -r strscan validate
+bundle exec rbs -I sig -r kochab -r porrima -r thuban -r alhena -r antares -r denebola -r zaniah -r sadr -r saiph -r megrez -r tarazed -r alkaid -r stringio -r strscan validate
 bundle exec ruby tools/check_dependencies.rb test/type/smoke.rb
 ```
 
 Before component releases are available, use sibling checkouts with
-`SADR_PATH=../sadr MEGREZ_PATH=../megrez MENKAR_PATH=../menkar TARAZED_PATH=../tarazed ALKAID_PATH=../alkaid ANTARES_PATH=../antares bundle install`.
+`SADR_PATH=../sadr SAIPH_PATH=../saiph MEGREZ_PATH=../megrez MENKAR_PATH=../menkar TARAZED_PATH=../tarazed ALKAID_PATH=../alkaid ANTARES_PATH=../antares bundle install`.
 
 Run `bundle exec rake bench` for performance checks. Contributions can be
 submitted through [GitHub issues and pull requests](https://github.com/noxdea/canopus/issues).

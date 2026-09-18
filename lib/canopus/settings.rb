@@ -150,6 +150,7 @@ module Canopus
       validate_persistent_undo!
       validate_save_actions!
       validate_git!
+      validate_plugins!
       validate_recovery!
       validate_language_server_keys!
       snapshot_language_servers!
@@ -287,6 +288,12 @@ module Canopus
       raise Error, "recovery.enabled must be true or false" unless [true, false].include?(recovery["enabled"])
       interval = recovery["interval"]
       raise Error, "invalid recovery.interval" unless interval.is_a?(Integer) && interval.between?(100, 3_600_000)
+    end
+
+    def validate_plugins!
+      plugins = @values["plugins"]
+      raise Error, "plugins must be an object" unless plugins.is_a?(Hash)
+      raise Error, "invalid plugins.sandbox" unless %w[off auto required].include?(plugins["sandbox"])
     end
 
     def validate_diagnostics!
