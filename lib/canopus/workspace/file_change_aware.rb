@@ -4,10 +4,14 @@ module Canopus
   module Workspace::FileChangeAware
     def start_watching
       return if @watcher || !@project
-      native = begin
-        Zaniah::Platform.watch(@root)
-      rescue LoadError, Zaniah::Error, SystemCallError
+      native = if @window && @window.class == Zaniah::Platform::Headless::Window
         nil
+      else
+        begin
+          Zaniah::Platform.watch(@root)
+        rescue LoadError, Zaniah::Error, SystemCallError
+          nil
+        end
       end
       @watcher = @project.watcher(native: native)
       @last_watch = 0
