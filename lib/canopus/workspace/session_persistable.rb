@@ -28,9 +28,11 @@ module Canopus
         active_pane: @panes.index(@active_pane), docks: @docks, panels: @panels.state,
         terminals: @terminals.map do |current|
           cwd = current.respond_to?(:cwd) ? current.cwd : current.vt.cwd
-          {cwd: cwd || (current.respond_to?(:initial_cwd) ? current.initial_cwd : @root), title: @terminal_names[current]}
+          {cwd: cwd || (current.respond_to?(:initial_cwd) ? current.initial_cwd : @root), title: @terminal_names[current],
+            profile: terminal_profile(current)}
         end,
-        active_terminal: @active_terminal_index, terminal_visible: terminal_visible,
+        active_terminal: @active_terminal_index, terminal_layout: encode_terminal_layout(@terminal_layout),
+        terminal_visible: terminal_visible,
         panes: @panes.map do |pane|
           {active: pane.active_index, tabs: pane.editors.filter_map do |current|
             buffer_id = record.call(current.buffer)
@@ -184,29 +186,80 @@ module Canopus
 
     def validate_session_terminals(data)
       records = data.fetch("terminals", [])
-      raise Error, "invalid session terminals" unless records.is_a?(Array) && records.length <= 100 && records.all? { |item| item.is_a?(Hash) && item["cwd"].is_a?(String) }
+      valid = records.is_a?(Array) && records.length <= 100 && records.all? do |item|
+        item.is_a?(Hash) && item["cwd"].is_a?(String) && (item["profile"].nil? || item["profile"].is_a?(String))
+      end
+      raise Error, "invalid session terminals" unless valid
       active = data.fetch("active_terminal", 0)
       raise Error, "invalid active terminal" unless records.empty? || active.is_a?(Integer) && active.between?(0, records.length - 1)
+      if data["terminal_layout"]
+        visible = []
+        validate_terminal_layout(data["terminal_layout"], records.length, visible)
+        raise Error, "active terminal missing from layout" unless visible.include?(active)
+      end
       records
     end
 
     def restore_terminals(data, records)
-      old, old_index, old_visible = @terminals, @active_terminal_index, terminal_visible
+      old, old_index, old_visible, old_layout = @terminals, @active_terminal_index, terminal_visible, @terminal_layout
+      old_profiles = @terminal_profiles
       @terminals = []
+      @terminal_profiles = {}.compare_by_identity
+      @terminal_layout = nil
       records.each do |record|
         cwd = File.directory?(record["cwd"]) ? record["cwd"] : @root
-        created = new_terminal(cwd: cwd)
+        profile = record["profile"] if @settings["terminal"]["profiles"].key?(record["profile"])
+        created = new_terminal(cwd: cwd, profile: profile)
         rename_terminal(record["title"], created) if record["title"].is_a?(String)
       end
       @active_terminal_index = @terminals.empty? ? 0 : data.fetch("active_terminal", 0)
+      @terminal_layout = if @terminals.empty?
+        nil
+      elsif data["terminal_layout"]
+        decode_terminal_layout(data["terminal_layout"], @terminals)
+      else
+        {terminal: terminal}
+      end
+      invalidate_terminal_layout_resize
       self.terminal_visible = !!data["terminal_visible"] && !@terminals.empty?
       old.each { |current| current.close if current.respond_to?(:close) }
     rescue StandardError
       @terminals.each { |current| current.close if current.respond_to?(:close) }
       @terminals = old
       @active_terminal_index = old_index
+      @terminal_profiles = old_profiles
+      @terminal_layout = old_layout
       self.terminal_visible = old_visible
       @message = "Session restored; terminals could not start"
+    end
+
+    def encode_terminal_layout(node)
+      return unless node
+      return {terminal: @terminals.index(node[:terminal])} if node[:terminal]
+      {direction: node[:direction], ratio: node.fetch(:ratio, 0.5),
+        children: node[:children].map { |child| encode_terminal_layout(child) }}
+    end
+
+    def validate_terminal_layout(node, count, seen = [], depth = 0)
+      raise Error, "invalid terminal layout" unless node.is_a?(Hash) && depth < 100
+      if node.key?("terminal")
+        index = node["terminal"]
+        raise Error, "invalid terminal layout" unless index.is_a?(Integer) && index.between?(0, count - 1) && !seen.include?(index)
+        seen << index
+        return true
+      end
+      direction, ratio, children = node.values_at("direction", "ratio", "children")
+      valid = %w[horizontal vertical].include?(direction) && ratio.is_a?(Numeric) && ratio.finite? &&
+        ratio.between?(0.1, 0.9) && children.is_a?(Array) && children.length == 2
+      raise Error, "invalid terminal layout" unless valid
+      children.each { |child| validate_terminal_layout(child, count, seen, depth + 1) }
+      true
+    end
+
+    def decode_terminal_layout(node, terminals)
+      return {terminal: terminals.fetch(node.fetch("terminal"))} if node.key?("terminal")
+      {direction: node.fetch("direction").to_sym, ratio: node.fetch("ratio"),
+        children: node.fetch("children").map { |child| decode_terminal_layout(child, terminals) }}
     end
   end
 end

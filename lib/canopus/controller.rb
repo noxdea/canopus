@@ -94,9 +94,16 @@ module Canopus
         if @terminal_drag
           @terminal_drag == :selection ? @view.terminal_select(event.position, extend: true) : terminal_mouse(event, :move)
         elsif !(@drag || @resize_drag || @scroll_drag || @drag_file || @drag_tab)
-          target = @view.hit(event.position)&.first
-          terminal = [:terminal, :terminal_command].include?(target) ? (@workspace.terminal if @workspace.terminal_visible) :
-            (@workspace.task_terminal if target == :task_output && @workspace.task_output_visible)
+          hit = @view.hit(event.position)
+          target = hit&.first
+          terminal = if target == :terminal
+            hit[1] if @workspace.terminal_visible
+          elsif target == :terminal_command
+            hit[2] if @workspace.terminal_visible
+          elsif target == :task_output
+            @workspace.task_terminal if @workspace.task_output_visible
+          end
+          @view.focus_terminal(terminal) if terminal
           terminal_mouse(event, :move, terminal: terminal) if terminal&.vt&.modes&.[](1003)
         end
         unless @drag || @resize_drag || @scroll_drag || @minimap_drag || @drag_file || @drag_tab || @terminal_drag
@@ -109,7 +116,7 @@ module Canopus
           end
         end
       when Zaniah::Input::MouseUp
-        @workspace.flush_terminal_resize if @resize_drag&.first == :dock_resize
+        @workspace.flush_terminal_resize if @resize_drag
         @resize_drag = nil
         @scroll_drag = nil
         @minimap_drag = nil
@@ -511,6 +518,15 @@ module Canopus
       elsif [:task_output, :task_output_tab, :task_output_close].include?(kind)
         :task_output
       end
+      if kind == :terminal || kind == :terminal_command
+        current = kind == :terminal ? args.first : args[1]
+        if current && (index = @workspace.terminals.index(current))
+          @workspace.activate_terminal(index)
+          @view.focus_terminal(current)
+        end
+      elsif kind == :task_output && args.first
+        @view.focus_terminal(args.first)
+      end
       case kind
       when :decoration, :context_decoration
         if event.button == :left
@@ -632,7 +648,9 @@ module Canopus
       elsif [:file, :directory].include?(action&.first)
         @view.project_scroll(event.delta.y / 24.0)
       elsif [:terminal, :terminal_command, :task_output].include?(action&.first)
-        terminal = action.first == :task_output ? @workspace.task_terminal : @workspace.terminal
+        terminal = action.first == :terminal_command ? action[2] : action[1]
+        terminal ||= action.first == :task_output ? @workspace.task_terminal : @workspace.terminal
+        @view.focus_terminal(terminal)
         if [1000, 1002, 1003].any? { |mode| terminal.vt.modes[mode] }
           if (position = @view.terminal_point(event.position))
             terminal.mouse(button: event.delta.y.positive? ? :wheel_down : :wheel_up, column: position[0], row: position[1])

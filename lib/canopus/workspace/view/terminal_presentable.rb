@@ -149,7 +149,32 @@ module Canopus
       true
     end
 
+    def focus_terminal(terminal)
+      return terminal if @terminal_owner.equal?(terminal)
+      store_terminal_state if @terminal_owner
+      @terminal_owner = terminal
+      state = terminal&.instance_variable_get(:@canopus_terminal_view_state)
+      @terminal_scroll = state&.fetch(:scroll, 0) || 0
+      @terminal_selection = state&.[](:selection)
+      @terminal_bounds = state&.[](:bounds)
+      @terminal_visible_rows = state&.[](:visible_rows)
+      @terminal_first = state&.fetch(:first, 0) || 0
+      @terminal_first_display = state&.fetch(:first_display, 0) || 0
+      @terminal_cell_width = state&.[](:cell_width)
+      @terminal_line_height = state&.[](:line_height)
+      @terminal_font_size = state&.[](:font_size)
+      terminal
+    end
+
     private
+    def store_terminal_state
+      @terminal_owner.instance_variable_set(:@canopus_terminal_view_state,
+        {scroll: @terminal_scroll || 0, selection: @terminal_selection,
+        bounds: @terminal_bounds, visible_rows: @terminal_visible_rows, first: @terminal_first || 0,
+        first_display: @terminal_first_display || 0, cell_width: @terminal_cell_width,
+        line_height: @terminal_line_height, font_size: @terminal_font_size})
+    end
+
     def terminal_visual_point(point)
       grid = displayed_terminal.grid
       column = ((point.x - @terminal_bounds.x) / @terminal_cell_width).floor.clamp(0, grid.columns - 1)
@@ -266,9 +291,18 @@ module Canopus
     end
     def displayed_terminal = @terminal_owner || @workspace.terminal
     def render_terminal(bounds)
-      render_pty_panel(bounds, entries: @workspace.terminals, active: @workspace.terminal,
-        title: ->(item) { @workspace.terminal_title(item) }, prefix: :terminal,
-        empty: "No terminals — Ctrl+Shift+` to create one") { |item| item }
+      fill(bounds, :panel)
+      active = @workspace.terminal
+      unless active
+        focus_terminal(nil)
+        text("No terminals — Ctrl+Shift+` to create one", bounds.x + 12, bounds.y + 8, color: :muted, size: 12)
+        return
+      end
+      render_pty_tabs(bounds, entries: @workspace.terminals, active: active,
+        title: ->(item) { @workspace.terminal_title(item) }, prefix: :terminal)
+      body = Zaniah::Bounds.new(bounds.x, bounds.y + 28, bounds.width, [bounds.height - 28, 0].max)
+      render_terminal_layout(@workspace.terminal_layout || {terminal: active}, body)
+      focus_terminal(active)
     end
 
     def render_task_output(bounds)
@@ -279,16 +313,20 @@ module Canopus
 
     def render_pty_panel(bounds, entries:, active:, title:, prefix:, empty:, &terminal_for)
       fill(bounds, :panel)
-      @terminal_bounds = nil
       terminal = active && terminal_for.call(active)
       unless terminal
-        @terminal_owner = nil
+        focus_terminal(nil)
         text(empty, bounds.x + 12, bounds.y + 8, color: :muted, size: 12)
         return
       end
-      if @terminal_owner != terminal
-        @terminal_owner, @terminal_scroll, @terminal_selection = terminal, 0, nil
-      end
+      render_pty_tabs(bounds, entries: entries, active: active, title: title, prefix: prefix)
+      focus_terminal(terminal)
+      body = Zaniah::Bounds.new(bounds.x, bounds.y + 28, bounds.width, [bounds.height - 28, 0].max)
+      render_terminal_content(terminal, body, prefix)
+      store_terminal_state
+    end
+
+    def render_pty_tabs(bounds, entries:, active:, title:, prefix:)
       x = bounds.x
       entries.each_with_index do |current, index|
         label = title.call(current)
@@ -305,14 +343,43 @@ module Canopus
         region(close, role: :button, label: "#{running ? 'Stop' : 'Close'} #{label}", action: [close_action, index])
         x += width
       end
+    end
+
+    def render_terminal_layout(node, bounds)
+      if node[:terminal]
+        focus_terminal(node[:terminal])
+        render_terminal_content(node[:terminal], bounds, :terminal)
+        store_terminal_state
+        return
+      end
+      horizontal = node[:direction] == :horizontal
+      ratio = node.fetch(:ratio, 0.5)
+      node[:children].each_with_index do |child, index|
+        start, fraction = index.zero? ? [0, ratio] : [ratio, 1 - ratio]
+        part = if horizontal
+          Zaniah::Bounds.new(bounds.x + bounds.width * start, bounds.y, bounds.width * fraction, bounds.height)
+        else
+          Zaniah::Bounds.new(bounds.x, bounds.y + bounds.height * start, bounds.width, bounds.height * fraction)
+        end
+        render_terminal_layout(child, part)
+      end
+      divider = horizontal ?
+        Zaniah::Bounds.new(bounds.x + bounds.width * ratio - 2, bounds.y, 4, bounds.height) :
+        Zaniah::Bounds.new(bounds.x, bounds.y + bounds.height * ratio - 2, bounds.width, 4)
+      fill(divider, :border)
+      region(divider, role: :separator, label: "Resize terminal split", action: [:split_resize, node, bounds])
+    end
+
+    def render_terminal_content(terminal, bounds, prefix)
       @terminal_font_size = @workspace.settings["terminal"]["font_size"] || @font_size
       @terminal_line_height = (@terminal_font_size * @workspace.settings["terminal"]["line_height"]).ceil
       @terminal_cell_width = @cx.text_system&.layout_line("M", size: @terminal_font_size)&.width || @terminal_font_size * 0.6
       columns = [(bounds.width - 24) / @terminal_cell_width, @workspace.settings["terminal"]["min_cols"]].max.floor
-      rows = [(bounds.height - 40) / @terminal_line_height, @workspace.settings["terminal"]["min_rows"]].max.floor
-      prefix == :terminal ? @workspace.resize_terminal(columns, rows) : @workspace.resize_task_output(columns, rows)
+      rows = [(bounds.height - 12) / @terminal_line_height, @workspace.settings["terminal"]["min_rows"]].max.floor
+      prefix == :terminal ? @workspace.resize_terminal(columns, rows, terminal: terminal) : @workspace.resize_task_output(columns, rows)
       grid = terminal.grid
-      @terminal_bounds = Zaniah::Bounds.new(bounds.x + 12, bounds.y + 32, columns * @terminal_cell_width, rows * @terminal_line_height).intersect(bounds)
+      @terminal_bounds = Zaniah::Bounds.new(bounds.x + 12, bounds.y + 4,
+        columns * @terminal_cell_width, rows * @terminal_line_height).intersect(bounds)
       map = terminal_row_map(terminal)
       maximum = [map[:visible] - rows, 0].max
       @terminal_scroll = (@terminal_scroll || 0).clamp(0, maximum)
@@ -396,9 +463,13 @@ module Canopus
         text(hint, @terminal_bounds.x + 4,
           [@terminal_bounds.bottom - @terminal_line_height, @terminal_bounds.y].max, color: :muted, size: 11)
       end
-      region(@terminal_bounds, role: :terminal, label: prefix == :terminal ? "Terminal" : "Task output", action: [prefix])
+      if prefix == :terminal && terminal.equal?(@workspace.terminal)
+        fill(Zaniah::Bounds.new(bounds.x, bounds.y, bounds.width, 2), :accent)
+      end
+      action = prefix == :terminal ? [prefix, terminal] : [prefix]
+      region(@terminal_bounds, role: :terminal, label: prefix == :terminal ? "Terminal" : "Task output", action: action)
       command_regions.each do |bounds, command|
-        region(bounds, role: :button, label: "Toggle command output", action: [:terminal_command, command])
+        region(bounds, role: :button, label: "Toggle command output", action: [:terminal_command, command, terminal])
       end
     end
   end

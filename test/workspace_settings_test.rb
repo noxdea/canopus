@@ -61,8 +61,15 @@ class WorkspaceSettingsTest < Minitest::Test
 
   def test_shell_integration_setting_is_defaulted_and_validated
     assert_equal true, @workspace.settings["terminal"]["shell_integration"]
+    assert_equal({}, @workspace.settings["terminal"]["profiles"])
+    assert_nil @workspace.settings["terminal"]["default_profile"]
     assert_equal "boolean", Canopus::Settings.schema.dig("properties", "terminal", "properties", "shell_integration", "type")
+    assert_equal "object", Canopus::Settings.schema.dig("properties", "terminal", "properties", "profiles", "type")
     assert_raises(Canopus::Error) { Canopus::Settings.new("terminal" => {"shell_integration" => "yes"}) }
+    assert_raises(Canopus::Error) { Canopus::Settings.new("terminal" => {"profiles" => []}) }
+    assert_raises(Canopus::Error) do
+      Canopus::Settings.new("terminal" => {"profiles" => {"bad" => {"env" => {"VALUE" => 1}}}})
+    end
   end
 
   def test_inlay_hint_settings_are_defaulted_and_validated

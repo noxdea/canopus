@@ -30,6 +30,7 @@ module Canopus
           "search" => {"size" => 220, "visible" => false}.freeze,
           "terminal" => {"size" => 280, "visible" => false}.freeze}.freeze}.freeze,
       "terminal" => {"shell" => nil, "working_directory" => "project", "env" => {}.freeze, "scrollback_lines" => 10_000,
+        "profiles" => {}.freeze, "default_profile" => nil,
         "font_size" => nil, "line_height" => 1.2, "copy_on_select" => false, "blinking" => "terminal_controlled", "cursor_shape" => "block",
         "close_on_exit" => "clean", "confirm_close_running" => true, "confirm_multiline_paste" => true,
         "restore_on_startup" => false, "hide_when_empty" => false, "shell_integration" => true, "max_bytes_per_frame" => 262_144,
@@ -46,7 +47,8 @@ module Canopus
       "theme" => {"type" => "string"}, "font_family" => {"type" => ["string", "null"]},
       "icon_theme" => {"type" => ["string", "null"]},
       "tabs" => {"type" => "object"}, "terminal" => {"type" => "object", "properties" => {
-        "shell_integration" => {"type" => "boolean"}}},
+        "shell_integration" => {"type" => "boolean"}, "default_profile" => {"type" => ["string", "null"]},
+        "profiles" => {"type" => "object", "additionalProperties" => {"$ref" => "#/$defs/terminal_profile"}}}},
       "diagnostics" => {"type" => "object", "required" => %w[inline inline_max_length severity], "properties" => {
         "inline" => {"type" => "boolean"}, "inline_max_length" => {"type" => "integer", "minimum" => 1, "maximum" => 10_000},
         "severity" => {"type" => "string", "enum" => %w[error warning information hint]}}},
@@ -112,6 +114,13 @@ module Canopus
               "items" => {"type" => "string", "minLength" => 1, "maxLength" => 4096,
                 "pattern" => "^(?![\\s\\S]*[\\u0000-\\u001f\\u007f])[\\s\\S]+$"}},
             "transport" => {"type" => "string", "enum" => %w[stdio tcp]}}},
+        "terminal_profile" => {"type" => "object", "additionalProperties" => false,
+          "properties" => {
+            "command" => {"anyOf" => [{"type" => "string", "minLength" => 1},
+              {"type" => "array", "minItems" => 1, "items" => {"type" => "string"}}]},
+            "path" => {"type" => "string", "minLength" => 1},
+            "args" => {"type" => "array", "items" => {"type" => "string"}},
+            "env" => {"type" => "object", "additionalProperties" => {"type" => ["string", "null"]}}}},
         "dock" => {"type" => "object", "required" => %w[size visible], "properties" => {
           "size" => {"type" => "number", "exclusiveMinimum" => 0}, "visible" => {"type" => "boolean"}}},
         "panel" => {"type" => "object", "required" => %w[size visible], "properties" => {
@@ -251,6 +260,7 @@ module Canopus
         (terminal["shell"].is_a?(Array) && terminal["shell"].all? { |value| value.is_a?(String) })
       raise Error, "invalid terminal.working_directory" unless terminal["working_directory"].is_a?(String)
       raise Error, "invalid terminal.env" unless terminal["env"].is_a?(Hash) && terminal["env"].all? { |key, value| key.is_a?(String) && (value.nil? || value.is_a?(String)) }
+      validate_terminal_profiles!(terminal)
       raise Error, "invalid terminal.font_size" unless terminal["font_size"].nil? || terminal["font_size"].is_a?(Numeric) && terminal["font_size"].between?(6, 96)
       raise Error, "invalid terminal.line_height" unless terminal["line_height"].is_a?(Numeric) && terminal["line_height"].between?(0.5, 4)
       %w[confirm_close_running confirm_multiline_paste copy_on_select restore_on_startup hide_when_empty shell_integration].each do |key|
@@ -264,6 +274,34 @@ module Canopus
        "min_rows" => 1..1000, "min_cols" => 1..1000}.each do |key, range|
         value = terminal[key]
         raise Error, "invalid terminal.#{key}" unless value.is_a?(Integer) && range.cover?(value)
+      end
+    end
+
+    def validate_terminal_profiles!(terminal)
+      profiles = terminal["profiles"]
+      raise Error, "terminal.profiles must be an object" unless profiles.is_a?(Hash) && profiles.length <= 100
+      profiles.each do |name, profile|
+        valid_name = name.is_a?(String) && name.valid_encoding? && name.bytesize.between?(1, 128) && name == name.strip
+        raise Error, "invalid terminal profile name" unless valid_name
+        unless profile.is_a?(Hash) && profile.keys.all? { |key| %w[command path args env].include?(key) }
+          raise Error, "invalid terminal profile #{name}"
+        end
+        command = profile["command"]
+        path, args, env = profile.values_at("path", "args", "env")
+        valid_command = command.nil? || command.is_a?(String) && !command.empty? ||
+          command.is_a?(Array) && command.first.is_a?(String) && !command.first.empty? &&
+            command.all? { |value| value.is_a?(String) }
+        raise Error, "invalid terminal profile command #{name}" unless valid_command
+        raise Error, "terminal profile #{name} cannot use command with path or args" if command && (path || args)
+        raise Error, "terminal profile #{name} args require path" if args && !path
+        raise Error, "invalid terminal profile path #{name}" unless path.nil? || path.is_a?(String) && !path.empty?
+        raise Error, "invalid terminal profile args #{name}" unless args.nil? || args.is_a?(Array) && args.all? { |value| value.is_a?(String) }
+        valid_env = env.nil? || env.is_a?(Hash) && env.all? { |key, value| key.is_a?(String) && (value.nil? || value.is_a?(String)) }
+        raise Error, "invalid terminal profile env #{name}" unless valid_env
+      end
+      default = terminal["default_profile"]
+      unless default.nil? || default.is_a?(String) && profiles.key?(default)
+        raise Error, "terminal.default_profile must name a configured profile"
       end
     end
 

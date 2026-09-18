@@ -34,7 +34,7 @@ module Canopus
       "linkedEditingRange" => "linkedEditingRangeProvider", "workspaceSymbol" => "workspaceSymbolProvider"
     }.freeze
     attr_reader :panes, :active_pane, :buffers, :actions, :commands, :settings, :theme, :project, :clients, :root, :docks, :panels, :decorations, :providers, :minimap, :diagnostics, :breakpoints
-    attr_reader :terminals, :active_terminal_index
+    attr_reader :terminals, :active_terminal_index, :terminal_layout
     attr_accessor :window, :terminal_composition, :selected_project_path, :performance
     attr_reader :message, :palette
 
@@ -99,7 +99,9 @@ module Canopus
       @providers.register_completion(:lsp, priority: 100) { |buffer, offset, context| lsp_completions(buffer, offset, context) }
       @languages, @terminals = {}, []
       @active_terminal_index = 0
+      @terminal_layout = nil
       @closed_tabs, @terminal_names = [], {}
+      @terminal_profiles = {}.compare_by_identity
       initialize_tasks
       initialize_tests
       register_actions
@@ -126,6 +128,8 @@ module Canopus
       @terminal_resize_times&.clear
       @terminals = value ? [value] : []
       @active_terminal_index = 0
+      @terminal_layout = value ? {terminal: value} : nil
+      @terminal_profiles.clear
       value
     end
     def palette=(value)
@@ -420,27 +424,60 @@ module Canopus
       invalidate_hidden_selection_ranges
     end
 
-    def new_terminal(cwd: nil)
-      options = @settings["terminal"]
-      cwd ||= terminal&.respond_to?(:cwd) && terminal.cwd
-      cwd = terminal_working_directory unless cwd && File.directory?(cwd)
-      command = options["shell"] || ENV.fetch("SHELL", "/bin/sh")
-      created = Tarazed::Session.new(command: command, cwd: cwd,
-        columns: 100, rows: 12, env: options["env"], scrollback_limit: options["scrollback_lines"],
-        queue_limit_bytes: options["queue_limit_bytes"])
-      inject_shell_integration(created) if options["shell_integration"]
-      @terminals << created
-      @active_terminal_index = @terminals.length - 1
-      self.terminal_visible = true
-      resize_terminal(*@terminal_dimensions, final: true) if @terminal_dimensions
-      @window&.request_frame
+    def new_terminal(cwd: nil, profile: nil)
+      previous = terminal
+      created = start_terminal(cwd: cwd, profile: profile)
+      @terminal_layout = replace_terminal_leaf(@terminal_layout, previous, created) || {terminal: created}
+      invalidate_terminal_layout_resize
       created
     end
 
+    def split_terminal(direction, profile: nil)
+      raise ArgumentError, "invalid terminal split direction" unless %i[horizontal vertical].include?(direction)
+      previous = terminal
+      return new_terminal(profile: profile) unless previous
+      created = start_terminal(cwd: terminal_cwd(previous), profile: profile)
+      split = {direction: direction, ratio: 0.5, children: [{terminal: previous}, {terminal: created}]}
+      @terminal_layout = replace_terminal_node(@terminal_layout, previous, split) || split
+      invalidate_terminal_layout_resize
+      created
+    end
+
+    def terminal_profile(current = terminal) = @terminal_profiles[current]
+
+    def start_terminal(cwd: nil, profile: nil)
+      options = @settings["terminal"]
+      cwd ||= terminal&.respond_to?(:cwd) && terminal.cwd
+      cwd = terminal_working_directory unless cwd && File.directory?(cwd)
+      profile ||= options["default_profile"]
+      configured = profile && options["profiles"].fetch(profile)
+      fallback = Gem.win_platform? ? ENV.fetch("COMSPEC", "cmd.exe") : ENV.fetch("SHELL", "/bin/sh")
+      command = configured && terminal_profile_command(configured) || options["shell"] || fallback
+      env = options["env"].merge(configured&.fetch("env", {}) || {})
+        .merge("CANOPUS" => "1", "EDITOR" => "canopus --wait")
+      created = Tarazed::Session.new(command: command, cwd: cwd,
+        columns: 100, rows: 12, env: env, scrollback_limit: options["scrollback_lines"],
+        queue_limit_bytes: options["queue_limit_bytes"])
+      inject_shell_integration(created) if options["shell_integration"]
+      @terminals << created
+      @terminal_profiles[created] = profile if profile
+      @active_terminal_index = @terminals.length - 1
+      self.terminal_visible = true
+      resize_terminal(*@terminal_dimensions, final: true, terminal: created) if @terminal_dimensions
+      @window&.request_frame
+      created
+    end
+    private :start_terminal
+
     def activate_terminal(index)
       raise IndexError, "terminal tab outside panel" unless index.is_a?(Integer) && index.between?(0, @terminals.length - 1)
+      previous = terminal
       @active_terminal_index = index
-      resize_terminal(*@terminal_dimensions, final: true) if @terminal_dimensions
+      unless terminal_layout_include?(terminal)
+        @terminal_layout = replace_terminal_leaf(@terminal_layout, previous, terminal)
+        invalidate_terminal_layout_resize
+      end
+      @terminal_layout ||= {terminal: terminal}
       @window&.request_frame
       terminal
     end
@@ -469,13 +506,25 @@ module Canopus
       current = @terminals.delete_at(index)
       return unless current
       @terminal_names.delete(current)
+      @terminal_profiles.delete(current)
       @terminal_sizes&.delete(current)
+      @terminal_dimensions_by_terminal&.delete(current)
       @terminal_resize_times&.delete(current)
       current.close if current.respond_to?(:close)
+      visible = terminal_layout_include?(current)
+      @terminal_layout = remove_terminal_leaf(@terminal_layout, current) if visible
       @active_terminal_index = if current.equal?(active)
         [index, @terminals.length - 1].min.clamp(0, @terminals.length)
       else
         @terminals.index(active) || 0
+      end
+      if @terminals.empty?
+        @terminal_layout = nil
+      elsif visible
+        replacement = terminal_layout_terminals.first || terminal
+        @active_terminal_index = @terminals.index(replacement) || @active_terminal_index
+        @terminal_layout ||= {terminal: terminal}
+        invalidate_terminal_layout_resize
       end
       self.terminal_visible = false if @terminals.empty? && @settings["terminal"]["hide_when_empty"]
       @window&.request_frame
@@ -485,12 +534,21 @@ module Canopus
     def restart_terminal(index = @active_terminal_index)
       current = @terminals[index]
       return unless current
-      cwd = current.respond_to?(:cwd) ? current.cwd : current.vt.cwd
-      cwd ||= current.respond_to?(:initial_cwd) ? current.initial_cwd : @root
+      cwd = terminal_cwd(current)
       name = @terminal_names[current]
-      close_terminal(index)
-      replacement = new_terminal(cwd: File.directory?(cwd) ? cwd : @root)
-      move_terminal(@terminals.length - 1, index) if index < @terminals.length - 1
+      profile = @terminal_profiles[current]
+      replacement = start_terminal(cwd: File.directory?(cwd) ? cwd : @root, profile: profile)
+      @terminals.delete(replacement)
+      @terminals[index] = replacement
+      @active_terminal_index = index
+      @terminal_layout = replace_terminal_leaf(@terminal_layout, current, replacement)
+      invalidate_terminal_layout_resize
+      @terminal_names.delete(current)
+      @terminal_profiles.delete(current)
+      @terminal_sizes&.delete(current)
+      @terminal_dimensions_by_terminal&.delete(current)
+      @terminal_resize_times&.delete(current)
+      current.close if current.respond_to?(:close)
       rename_terminal(name, replacement) if name
       replacement
     end
@@ -539,15 +597,17 @@ module Canopus
       changed
     end
 
-    def resize_terminal(columns, rows, final: false, now: Process.clock_gettime(Process::CLOCK_MONOTONIC))
+    def resize_terminal(columns, rows, final: false, now: Process.clock_gettime(Process::CLOCK_MONOTONIC), terminal: nil)
       minimum = @settings["terminal"]
       dimensions = [[columns.to_i, minimum["min_cols"]].max, [rows.to_i, minimum["min_rows"]].max]
-      @terminal_dimensions = dimensions
+      @terminal_dimensions = dimensions if !terminal || terminal.equal?(self.terminal)
       return if @terminals.empty?
       final ||= @terminal_resize_final
       @terminal_resize_final = false
       wait = minimum["resize_debounce_ms"] / 1000.0
-      @terminals.each do |current|
+      targets = terminal ? [terminal] : @terminals
+      targets.each do |current|
+        (@terminal_dimensions_by_terminal ||= {})[current] = dimensions
         previous = (@terminal_resize_times ||= {})[current]
         next if !final && previous && now - previous < wait
         next if (@terminal_sizes ||= {})[current] == dimensions
@@ -558,7 +618,13 @@ module Canopus
     end
 
     def flush_terminal_resize
-      resize_terminal(*@terminal_dimensions, final: true) if @terminal_dimensions
+      if @terminal_dimensions_by_terminal&.any?
+        @terminal_dimensions_by_terminal.dup.each do |current, dimensions|
+          resize_terminal(*dimensions, final: true, terminal: current) if @terminals.include?(current)
+        end
+      elsif @terminal_dimensions
+        resize_terminal(*@terminal_dimensions, final: true)
+      end
       @terminal_resize_final = true
     end
 
@@ -1061,6 +1127,8 @@ module Canopus
       end
       register_action("terminal.toggle") { call("view.terminal") }
       register_action("terminal.new") { new_terminal }
+      register_action("terminal.split_right", description: "Split Terminal Right", condition: "Terminal") { split_terminal(:horizontal) }
+      register_action("terminal.split_down", description: "Split Terminal Down", condition: "Terminal") { split_terminal(:vertical) }
       register_action("terminal.close") { request_terminal_close }
       register_action("terminal.restart") { restart_terminal }
       register_action("terminal.next") { activate_terminal((@active_terminal_index + 1) % @terminals.length) unless @terminals.empty? }
@@ -1187,6 +1255,52 @@ module Canopus
       end
       raise Error, "terminal working directory does not exist" unless File.directory?(path)
       path
+    end
+
+    def terminal_profile_command(profile)
+      return profile["command"] if profile["command"]
+      [profile["path"], *profile.fetch("args", [])] if profile["path"]
+    end
+
+    def invalidate_terminal_layout_resize
+      @terminal_resize_times&.clear
+    end
+
+    def terminal_cwd(current)
+      cwd = current.respond_to?(:cwd) ? current.cwd : current.vt.cwd
+      cwd || (current.respond_to?(:initial_cwd) ? current.initial_cwd : @root)
+    end
+
+    def terminal_layout_include?(current, node = @terminal_layout)
+      return false unless node
+      return node[:terminal].equal?(current) if node[:terminal]
+      node[:children].any? { |child| terminal_layout_include?(current, child) }
+    end
+
+    def terminal_layout_terminals(node = @terminal_layout)
+      return [] unless node
+      return [node[:terminal]] if node[:terminal]
+      node[:children].flat_map { |child| terminal_layout_terminals(child) }
+    end
+
+    def replace_terminal_leaf(node, current, replacement)
+      replace_terminal_node(node, current, {terminal: replacement})
+    end
+
+    def replace_terminal_node(node, current, replacement)
+      return unless node
+      return replacement if node[:terminal]&.equal?(current)
+      return if node[:terminal]
+      children = node[:children].map { |child| replace_terminal_node(child, current, replacement) || child }
+      node.merge(children: children)
+    end
+
+    def remove_terminal_leaf(node, current)
+      return unless node
+      return if node[:terminal]&.equal?(current)
+      return node if node[:terminal]
+      children = node[:children].filter_map { |child| remove_terminal_leaf(child, current) }
+      children.length == 1 ? children.first : node.merge(children: children)
     end
 
     def reap_exited_terminals

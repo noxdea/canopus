@@ -319,6 +319,7 @@ module Canopus
     def forward: () -> untyped
   end
   class Workspace
+    type terminal_layout_node = {terminal: Tarazed::PTY} | {direction: :horizontal | :vertical, ratio: Numeric, children: Array[terminal_layout_node]}
     class ClosedTab < Data
       attr_reader path: String
       attr_reader selections: Array[[Integer, Integer]]
@@ -347,6 +348,7 @@ module Canopus
     attr_accessor terminal_composition: Zaniah::Input::Composition?
     attr_reader terminals: Array[Tarazed::PTY]
     attr_reader active_terminal_index: Integer
+    attr_reader terminal_layout: terminal_layout_node?
     attr_accessor performance: PerformanceRecorder?
     def editor: () -> Editor?
     def files: () -> Array[String]
@@ -366,7 +368,9 @@ module Canopus
     def buffer_refs: (String | Buffer path_or_buffer) -> Array[[Symbol, Integer]]
     def clear_vim_states: () -> void
     def move_tab: (from: Pane, to: Pane, ?editor: Editor, ?index: Integer?) -> void
-    def new_terminal: (?cwd: String?) -> Tarazed::Session
+    def new_terminal: (?cwd: String?, ?profile: String?) -> Tarazed::Session
+    def split_terminal: (:horizontal | :vertical direction, ?profile: String?) -> Tarazed::Session
+    def terminal_profile: (?Tarazed::PTY? current) -> String?
     def activate_terminal: (Integer index) -> Tarazed::PTY
     def move_terminal: (Integer from, Integer to) -> Tarazed::PTY
     def request_terminal_close: (?Integer index) -> (Tarazed::PTY | false | nil)
@@ -376,7 +380,7 @@ module Canopus
     def rename_terminal: (String name, ?Tarazed::PTY? current) -> String?
     def show_terminal_commands: (?failed: bool) -> void
     def drain_terminals: (?now: Numeric) -> bool
-    def resize_terminal: (Integer columns, Integer rows, ?final: bool, ?now: Numeric) -> void
+    def resize_terminal: (Integer columns, Integer rows, ?final: bool, ?now: Numeric, ?terminal: Tarazed::PTY?) -> void
     def flush_terminal_resize: () -> void
     def toggle_dock: (Symbol side) -> bool
     def register_panel: (String name, ?side: Panel::dock) { () -> (Zaniah::Element | String) } -> Panel::Definition

@@ -28,6 +28,7 @@ module Canopus
       end
       attr_reader terminal_bounds: Zaniah::Bounds?
       attr_reader terminal_selection: [[Integer, Integer], [Integer, Integer]]?
+      def focus_terminal: (Tarazed::PTY? terminal) -> Tarazed::PTY?
       def terminal_link_at: (Zaniah::Point point) -> Link?
       def terminal_open_link: (Zaniah::Point point, modifiers: Array[String]) -> bool
       def terminal_color: (Tarazed::color value, Symbol fallback) -> String?

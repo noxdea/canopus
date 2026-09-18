@@ -46,7 +46,7 @@ installable.
 - Viewport-scoped LSP inlay hints with clickable label locations
 - Nested bracket colors and active indentation guides backed by Antares structure analysis
 - Optional GPU minimap with shared line textures, viewport navigation, and overview markers
-- Resizable integrated terminal with multiple tabs, scrollback, OSC 133 command history, colors, and clickable links
+- Resizable integrated terminal with tabs, horizontal/vertical splits, profiles, scrollback, OSC 133 command history, colors, and clickable links
 - Bounded JSONC project tasks with color-preserving, interactive Output tabs
 - Git diff and staging, searchable commit graphs, cancellable fetch/pull/push, inline blame, and branch switching
 - Editable project-wide search results and safe project file operations
@@ -118,6 +118,7 @@ The command palette also exposes Git operations, language actions (including
 `language.type_hierarchy`), project file operations, settings, themes, docks,
 Vim mode, `git.history`, `git.fetch`, `git.pull`, `git.push`,
 `terminal.commands`, `terminal.commands.failed`, `terminal.command.toggle_fold`,
+`terminal.split_right`, `terminal.split_down`,
 `panel.problems`, and
 `problems.filter`. The problem filter accepts
 free text plus optional `severity:error` and `source:lsp` terms (`warning`,
@@ -128,6 +129,9 @@ Bash, zsh, and fish terminals automatically load Tarazed shell integration
 for command boundaries, collapsible output, exit status, and OSC 7
 working-directory tracking. Click a command status badge to fold its output.
 Set `terminal.shell_integration` to `false` to leave the shell untouched.
+New terminals inherit the active terminal's OSC 7 working directory. Profiles
+accept `command` (or `path` plus `args`) and `env`; Canopus always sets
+`CANOPUS=1` and `EDITOR="canopus --wait"` after merging profile variables.
 
 ## Configuration
 
@@ -157,7 +161,11 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
   "git": { "inline_blame": "off", "autofetch": false, "autofetch_interval": 180 },
   "recovery": { "enabled": true, "interval": 5000 },
   "tabs": { "activate_on_close": "history", "reopen_history_limit": 20 },
-  "terminal": { "working_directory": "project", "scrollback_lines": 10000, "shell_integration": true },
+  "terminal": {
+    "working_directory": "project", "scrollback_lines": 10000, "shell_integration": true,
+    "profiles": { "bash": { "path": "/bin/bash", "args": ["--login"], "env": { "TERM_PROGRAM": "canopus" } } },
+    "default_profile": "bash"
+  },
   "dock": {
     "bottom": { "size": 280, "visible": false },
     "panels": { "terminal": { "size": 280, "visible": false } }
