@@ -118,10 +118,12 @@ module Canopus
       return GitBlameSnapshot.new(key, [].freeze, "Blame unavailable: #{scm_diff_budget_description(reason)}".freeze).freeze if reason
 
       lines = Array.new(text.lines.length)
-      if committed == text
+      comparison_committed = committed.gsub("\r\n", "\n")
+      comparison_text = text.gsub("\r\n", "\n")
+      if comparison_committed == comparison_text
         blamed.each_with_index { |line, index| lines[index] = copy_git_blame_line(line) }
       else
-        Porrima.diff(committed, text, budget: BLAME_BUDGET).edits.each do |edit|
+        Porrima.diff(comparison_committed, comparison_text, budget: BLAME_BUDGET).edits.each do |edit|
           next unless edit.kind == :equal
           lines[edit.new_line - 1] = copy_git_blame_line(blamed[edit.old_line - 1])
         end

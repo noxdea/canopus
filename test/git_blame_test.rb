@@ -10,6 +10,7 @@ class GitBlameTest < Minitest::Test
     git("init", "-q", "-b", "main")
     git("config", "user.name", "Alice")
     git("config", "user.email", "alice@example.invalid")
+    git("config", "core.autocrlf", "false")
     write("example.txt", "alpha\nbeta\ngamma\n")
     git("add", ".")
     git("commit", "-qm", "Initial")
@@ -115,9 +116,11 @@ class GitBlameTest < Minitest::Test
   end
 
   def test_clean_crlf_lines_are_attributed
+    git("config", "core.autocrlf", "true")
     write("crlf.txt", "one\r\ntwo\r\n")
     git("add", "crlf.txt")
     git("commit", "-qm", "CRLF lines")
+    assert_equal "one\ntwo\n", git("show", "HEAD:crlf.txt")
     editor = @workspace.open("crlf.txt")
     @workspace.settings.merge!("git" => {"inline_blame" => "all"})
 

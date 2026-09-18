@@ -181,7 +181,7 @@ class GitRemoteIntegrationTest < Minitest::Test
     git(@root, "commit", "-qm", "Initial")
     git(@root, "remote", "add", "origin", @origin)
     git(@root, "push", "-qu", "origin", "main")
-    git(nil, "clone", "-q", "-b", "main", @origin, @peer)
+    git(nil, "-c", "core.autocrlf=false", "clone", "-q", "-b", "main", @origin, @peer)
     configure(@peer)
     @workspace = Canopus::Workspace.new(root: @root)
     @editor = @workspace.open("example.txt")
@@ -219,6 +219,7 @@ class GitRemoteIntegrationTest < Minitest::Test
   def configure(directory)
     git(directory, "config", "user.name", "Remote Test")
     git(directory, "config", "user.email", "remote@example.invalid")
+    git(directory, "config", "core.autocrlf", "false")
   end
 
   def git(directory, *arguments)
