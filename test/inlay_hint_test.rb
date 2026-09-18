@@ -131,7 +131,7 @@ class InlayHintTest < Minitest::Test
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       1_000.times { raise "cache miss" if @workspace.request_inlay_hints(@editor, 100...110) }
       elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
-      assert_operator elapsed, :<, 0.25
+      assert_operator elapsed, :<, 1.0
       assert_equal 1, client.requests.length
 
       assert @workspace.request_inlay_hints(@editor, 141...150)

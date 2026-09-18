@@ -73,7 +73,7 @@ class EncodingTest < Minitest::Test
   def test_large_files_use_denebola_lazy_rope
     Dir.mktmpdir("canopus-large-") do |dir|
       path = File.join(dir, "large.txt")
-      File.write(path, "line\n" * 100)
+      File.binwrite(path, "line\n" * 100)
       buffer = Canopus::Buffer.open(path, large_file_threshold: 1)
 
       assert_instance_of Denebola::LazyRope, buffer.rope
