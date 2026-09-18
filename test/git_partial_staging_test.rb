@@ -23,7 +23,7 @@ class GitPartialStagingTest < Minitest::Test
 
   def teardown
     @workspace&.close
-    FileUtils.remove_entry(@root)
+    FileUtils.remove_entry(@root, true)
   end
 
   def test_stages_and_unstages_one_hunk_against_external_git
