@@ -210,6 +210,8 @@ module Canopus
     def settings_completions: () -> palette_state
     def settings_browse: (?changed_only: bool) -> palette_state
     def settings_gui: (?changed_only: bool) -> palette_state
+    def keymap_gui: () -> palette_state
+    def keymap_presets: () -> palette_state
     def settings_document?: (Buffer buffer) -> bool?
     def configure_text_system: (?cache_dir: String?) -> Zaniah::TextSystem::Renderer
     def apply_settings: () -> void

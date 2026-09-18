@@ -1,0 +1,5 @@
+{
+  "keymap": [
+    {"context": "", "bindings": {"ctrl-p": "file.find", "ctrl-shift-p": "command.palette", "f12": "language.definition"}}
+  ]
+}

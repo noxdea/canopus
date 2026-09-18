@@ -1,0 +1,5 @@
+{
+  "keymap": [
+    {"context": "", "bindings": {"ctrl-x ctrl-f": "file.find", "alt-x": "command.palette", "ctrl-x ctrl-s": "file.save"}}
+  ]
+}

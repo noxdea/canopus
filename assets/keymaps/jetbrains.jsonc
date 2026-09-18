@@ -1,0 +1,5 @@
+{
+  "keymap": [
+    {"context": "", "bindings": {"shift-shift": "command.palette", "ctrl-shift-n": "file.find", "shift-f6": "language.rename"}}
+  ]
+}

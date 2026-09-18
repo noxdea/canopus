@@ -809,7 +809,11 @@ module Canopus
         @palette[:index] = @palette[:index].clamp(0, @palette[:matches].length - 1)
         return
       end
-      if [:locations, :symbols, :code_actions, :outline, :branches, :settings_keys, :settings_gui, :snippet_choices,
+      if @palette[:kind] == :keymap_edit
+        @palette[:index] = @palette[:index].clamp(0, @palette[:matches].length - 1)
+        return
+      end
+      if [:locations, :symbols, :code_actions, :outline, :branches, :settings_keys, :settings_gui, :keymap_gui, :keymap_presets, :snippet_choices,
           :breadcrumbs, :hierarchy_roots, :language_servers, :debug_configurations, :debug_watch_remove, :tasks,
           :git_file_history, :git_commit_paths, :git_remotes].include?(@palette[:kind])
         labels = @palette[:all_matches] ||= @palette[:matches].dup
@@ -1034,6 +1038,28 @@ module Canopus
           @message = error.message
           self.palette = current
         end
+      elsif kind == :keymap_gui && selected
+        index = current[:indices] ? current[:indices][current[:index]] : current[:index]
+        entry = current.fetch(:entries).fetch(index)
+        self.palette = {kind: :keymap_edit, query: entry[:keys].dup, index: 0, matches: ["Save"],
+          entry: entry, settings_file: current.fetch(:settings_file)}
+      elsif kind == :keymap_edit
+        begin
+          apply_keymap_binding(current.fetch(:entry), query)
+          self.palette = nil
+          @message = "Updated #{current[:entry][:id]} key binding"
+        rescue StandardError => error
+          @message = error.message
+          self.palette = current
+        end
+      elsif kind == :keymap_presets && selected
+        begin
+          load_keymap_preset(selected)
+          self.palette = nil
+          @message = "Loaded #{selected} keymap preset"
+        rescue StandardError => error
+          @message = error.message
+        end
       end
     end
     def search_query(query, state)
@@ -1223,6 +1249,8 @@ module Canopus
       register_action("settings.complete") { settings_completions }
       register_action("settings.gui", description: "Settings GUI") { settings_gui }
       register_action("settings.gui_changed", description: "Changed Settings GUI") { settings_gui(changed_only: true) }
+      register_action("keymap.gui", description: "Keymap GUI") { keymap_gui }
+      register_action("keymap.preset", description: "Keymap Preset") { keymap_presets }
       register_action("language.diagnostics") { show_diagnostics }
       register_action("language.restart_server") { show_language_server_restart }
       register_action("view.project") { @panels.toggle("explorer") }
@@ -1455,6 +1483,7 @@ require_relative "workspace/git_blame"
 require_relative "workspace/project_searchable"
 require_relative "workspace/editor_configurable"
 require_relative "workspace/settings_aware"
+require_relative "workspace/keymap_aware"
 require_relative "workspace/auto_savable"
 require_relative "workspace/persistent_undo"
 require_relative "workspace/file_previewable"
@@ -1479,6 +1508,7 @@ Canopus::Workspace.include Canopus::Workspace::GitBlame
 Canopus::Workspace.include Canopus::Workspace::ProjectSearchable
 Canopus::Workspace.include Canopus::Workspace::EditorConfigurable
 Canopus::Workspace.include Canopus::Workspace::SettingsAware
+Canopus::Workspace.include Canopus::Workspace::KeymapAware
 Canopus::Workspace.include Canopus::Workspace::AutoSavable
 Canopus::Workspace.include Canopus::Workspace::PersistentUndo
 Canopus::Workspace.include Canopus::Workspace::FilePreviewable
