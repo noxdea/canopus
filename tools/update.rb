@@ -63,7 +63,8 @@ module CanopusUpdater
 
   def validate_feed!(feed)
     raise Error, "update feed is missing fields" unless FIELDS.all? { |field| feed.key?(field) }
-    raise Error, "update URL must use HTTPS" unless feed["url"].is_a?(String) && URI(feed.fetch("url")).scheme == "https"
+    uri = feed["url"].is_a?(String) ? URI(feed.fetch("url")) : nil
+    raise Error, "update URL must use HTTPS" unless uri&.scheme == "https" && uri.host && !uri.user
     raise Error, "invalid update size" unless feed["size"].is_a?(Integer) && feed["size"].between?(1, MAX_DOWNLOAD)
     raise Error, "invalid update hash" unless feed["sha256"].is_a?(String) && feed["sha256"].match?(/\A[0-9a-f]{64}\z/)
     raise Error, "invalid update signature" unless feed["signature"].is_a?(String) && feed["key_id"].is_a?(String)
@@ -175,11 +176,13 @@ if $PROGRAM_NAME == __FILE__
   abort parser.to_s unless %i[feed public_key install_dir current_version].all? { |key| options[key] }
 
   begin
-    feed = URI(options.fetch(:feed)).open(&:read)
+    feed_uri = URI(options.fetch(:feed))
+    raise CanopusUpdater::Error, "feed URL must use HTTPS" unless feed_uri.scheme == "https" && feed_uri.host && !feed_uri.user
+    feed = feed_uri.open(allow_redirections: false, &:read)
     release = CanopusUpdater.apply(feed: feed, public_key: options.fetch(:public_key), channel: options.fetch(:channel),
       platform: options.fetch(:platform), current_version: options.fetch(:current_version), install_dir: options.fetch(:install_dir))
     puts "Updated Canopus to #{release.fetch("version")}."
-  rescue CanopusUpdater::Error, OpenSSL::OpenSSLError, Errno::ENOENT => error
+  rescue CanopusUpdater::Error, OpenSSL::OpenSSLError, Errno::ENOENT, URI::InvalidURIError => error
     warn "update: #{error.message}"
     exit 1
   end
