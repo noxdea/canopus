@@ -19,6 +19,15 @@ module Canopus
     def reset_auto_save: () -> nil
   end
 
+  module Workspace::PersistentUndo
+    MAX_FILE_BYTES: Integer
+    MAX_PROJECT_BYTES: Integer
+
+    def persistent_undo_directory: () -> String
+    def load_persistent_undo: (Buffer buffer) -> bool
+    def save_persistent_undo: (Buffer buffer) -> bool
+  end
+
   module Workspace::GitConflictResolution
     MERGE_MAX_BYTES: Integer
     MERGE_MAX_LINES: Integer

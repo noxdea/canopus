@@ -86,6 +86,7 @@ module Canopus
         elsif entry["path"] && File.file?(entry["path"])
           buffer = Buffer.open(entry["path"])
         end
+        load_persistent_undo(buffer) if buffer && buffer.path && !buffer.dirty?
         loaded[id] = buffer
         if buffer
           key = buffer.path ? canonical_path(buffer.path) : buffer.object_id

@@ -189,7 +189,13 @@ module Canopus
     def vim = @vim_states[editor] ||= Vim.new(editor).tap { |state| state.on_command = ->(command) { ex_command(command) } }
     def open(path)
       absolute = canonical_path(path)
-      buffer = @buffers[absolute] ||= File.file?(absolute) ? Buffer.open(absolute) : Buffer.new("", path: absolute)
+      buffer = @buffers[absolute]
+      unless buffer
+        buffer = File.file?(absolute) ? Buffer.open(absolute) : Buffer.new("", path: absolute)
+        @buffers[absolute] = buffer
+        mark_persistent_undo_path(buffer, path)
+        load_persistent_undo(buffer)
+      end
       @vim_states[editor]&.deactivate unless editor&.buffer.equal?(buffer)
       opened = @active_pane.open(buffer)
       attach_breakpoints(buffer)
@@ -1012,6 +1018,7 @@ module Canopus
       terminal_closers.each { |thread| cleanup.call { thread.join } }
       @terminals.clear
       cleanup.call { clear_vim_states }
+      @buffers.each_value { |buffer| cleanup.call { save_persistent_undo(buffer) } }
       @panes.each { |pane| pane.editors.each { |current| cleanup.call { current.dispose } } }
       @buffers.each_value { |buffer| cleanup.call { buffer.close } }
       cleanup.call { close_recovery(clean: !@preserve_recovery && !failure) }
@@ -1242,6 +1249,7 @@ module Canopus
       invalidate_sticky_symbols(buffer)
       close_language_documents(buffer)
       detach_breakpoints(buffer)
+      save_persistent_undo(buffer)
       @buffers.delete_if { |_, current| current.equal?(buffer) }
       buffer.close
     end
@@ -1351,6 +1359,7 @@ require_relative "workspace/git_blame"
 require_relative "workspace/project_searchable"
 require_relative "workspace/settings_aware"
 require_relative "workspace/auto_savable"
+require_relative "workspace/persistent_undo"
 require_relative "workspace/file_previewable"
 require_relative "workspace/debug_aware"
 require_relative "workspace/task_aware"
@@ -1373,6 +1382,7 @@ Canopus::Workspace.include Canopus::Workspace::GitBlame
 Canopus::Workspace.include Canopus::Workspace::ProjectSearchable
 Canopus::Workspace.include Canopus::Workspace::SettingsAware
 Canopus::Workspace.include Canopus::Workspace::AutoSavable
+Canopus::Workspace.include Canopus::Workspace::PersistentUndo
 Canopus::Workspace.include Canopus::Workspace::FilePreviewable
 Canopus::Workspace.include Canopus::Workspace::DebugAware
 Canopus::Workspace.include Canopus::Workspace::TaskAware

@@ -114,6 +114,8 @@ module Canopus
     def edit: (changes changes, ?kind: Symbol, ?selections: Array[Selection]?, ?before_selections: Array[Selection], ?time: Numeric, ?group: bool) -> patch?
     def undo: () -> bool
     def redo: () -> bool
+    def persistent_undo_record: (max_entries: Integer) -> Hash[String, untyped]?
+    def restore_persistent_undo!: (Hash[String, untyped] record) -> true
     def save: (?String? path, ?force: bool) -> self
     def trim_trailing_whitespace: () -> patch?
   end

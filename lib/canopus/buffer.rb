@@ -185,6 +185,34 @@ module Canopus
       true
     end
 
+    # Persistent undo stores edits, not rope snapshots. Rebuilding from the
+    # current file backwards keeps records bounded while retaining Composite's
+    # intermediate coordinate spaces.
+    def persistent_undo_record(max_entries:)
+      entries = @history.last(max_entries)
+      return if entries.empty?
+      {"history" => entries.map { |transaction| persistent_undo_transaction(transaction) }}
+    end
+
+    def restore_persistent_undo!(record)
+      entries = record.fetch("history")
+      raise Error, "invalid persistent undo history" unless entries.is_a?(Array) && !entries.empty?
+      current = @rope
+      restored = entries.reverse_each.map do |entry|
+        raise Error, "invalid persistent undo transaction" unless entry.is_a?(Hash)
+        patch, before = persistent_undo_patch_before(entry.fetch("patch"), current)
+        before_selections = persistent_undo_selections(entry.fetch("before_selections"), before.bytesize)
+        after_selections = persistent_undo_selections(entry.fetch("after_selections"), current.bytesize)
+        kind = entry.fetch("kind")
+        raise Error, "invalid persistent undo kind" unless kind.is_a?(String) && kind.bytesize.between?(1, 128) && kind.match?(/\A[a-zA-Z0-9_:-]+\z/)
+        current = before
+        Transaction.new(before, patch.after, before_selections, after_selections, patch, kind.to_sym, 0.0)
+      end.reverse
+      @history.replace(restored)
+      @redo.clear
+      true
+    end
+
     # Encode first, write and fsync a sibling temporary file, atomically rename.
     def save(path = @path, force: false)
       @save_mutex.synchronize do
@@ -231,6 +259,98 @@ module Canopus
     end
 
     private
+    def persistent_undo_transaction(transaction)
+      {"kind" => transaction.kind.to_s,
+        "before_selections" => persistent_undo_selection_list(transaction.before_selections),
+        "after_selections" => persistent_undo_selection_list(transaction.after_selections),
+        "patch" => persistent_undo_patch(transaction.patch)}
+    end
+
+    def persistent_undo_selection_list(selections)
+      raise Error, "unsupported persistent undo selection" unless selections.is_a?(Array) && selections.length <= 10_000
+      selections.map do |selection|
+        values = [selection.id, selection.anchor, selection.head, selection.goal]
+        raise Error, "unsupported persistent undo selection" unless values[0].is_a?(Integer) && values[1].is_a?(Integer) && values[2].is_a?(Integer) && (values[3].nil? || values[3].is_a?(Integer))
+        {"id" => values[0], "anchor" => values[1], "head" => values[2], "goal" => values[3]}
+      end
+    end
+
+    def persistent_undo_patch(patch)
+      case patch
+      when Patch
+        {"type" => "patch", "edits" => patch.edits.map do |edit|
+          {"old_start" => edit.old_range.begin, "old_end" => edit.old_range.end,
+            "new_start" => edit.new_range.begin, "new_end" => edit.new_range.end,
+            "old_text" => edit.old_text, "new_text" => edit.new_text}
+        end}
+      when Patch::Composite
+        {"type" => "composite", "patches" => patch.patches.map { |child| persistent_undo_patch(child) }}
+      else
+        raise Error, "unsupported persistent undo patch"
+      end
+    end
+
+    def persistent_undo_patch_before(data, after)
+      raise Error, "invalid persistent undo patch" unless data.is_a?(Hash)
+      case data.fetch("type")
+      when "patch"
+        edits = persistent_undo_edits(data.fetch("edits"))
+        inverse = edits.map { |edit| [edit.fetch(:new_range), edit.fetch(:old_text)] }
+        before = after.apply_edits(inverse)
+        changes = edits.map { |edit| [edit.fetch(:old_range), edit.fetch(:new_text)] }
+        patch = Patch.new(before, after, changes)
+        persistent_undo_verify_patch!(patch, edits)
+        [patch, before]
+      when "composite"
+        children = data.fetch("patches")
+        raise Error, "invalid persistent undo composite" unless children.is_a?(Array) && !children.empty?
+        current = after
+        patches = children.reverse_each.map do |child|
+          patch, before = persistent_undo_patch_before(child, current)
+          current = before
+          patch
+        end.reverse
+        [Patch::Composite.new(patches), current]
+      else
+        raise Error, "invalid persistent undo patch type"
+      end
+    end
+
+    def persistent_undo_edits(values)
+      raise Error, "invalid persistent undo edits" unless values.is_a?(Array) && !values.empty? && values.length <= 10_000
+      edits = values.map do |value|
+        raise Error, "invalid persistent undo edit" unless value.is_a?(Hash)
+        old_start, old_end, new_start, new_end = %w[old_start old_end new_start new_end].map { |key| value.fetch(key) }
+        old_text, new_text = value.fetch("old_text"), value.fetch("new_text")
+        valid = [old_start, old_end, new_start, new_end].all? { |number| number.is_a?(Integer) && number >= 0 } &&
+          old_start <= old_end && new_start <= new_end && old_text.is_a?(String) && new_text.is_a?(String) &&
+          old_text.bytesize == old_end - old_start && new_text.bytesize == new_end - new_start
+        raise Error, "invalid persistent undo edit" unless valid
+        {old_range: old_start...old_end, new_range: new_start...new_end, old_text: old_text, new_text: new_text}
+      end
+      edits.each_cons(2) do |left, right|
+        raise Error, "overlapping persistent undo edits" if left.fetch(:old_range).end > right.fetch(:old_range).begin || left.fetch(:new_range).end > right.fetch(:new_range).begin
+      end
+      edits
+    end
+
+    def persistent_undo_verify_patch!(patch, expected)
+      actual = patch.edits.map { |edit| {old_range: edit.old_range, new_range: edit.new_range, old_text: edit.old_text, new_text: edit.new_text} }
+      raise Error, "persistent undo patch mismatch" unless actual == expected
+      patch
+    end
+
+    def persistent_undo_selections(values, bytesize)
+      raise Error, "invalid persistent undo selections" unless values.is_a?(Array) && values.length <= 10_000
+      values.map do |value|
+        raise Error, "invalid persistent undo selection" unless value.is_a?(Hash)
+        id, anchor, head, goal = %w[id anchor head goal].map { |key| value.fetch(key) }
+        valid = id.is_a?(Integer) && anchor.is_a?(Integer) && head.is_a?(Integer) && anchor.between?(0, bytesize) && head.between?(0, bytesize) && (goal.nil? || goal.is_a?(Integer))
+        raise Error, "invalid persistent undo selection" unless valid
+        Selection.new(id, anchor, head, goal)
+      end.freeze
+    end
+
     def snapshot_line_ending(rope)
       return "\n" if rope.line_count < 2
       ending = rope.line_start(1)

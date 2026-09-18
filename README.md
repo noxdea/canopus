@@ -166,6 +166,7 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
   "minimap": { "enabled": false, "width": 100, "show_diagnostics": true },
   "auto_save": "off",
   "auto_save_delay": 1000,
+  "persistent_undo": { "enabled": true, "max_entries": 1000, "expire_days": 30 },
   "format_on_save": false,
   "code_actions_on_save": [],
   "format_on_save_timeout": 2000,
@@ -250,6 +251,11 @@ interval in `auto_save_delay` milliseconds, or to `on_focus_change` to save a
 file when switching away from it. Untitled, read-only, and conflicting files
 are skipped or reported without forcing a write.
 
+Persistent undo keeps up to `persistent_undo.max_entries` undo entries for
+clean regular files under `.canopus/undo/`. Records are project- and file
+identity-bound, expire after `expire_days`, and are ignored when corrupt or
+when the file changes. Dirty buffers remain in recovery storage instead.
+
 Settings are layered from defaults through user, project, explicit `--settings`,
 and language overrides. Invalid saved settings leave the previous valid values
 active. Keymap groups extend defaults; later matching bindings win, and `null`
@@ -330,6 +336,7 @@ submitted through [GitHub issues and pull requests](https://github.com/noxdea/ca
 ## Limits
 
 - Files larger than 100 MiB use a read-only UTF-8 path without wrapping or folding.
+- Persistent undo records are limited to 16 MiB per file and 256 MiB per project.
 - Large-file UTF-16 and legacy encodings are unsupported.
 - Git support targets SHA-1 repositories and does not implement every index or object extension.
 - The integrated terminal uses a POSIX PTY on macOS/Linux and ConPTY on 64-bit Windows.

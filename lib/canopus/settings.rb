@@ -23,6 +23,7 @@ module Canopus
       "breadcrumbs" => {"enabled" => true}.freeze,
       "minimap" => {"enabled" => false, "width" => 100, "show_diagnostics" => true}.freeze,
       "auto_save" => "off", "auto_save_delay" => 1_000,
+      "persistent_undo" => {"enabled" => true, "max_entries" => 1_000, "expire_days" => 30}.freeze,
       "format_on_save" => false, "code_actions_on_save" => [].freeze, "format_on_save_timeout" => 2_000,
       "git" => {"inline_blame" => "off", "autofetch" => false, "autofetch_interval" => 180}.freeze,
       "recovery" => {"enabled" => true, "interval" => 5_000}.freeze,
@@ -76,6 +77,11 @@ module Canopus
         "show_diagnostics" => {"type" => "boolean"}}},
       "auto_save" => {"type" => "string", "enum" => %w[off after_delay on_focus_change]},
       "auto_save_delay" => {"type" => "integer", "minimum" => 100, "maximum" => 3_600_000},
+      "persistent_undo" => {"type" => "object", "additionalProperties" => false,
+        "required" => %w[enabled max_entries expire_days], "properties" => {
+          "enabled" => {"type" => "boolean"},
+          "max_entries" => {"type" => "integer", "minimum" => 1, "maximum" => 10_000},
+          "expire_days" => {"type" => "integer", "minimum" => 1, "maximum" => 3_650}}},
       "format_on_save" => {"type" => "boolean"},
       "code_actions_on_save" => {"type" => "array", "maxItems" => 64, "uniqueItems" => true,
         "items" => {"type" => "string", "minLength" => 1, "maxLength" => 256}},
@@ -95,7 +101,7 @@ module Canopus
           "additionalProperties" => {"$ref" => "#/$defs/panel"}}}},
       "languages" => {"type" => "object", "additionalProperties" => {"allOf" => [
         {"$ref" => "#"}, {"properties" => {"languages" => false, "debug_adapters" => false, "recovery" => false,
-          "auto_save" => false, "auto_save_delay" => false}}
+          "auto_save" => false, "auto_save_delay" => false, "persistent_undo" => false}}
       ]}},
       "language_servers" => {"type" => "object", "additionalProperties" => {"anyOf" => [
         {"type" => "null"}, {"$ref" => "#/$defs/language_server"},
@@ -209,6 +215,7 @@ module Canopus
       validate_breadcrumbs!
       validate_minimap!
       validate_auto_save!
+      validate_persistent_undo!
       validate_save_actions!
       validate_git!
       validate_recovery!
@@ -219,7 +226,7 @@ module Canopus
       @values["languages"] = @values["languages"].to_h do |name, layer|
         raise Error, "language settings must be objects" unless name.is_a?(String) && layer.is_a?(Hash)
         raise Error, "language settings cannot contain nested languages" if layer.key?("languages")
-        %w[debug_adapters recovery auto_save auto_save_delay].each do |key|
+        %w[debug_adapters recovery auto_save auto_save_delay persistent_undo].each do |key|
           raise Error, "#{key} is a global setting" if layer.key?(key) || layer.key?(key.to_sym)
         end
         checked = Settings.new(@values.merge("languages" => {}), layer)
@@ -417,6 +424,16 @@ module Canopus
       raise Error, "invalid auto_save" unless %w[off after_delay on_focus_change].include?(@values["auto_save"])
       delay = @values["auto_save_delay"]
       raise Error, "invalid auto_save_delay" unless delay.is_a?(Integer) && delay.between?(100, 3_600_000)
+    end
+
+    def validate_persistent_undo!
+      persistent = @values["persistent_undo"]
+      raise Error, "persistent_undo must be an object" unless persistent.is_a?(Hash)
+      raise Error, "persistent_undo.enabled must be true or false" unless [true, false].include?(persistent["enabled"])
+      max_entries = persistent["max_entries"]
+      raise Error, "invalid persistent_undo.max_entries" unless max_entries.is_a?(Integer) && max_entries.between?(1, 10_000)
+      expire_days = persistent["expire_days"]
+      raise Error, "invalid persistent_undo.expire_days" unless expire_days.is_a?(Integer) && expire_days.between?(1, 3_650)
     end
 
     def validate_save_actions!

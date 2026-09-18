@@ -42,7 +42,7 @@ class WorkspaceSettingsTest < Minitest::Test
     language_schema = Canopus::Settings.schema.dig("properties", "languages", "additionalProperties")
     assert_equal({"$ref" => "#"}, language_schema["allOf"].first)
     assert_equal({"languages" => false, "debug_adapters" => false, "recovery" => false,
-      "auto_save" => false, "auto_save_delay" => false},
+      "auto_save" => false, "auto_save_delay" => false, "persistent_undo" => false},
       language_schema["allOf"].last["properties"])
     settings = Canopus::Settings.new("languages" => {"ruby" => {"soft_wrap" => true}})
     assert_equal true, settings.for_language("ruby")["soft_wrap"]
