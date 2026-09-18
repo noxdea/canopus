@@ -14,6 +14,11 @@ module Canopus
     def preserve_recovery!: () -> true
   end
 
+  module Workspace::AutoSavable
+    def poll_auto_save: (?now: Numeric) -> bool
+    def reset_auto_save: () -> nil
+  end
+
   module Workspace::GitConflictResolution
     MERGE_MAX_BYTES: Integer
     MERGE_MAX_LINES: Integer

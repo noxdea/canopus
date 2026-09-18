@@ -32,6 +32,7 @@ module Canopus
         workspace.drain
         workspace.poll_changes
         workspace.poll_settings
+        workspace.poll_auto_save
         workspace.poll_recovery
         reload_keymap
         workspace.poll_git_changes

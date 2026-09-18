@@ -27,6 +27,34 @@ class AtomicWriteTest < Minitest::Test
     end
   end
 
+  def test_buffer_save_keeps_edits_made_during_write_dirty
+    with_destination(:buffer) do |path|
+      buffer = Canopus::Buffer.open(path)
+      buffer.edit([[0...0, "edit"]])
+      snapshot = buffer.rope
+      rope_class = snapshot.class
+      original = rope_class.instance_method(:to_s)
+      entered, release = Queue.new, Queue.new
+      rope_class.define_method(:to_s) do
+        if equal?(snapshot)
+          entered << true
+          release.pop
+        end
+        original.bind_call(self)
+      end
+      writer = Thread.new { buffer.save }
+      entered.pop
+      buffer.edit([[0...0, "new"]])
+      release << true
+      writer.join
+      assert_equal "editred\n", File.read(path)
+      assert buffer.dirty?
+    ensure
+      rope_class&.define_method(:to_s, original) if original
+      buffer&.close
+    end
+  end
+
   private
 
   def original(writer) = writer == :settings ? "{\"tab_size\": 4}\n" : "red\n"

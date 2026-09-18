@@ -164,6 +164,8 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
   "sticky_scroll": { "enabled": true, "max_lines": 5 },
   "breadcrumbs": { "enabled": true },
   "minimap": { "enabled": false, "width": 100, "show_diagnostics": true },
+  "auto_save": "off",
+  "auto_save_delay": 1000,
   "format_on_save": false,
   "code_actions_on_save": [],
   "format_on_save_timeout": 2000,
@@ -242,6 +244,11 @@ Set `recovery.enabled` to `false` or change `recovery.interval` (milliseconds)
 in settings. Recovery files contain local unsaved text, so disable the feature
 for workspaces where even a mode-0600 local copy is unacceptable. Individual
 buffers over 10 MiB and snapshots over 64 MiB are not retained.
+
+Set `auto_save` to `after_delay` to save dirty named files after the debounce
+interval in `auto_save_delay` milliseconds, or to `on_focus_change` to save a
+file when switching away from it. Untitled, read-only, and conflicting files
+are skipped or reported without forcing a write.
 
 Settings are layered from defaults through user, project, explicit `--settings`,
 and language overrides. Invalid saved settings leave the previous valid values

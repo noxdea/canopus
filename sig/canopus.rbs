@@ -410,6 +410,7 @@ module Canopus
     def offer_recovery: () -> bool
     def resolve_recovery: (:restore | :discard choice) -> bool
     def poll_recovery: (?now: Numeric, ?force: bool) -> bool
+    def poll_auto_save: (?now: Numeric) -> bool
     def close_recovery: (?clean: bool) -> void
     def preserve_recovery!: () -> true
     def theme=: (Theme | String theme) -> void

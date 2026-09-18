@@ -972,6 +972,7 @@ module Canopus
       nil
     end
     def close
+      reset_auto_save
       @closed = true
       cancel_workspace_symbol_search
       cancel_completion_requests
@@ -1349,6 +1350,7 @@ require_relative "workspace/git_remote"
 require_relative "workspace/git_blame"
 require_relative "workspace/project_searchable"
 require_relative "workspace/settings_aware"
+require_relative "workspace/auto_savable"
 require_relative "workspace/file_previewable"
 require_relative "workspace/debug_aware"
 require_relative "workspace/task_aware"
@@ -1370,6 +1372,7 @@ Canopus::Workspace.include Canopus::Workspace::GitRemote
 Canopus::Workspace.include Canopus::Workspace::GitBlame
 Canopus::Workspace.include Canopus::Workspace::ProjectSearchable
 Canopus::Workspace.include Canopus::Workspace::SettingsAware
+Canopus::Workspace.include Canopus::Workspace::AutoSavable
 Canopus::Workspace.include Canopus::Workspace::FilePreviewable
 Canopus::Workspace.include Canopus::Workspace::DebugAware
 Canopus::Workspace.include Canopus::Workspace::TaskAware

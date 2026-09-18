@@ -45,6 +45,7 @@ module Canopus
 
     def initialize(text = "", path: nil, encoding: Encoding::UTF_8, bom: "".b, disk_digest: nil, read_only: false, draft: false, rope: nil)
       @rope = rope || Denebola::Rope.new(text)
+      @save_mutex = Mutex.new
       @path = path && File.expand_path(path)
       @encoding, @bom, @disk_digest = encoding, bom, disk_digest
       @saved_rope, @version, @history, @redo = @rope, 0, [], []
@@ -186,30 +187,33 @@ module Canopus
 
     # Encode first, write and fsync a sibling temporary file, atomically rename.
     def save(path = @path, force: false)
-      raise Error, "no file path" unless path
-      raise Error, "buffer is read-only" if @read_only
-      destination = File.expand_path(path)
-      destination = File.realpath(destination) if File.symlink?(destination)
-      original = File.file?(destination) ? File.binread(destination) : nil
-      same_file = @path && (File.expand_path(path) == @path || (File.exist?(@path) && File.exist?(destination) && File.identical?(@path, destination)))
-      if !force && same_file && @disk_digest && (!original || Digest::SHA256.hexdigest(original) != @disk_digest)
-        raise SaveConflict, "file changed on disk: #{path}"
+      @save_mutex.synchronize do
+        raise Error, "no file path" unless path
+        raise Error, "buffer is read-only" if @read_only
+        destination = File.expand_path(path)
+        destination = File.realpath(destination) if File.symlink?(destination)
+        original = File.file?(destination) ? File.binread(destination) : nil
+        same_file = @path && (File.expand_path(path) == @path || (File.exist?(@path) && File.exist?(destination) && File.identical?(@path, destination)))
+        if !force && same_file && @disk_digest && (!original || Digest::SHA256.hexdigest(original) != @disk_digest)
+          raise SaveConflict, "file changed on disk: #{path}"
+        end
+        raise SaveConflict, "destination exists: #{path}" if !force && original && (!same_file || !@disk_digest)
+        snapshot = @rope
+        encoded = @bom + snapshot.to_s.encode(@encoding).b
+        Tempfile.create([".canopus-", ".tmp"], File.dirname(destination), binmode: true) do |file|
+          file.chmod(File.stat(destination).mode & 0o777) if original
+          file.write(encoded)
+          file.flush
+          file.fsync
+          file.close
+          current = File.file?(destination) ? File.binread(destination) : nil
+          raise SaveConflict, "file changed during save: #{path}" if !force && current != original
+          File.rename(file.path, destination)
+        end
+        @path = File.expand_path(path)
+        @saved_rope, @disk_digest = snapshot, Digest::SHA256.hexdigest(encoded)
+        self
       end
-      raise SaveConflict, "destination exists: #{path}" if !force && original && (!same_file || !@disk_digest)
-      encoded = @bom + text.encode(@encoding).b
-      Tempfile.create([".canopus-", ".tmp"], File.dirname(destination), binmode: true) do |file|
-        file.chmod(File.stat(destination).mode & 0o777) if original
-        file.write(encoded)
-        file.flush
-        file.fsync
-        file.close
-        current = File.file?(destination) ? File.binread(destination) : nil
-        raise SaveConflict, "file changed during save: #{path}" if !force && current != original
-        File.rename(file.path, destination)
-      end
-      @path = File.expand_path(path)
-      @saved_rope, @disk_digest = @rope, Digest::SHA256.hexdigest(encoded)
-      self
     rescue EncodingError => error
       raise Error, "cannot save using #{@encoding}: #{error.message}"
     end

@@ -31,6 +31,7 @@ module Canopus
       system
     end
     def apply_settings
+      reset_auto_save
       cancel_workspace_symbol_search
       self.palette = nil if @palette&.dig(:kind) == :workspace_symbol_results
       servers = language_server_settings_plan
