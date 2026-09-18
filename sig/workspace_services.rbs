@@ -1,4 +1,17 @@
 module Canopus
+  module Workspace::GitConflictResolution
+    MERGE_MAX_BYTES: Integer
+    MERGE_MAX_LINES: Integer
+    CONFLICT_MODES: Array[Integer]
+    CONFLICT_CHOICES: Array[Symbol]
+
+    def show_git_conflicts: (?String? path, ?async: bool) -> (Editor | Thread | nil)
+    def show_git_conflict: (?String? path, ?async: bool) -> (Editor | Thread | nil)
+    def resolve_git_conflict: ((:ours | :theirs | :both | :manual) choice, ?content: String?, ?mode: Integer?, ?async: bool, ?expected: untyped) -> (Editor | Thread | String)
+    def git_conflict_decorations: (Buffer buffer, Range[Integer] rows) -> Array[Decoration::Item]
+    def close_git: () -> untyped
+  end
+
   module Workspace::GitDiffView
     MAX_DIFF_BYTES: Integer
     MAX_HISTORY: Integer
@@ -171,6 +184,10 @@ module Canopus
     def git_file_history: (?String? path, ?revision: String, ?limit: Integer) -> Array[Workspace::GitDiffView::GitHistoryEntry]
     def show_git_file_history: (?String? path, ?revision: String, ?limit: Integer, ?async: bool) -> (palette_state | Thread)
     def show_git_revision_compare: (?String? path) -> palette_state
+    def show_git_conflicts: (?String? path, ?async: bool) -> (Editor | Thread | nil)
+    def show_git_conflict: (?String? path, ?async: bool) -> (Editor | Thread | nil)
+    def resolve_git_conflict: ((:ours | :theirs | :both | :manual) choice, ?content: String?, ?mode: Integer?, ?async: bool, ?expected: untyped) -> (Editor | Thread | String)
+    def git_conflict_decorations: (Buffer buffer, Range[Integer] rows) -> Array[Decoration::Item]
     def search_query: (String query, palette_state state) -> [String | Regexp, search_options]
     def search_project: (String query, ?regexp: bool, ?case_sensitive: bool, ?whole_word: bool, ?async: bool) -> (Thread | MultiBuffer | nil)
     def replace_in_buffer: (String | Regexp pattern, String replacement, ?case_sensitive: bool, ?whole_word: bool, ?range: Range[Integer]?) -> Integer

@@ -81,6 +81,7 @@ module Canopus
       end
       @decorations.register(:git) { |buffer, rows| git_decorations(buffer, rows) }
       @decorations.register(:scm_diff) { |buffer, rows| scm_diff_decorations(buffer, rows) }
+      @decorations.register(:merge_conflict) { |buffer, rows| git_conflict_decorations(buffer, rows) }
       @decorations.register(:diagnostics) { |buffer, rows| diagnostic_decorations(buffer, rows) }
       @decorations.register(:document_highlight) { |buffer, rows, current| document_highlight_decorations(buffer, rows, current) }
       @decorations.register(:document_link) { |buffer, rows, current| document_link_decorations(buffer, rows, current) }
@@ -916,6 +917,11 @@ module Canopus
       register_action("git.diff.toggle_mode", description: "Toggle Inline / Side-by-Side Diff") { toggle_git_diff_mode }
       register_action("git.compare_revisions", description: "Compare Git Revisions") { show_git_revision_compare }
       register_action("git.file_history", description: "Show File History") { show_git_file_history }
+      register_action("git.conflicts", description: "Resolve Merge Conflicts") { show_git_conflicts }
+      register_action("git.conflict.ours", description: "Resolve Conflict with Ours") { resolve_git_conflict(:ours) }
+      register_action("git.conflict.theirs", description: "Resolve Conflict with Theirs") { resolve_git_conflict(:theirs) }
+      register_action("git.conflict.both", description: "Resolve Conflict with Both") { resolve_git_conflict(:both) }
+      register_action("git.conflict.manual", description: "Resolve Conflict with Manual Edit") { resolve_git_conflict(:manual) }
       register_action("git.toggle_hunk") { toggle_git_hunk }
       register_action("git.blame") { show_git_blame }
       register_action("git.revert_hunk") { revert_current_hunk }
@@ -1102,6 +1108,7 @@ require_relative "workspace/problems_aware"
 require_relative "workspace/git_aware"
 require_relative "workspace/git_staging"
 require_relative "workspace/git_diff_view"
+require_relative "workspace/git_conflict_resolution"
 require_relative "workspace/project_searchable"
 require_relative "workspace/settings_aware"
 require_relative "workspace/file_previewable"
@@ -1118,6 +1125,7 @@ Canopus::Workspace.include Canopus::Workspace::ProblemsAware
 Canopus::Workspace.include Canopus::Workspace::GitAware
 Canopus::Workspace.include Canopus::Workspace::GitStaging
 Canopus::Workspace.include Canopus::Workspace::GitDiffView
+Canopus::Workspace.include Canopus::Workspace::GitConflictResolution
 Canopus::Workspace.include Canopus::Workspace::ProjectSearchable
 Canopus::Workspace.include Canopus::Workspace::SettingsAware
 Canopus::Workspace.include Canopus::Workspace::FilePreviewable

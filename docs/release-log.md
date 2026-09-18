@@ -2,6 +2,7 @@
 
 | Date | Repository | Version | Canopus follow-up | Reason |
 | --- | --- | --- | --- | --- |
+| 2026-09-17 | thuban | 0.6.0 | 2026-09-17 | Transactional merge-conflict snapshots and resolution |
 | 2026-09-17 | thuban | 0.5.0 | 2026-09-17 | Atomic partial staging and managed Git transfers |
 | 2026-09-17 | thuban | 0.4.1 | 2026-09-17 | Lazy remote provider loading for headless startup |
 | 2026-09-17 | tarazed | 0.2.2 | 2026-09-17 | Drain final Windows ConPTY output after process exit |

@@ -242,7 +242,8 @@ module Canopus
       @scene.clip(bounds) do
         x = bounds.x
         pane.editors.each do |editor|
-          name = editor.buffer.path ? File.basename(editor.buffer.path) : "Untitled"
+          name = editor.buffer.instance_variable_get(:@display_name) ||
+            (editor.buffer.path ? File.basename(editor.buffer.path) : "Untitled")
           name += " *" if editor.buffer.dirty?
           name = "[#{name}]" if pane.pinned.include?(editor)
           width = [[name.length * 7.5 + 30, 100].max, 240].min
