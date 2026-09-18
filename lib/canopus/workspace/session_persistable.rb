@@ -2,20 +2,26 @@
 
 module Canopus
   module Workspace::SessionPersistable
-    def save_session(path)
+    def save_session(path, max_draft_bytes: nil)
       records = {}
       record = lambda do |buffer|
         id = buffer.object_id.to_s
         return id if records.key?(id)
-        records[id] = if buffer.is_a?(MultiBuffer)
-          {excerpts: buffer.excerpts.map do |excerpt|
-            {buffer: record.call(excerpt.buffer), first: excerpt.buffer.resolve(excerpt.first),
+        entry = if buffer.is_a?(MultiBuffer)
+          excerpts = buffer.excerpts.filter_map do |excerpt|
+            source = record.call(excerpt.buffer)
+            next unless source
+            {buffer: source, first: excerpt.buffer.resolve(excerpt.first),
               last: excerpt.buffer.resolve(excerpt.last), title: excerpt.title}
-          end}
+          end
+          next if excerpts.length != buffer.excerpts.length
+          {excerpts: excerpts}
         else
+          next if max_draft_bytes && (buffer.dirty? || !buffer.path) && buffer.rope.bytesize > max_draft_bytes
           {path: buffer.path, draft: buffer.dirty? || !buffer.path ? buffer.text : nil,
             digest: buffer.disk_digest, encoding: buffer.encoding.name, bom: buffer.bom.unpack1("H*"), read_only: buffer.read_only}
         end
+        records[id] = entry
         id
       end
       state = {version: 2, root: @root, layout: encode_layout(@layout), recent_files: @recent_files || [],
@@ -23,15 +29,21 @@ module Canopus
         terminals: @terminals.map { |current| {cwd: current.vt.cwd || (current.respond_to?(:initial_cwd) ? current.initial_cwd : @root), title: @terminal_names[current]} },
         active_terminal: @active_terminal_index, terminal_visible: terminal_visible,
         panes: @panes.map do |pane|
-          {active: pane.active_index, tabs: pane.editors.map do |current|
-            {buffer_id: record.call(current.buffer), cursor: current.primary.head, pinned: pane.pinned.include?(current),
+          {active: pane.active_index, tabs: pane.editors.filter_map do |current|
+            buffer_id = record.call(current.buffer)
+            next unless buffer_id
+            {buffer_id: buffer_id, cursor: current.primary.head, pinned: pane.pinned.include?(current),
               selections: current.selections.map { |selection| {anchor: selection.anchor, head: selection.head} },
               scroll_x: current.scroll_x, scroll_y: current.scroll_y}
           end}
         end, buffers: records}
-      state[:background_buffers] = @buffers.values.select(&:dirty?).map { |buffer| record.call(buffer) }
+      state[:background_buffers] = @buffers.values.select(&:dirty?).filter_map { |buffer| record.call(buffer) }
+      if max_draft_bytes && state[:panes][state[:active_pane]][:tabs].empty?
+        state[:active_pane] = state[:panes].index { |pane| !pane[:tabs].empty? } || state[:active_pane]
+      end
       FileUtils.mkdir_p(File.dirname(path))
       Tempfile.create([".session-", ".json"], File.dirname(path)) do |file|
+        file.chmod(0o600)
         file.write(JSON.pretty_generate(state))
         file.flush
         file.fsync

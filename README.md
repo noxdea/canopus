@@ -144,6 +144,7 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
   "code_actions_on_save": [],
   "format_on_save_timeout": 2000,
   "git": { "inline_blame": "off", "autofetch": false, "autofetch_interval": 180 },
+  "recovery": { "enabled": true, "interval": 5000 },
   "tabs": { "activate_on_close": "history", "reopen_history_limit": 20 },
   "terminal": { "working_directory": "project", "scrollback_lines": 10000 },
   "dock": {
@@ -201,6 +202,14 @@ unsaved changes are never restored. Dock and panel visibility and sizes are also
 restored. Terminal session restoration, when enabled,
 starts fresh shells with the saved tab count and working directories and does
 not restore processes or scrollback.
+
+Dirty buffers are also written every five seconds to private, atomically
+replaced files under `.canopus/recovery/`. After an abnormal exit, the newest
+valid snapshot is offered at startup; normal exit removes this run's snapshot.
+Set `recovery.enabled` to `false` or change `recovery.interval` (milliseconds)
+in settings. Recovery files contain local unsaved text, so disable the feature
+for workspaces where even a mode-0600 local copy is unacceptable. Individual
+buffers over 10 MiB and snapshots over 64 MiB are not retained.
 
 Settings are layered from defaults through user, project, explicit `--settings`,
 and language overrides. Invalid saved settings leave the previous valid values

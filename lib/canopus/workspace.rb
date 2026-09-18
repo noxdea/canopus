@@ -910,6 +910,7 @@ module Canopus
       cleanup.call { clear_vim_states }
       @panes.each { |pane| pane.editors.each { |current| cleanup.call { current.dispose } } }
       @buffers.each_value { |buffer| cleanup.call { buffer.close } }
+      cleanup.call { close_recovery(clean: !@preserve_recovery && !failure) }
       raise failure if failure
     end
 
@@ -1137,6 +1138,7 @@ module Canopus
 end
 
 require_relative "workspace/session_persistable"
+require_relative "workspace/recoverable"
 require_relative "workspace/project_tree_editable"
 require_relative "workspace/file_change_aware"
 require_relative "workspace/language_server_configurable"
@@ -1157,6 +1159,7 @@ require_relative "workspace/debug_aware"
 require_relative "workspace/task_aware"
 require_relative "workspace/test_aware"
 Canopus::Workspace.include Canopus::Workspace::SessionPersistable
+Canopus::Workspace.include Canopus::Workspace::Recoverable
 Canopus::Workspace.include Canopus::Workspace::ProjectTreeEditable
 Canopus::Workspace.include Canopus::Workspace::FileChangeAware
 Canopus::Workspace.include Canopus::Workspace::LanguageServerConfigurable

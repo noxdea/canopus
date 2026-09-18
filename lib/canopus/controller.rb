@@ -5,7 +5,7 @@ require_relative "workspace/view"
 module Canopus
   class Controller
     attr_reader :workspace, :view, :window, :keymap
-    def initialize(workspace, window)
+    def initialize(workspace, window, offer_recovery: true)
       @workspace, @window, @view = workspace, window, Workspace::View.new(workspace)
       workspace.window = window
       workspace.register_action("terminal.copy", condition: "Terminal || TaskOutput") { terminal_copy }
@@ -23,6 +23,7 @@ module Canopus
         workspace.drain
         workspace.poll_changes
         workspace.poll_settings
+        workspace.poll_recovery
         reload_keymap
         workspace.poll_git_changes
         poll_display_maps
@@ -32,6 +33,7 @@ module Canopus
       end
       @clipboard, @terminal_focus = "", nil
       workspace.new_buffer unless workspace.editor
+      workspace.offer_recovery if offer_recovery
     end
     def input(event)
       return if focused_ui_widget? &&
@@ -142,7 +144,7 @@ module Canopus
     end
     def input_text(text)
       if @workspace.palette
-        return if [:workspace_edit, :confirm_close, :confirm_tab_close, :confirm_terminal_close, :confirm_terminal_paste, :trash_file,
+        return if [:workspace_edit, :confirm_close, :confirm_tab_close, :confirm_terminal_close, :confirm_terminal_paste, :trash_file, :recovery,
           :breakpoint_actions].include?(@workspace.palette[:kind])
         @workspace.palette[:query] << text
         @workspace.update_palette
@@ -411,7 +413,7 @@ module Canopus
           palette[:details_scroll] = (palette.fetch(:details_scroll, 0) + (stroke == "pageup" ? -step : step)).clamp(0, maximum)
         end
       when "backspace"
-        return if [:workspace_edit, :confirm_close, :confirm_tab_close, :confirm_terminal_close, :confirm_terminal_paste, :trash_file,
+        return if [:workspace_edit, :confirm_close, :confirm_tab_close, :confirm_terminal_close, :confirm_terminal_paste, :trash_file, :recovery,
           :breakpoint_actions].include?(palette[:kind])
         palette[:query] = palette[:query].grapheme_clusters[0...-1].join
         @workspace.update_palette
@@ -433,6 +435,8 @@ module Canopus
           elsif result["failureReason"] != "User cancelled"
             @workspace.message = result["failureReason"].to_s
           end
+        elsif palette[:kind] == :recovery
+          @workspace.resolve_recovery(palette[:index].zero? ? :restore : :discard)
         elsif palette[:kind] == :confirm_close
           case palette[:index]
           when 0

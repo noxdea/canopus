@@ -1,4 +1,19 @@
 module Canopus
+  module Workspace::Recoverable
+    MAX_DRAFT_BYTES: Integer
+    MAX_SNAPSHOT_BYTES: Integer
+    SNAPSHOT_OVERHEAD_BYTES: Integer
+    JSON_ESCAPE_FACTOR: Integer
+
+    def recovery_directory: () -> String
+    def recovery_candidates: () -> Array[String]
+    def offer_recovery: () -> bool
+    def resolve_recovery: (:restore | :discard choice) -> bool
+    def poll_recovery: (?now: Numeric, ?force: bool) -> bool
+    def close_recovery: (?clean: bool) -> void
+    def preserve_recovery!: () -> true
+  end
+
   module Workspace::GitConflictResolution
     MERGE_MAX_BYTES: Integer
     MERGE_MAX_LINES: Integer

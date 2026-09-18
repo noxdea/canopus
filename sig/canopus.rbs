@@ -384,8 +384,15 @@ module Canopus
     def register_language: (String name, extensions: Array[String], ?lexer: String, ?comment: String, ?indent_open: String, ?indent_close: String, ?servers: Array[Array[String]]) -> untyped
     def command_context: (?terminal: bool, ?task_output: bool) -> Command::context
     def call: (String name, *untyped arguments, ?context: Command::context?) -> untyped
-    def save_session: (String path) -> void
+    def save_session: (String path, ?max_draft_bytes: Integer?) -> void
     def restore_session: (String path) -> self
+    def recovery_directory: () -> String
+    def recovery_candidates: () -> Array[String]
+    def offer_recovery: () -> bool
+    def resolve_recovery: (:restore | :discard choice) -> bool
+    def poll_recovery: (?now: Numeric, ?force: bool) -> bool
+    def close_recovery: (?clean: bool) -> void
+    def preserve_recovery!: () -> true
     def theme=: (Theme | String theme) -> void
     def palette_open: (Symbol kind, ?command_ids: Array[String]?, ?context: Command::context?) -> void
     def show_snippet_choices: (?Editor current) -> untyped

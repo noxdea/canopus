@@ -22,6 +22,7 @@ module Canopus
       "minimap" => {"enabled" => false, "width" => 100, "show_diagnostics" => true}.freeze,
       "format_on_save" => false, "code_actions_on_save" => [].freeze, "format_on_save_timeout" => 2_000,
       "git" => {"inline_blame" => "off", "autofetch" => false, "autofetch_interval" => 180}.freeze,
+      "recovery" => {"enabled" => true, "interval" => 5_000}.freeze,
       "dock" => {"left" => {"size" => 220, "visible" => true}.freeze,
         "right" => {"size" => 260, "visible" => false}.freeze,
         "bottom" => {"size" => 280, "visible" => false}.freeze,
@@ -74,12 +75,16 @@ module Canopus
           "inline_blame" => {"type" => "string", "enum" => %w[off cursor all]},
           "autofetch" => {"type" => "boolean"},
           "autofetch_interval" => {"type" => "integer", "minimum" => 10, "maximum" => 86_400}}},
+      "recovery" => {"type" => "object", "additionalProperties" => false,
+        "required" => %w[enabled interval], "properties" => {
+          "enabled" => {"type" => "boolean"},
+          "interval" => {"type" => "integer", "minimum" => 100, "maximum" => 3_600_000}}},
       "dock" => {"type" => "object", "properties" => {
         "left" => {"$ref" => "#/$defs/dock"}, "right" => {"$ref" => "#/$defs/dock"},
         "bottom" => {"$ref" => "#/$defs/dock"}, "panels" => {"type" => "object", "maxProperties" => 1000,
           "additionalProperties" => {"$ref" => "#/$defs/panel"}}}},
       "languages" => {"type" => "object", "additionalProperties" => {"allOf" => [
-        {"$ref" => "#"}, {"properties" => {"languages" => false, "debug_adapters" => false}}
+        {"$ref" => "#"}, {"properties" => {"languages" => false, "debug_adapters" => false, "recovery" => false}}
       ]}},
       "language_servers" => {"type" => "object", "additionalProperties" => {"anyOf" => [
         {"type" => "null"}, {"$ref" => "#/$defs/language_server"},
@@ -186,6 +191,7 @@ module Canopus
       validate_minimap!
       validate_save_actions!
       validate_git!
+      validate_recovery!
       validate_language_server_keys!
       snapshot_language_servers!
       validate_debug_adapters!
@@ -193,7 +199,9 @@ module Canopus
       @values["languages"] = @values["languages"].to_h do |name, layer|
         raise Error, "language settings must be objects" unless name.is_a?(String) && layer.is_a?(Hash)
         raise Error, "language settings cannot contain nested languages" if layer.key?("languages")
-        raise Error, "debug_adapters is a global setting" if layer.key?("debug_adapters") || layer.key?(:debug_adapters)
+        %w[debug_adapters recovery].each do |key|
+          raise Error, "#{key} is a global setting" if layer.key?(key) || layer.key?(key.to_sym)
+        end
         checked = Settings.new(@values.merge("languages" => {}), layer)
         layer = layer.merge("keymap" => checked["keymap"]) if layer.key?("keymap")
         layer = layer.merge("code_actions_on_save" => checked["code_actions_on_save"]) if layer.key?("code_actions_on_save")
@@ -265,6 +273,14 @@ module Canopus
       raise Error, "git.autofetch must be true or false" unless [true, false].include?(git["autofetch"])
       interval = git["autofetch_interval"]
       raise Error, "invalid git.autofetch_interval" unless interval.is_a?(Integer) && interval.between?(10, 86_400)
+    end
+
+    def validate_recovery!
+      recovery = @values["recovery"]
+      raise Error, "recovery must be an object" unless recovery.is_a?(Hash)
+      raise Error, "recovery.enabled must be true or false" unless [true, false].include?(recovery["enabled"])
+      interval = recovery["interval"]
+      raise Error, "invalid recovery.interval" unless interval.is_a?(Integer) && interval.between?(100, 3_600_000)
     end
 
     def validate_diagnostics!

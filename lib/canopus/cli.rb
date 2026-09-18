@@ -74,7 +74,7 @@ module Canopus
         performance = PerformanceRecorder.new(window, trace_allocations: options[:trace_allocations]).start
         workspace.performance = performance
       end
-      controller = Controller.new(workspace, window)
+      controller = Controller.new(workspace, window, offer_recovery: platform != :headless)
       workspace.configure_text_system(cache_dir: options[:glyph_cache]) unless platform == :tui
       workspace.apply_settings
       warmup = Thread.new { window.text_system.prewarm(size: settings["font_size"]) } unless platform == :tui
@@ -148,7 +148,7 @@ module Canopus
     private_class_method :settle_export
 
     def self.finish_cli(options, workspace, window, performance, failure, error:)
-      operations = [-> { performance&.stop }, -> { workspace&.close },
+      operations = [-> { performance&.stop }, -> { workspace&.preserve_recovery! if failure; workspace&.close },
         -> { window&.on_close { true }; window&.close },
         -> { performance&.write(options[:profile]) }]
       operations.each do |operation|
