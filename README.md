@@ -88,6 +88,9 @@ canopus --tui --project .
 canopus --headless /tmp/canopus.png README.md
 ```
 
+Use `EDITOR="canopus --wait"` when a caller such as Git must wait until every
+requested file tab is closed.
+
 Run `canopus --help` for session, settings, replay, backend, profiling, and
 plugin options.
 

@@ -50,7 +50,7 @@ class GitRemoteTest < Minitest::Test
   def setup
     @root = Dir.mktmpdir("canopus-git-remote-")
     FileUtils.mkdir_p(File.join(@root, ".git"))
-    File.write(File.join(@root, "example.txt"), "base\n")
+    File.binwrite(File.join(@root, "example.txt"), "base\n")
     @workspace = Canopus::Workspace.new(root: @root)
     @repository = Repository.new(@root)
     @workspace.instance_variable_set(:@git, @repository)
@@ -176,7 +176,7 @@ class GitRemoteIntegrationTest < Minitest::Test
     git(nil, "init", "-q", "--bare", @origin)
     git(nil, "init", "-q", "-b", "main", @root)
     configure(@root)
-    File.write(File.join(@root, "example.txt"), "base\n")
+    File.binwrite(File.join(@root, "example.txt"), "base\n")
     git(@root, "add", ".")
     git(@root, "commit", "-qm", "Initial")
     git(@root, "remote", "add", "origin", @origin)
@@ -193,7 +193,7 @@ class GitRemoteIntegrationTest < Minitest::Test
   end
 
   def test_pull_reloads_clean_buffers_and_push_interoperates_with_git
-    File.write(File.join(@peer, "example.txt"), "from peer\n")
+    File.binwrite(File.join(@peer, "example.txt"), "from peer\n")
     git(@peer, "add", ".")
     git(@peer, "commit", "-qm", "Peer update")
     git(@peer, "push", "-q", "origin", "main")
@@ -203,7 +203,7 @@ class GitRemoteIntegrationTest < Minitest::Test
     wait_until { @workspace.message == "Git pull complete" }
     assert_equal "from peer\n", @editor.buffer.text
 
-    File.write(File.join(@root, "example.txt"), "from work\n")
+    File.binwrite(File.join(@root, "example.txt"), "from work\n")
     @editor.buffer.reload
     git(@root, "add", ".")
     git(@root, "commit", "-qm", "Work update")

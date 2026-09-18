@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `--wait` for blocking editor invocations such as `EDITOR="canopus --wait"`.
 - Periodically save bounded private snapshots of dirty buffers and offer valid crash recovery on the next startup.
 - Require Zaniah 0.5.2 so equal-position inline overlays preserve source order on every platform.
 - Delegate language-server protocol transport and lifecycle handling to Sadr.

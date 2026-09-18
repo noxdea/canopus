@@ -210,6 +210,7 @@ class RecoveryTest < Minitest::Test
     current = workspace
     window = Zaniah::Platform.open_window(backend: :headless, width: 320, height: 200)
     controller = Canopus::Controller.new(current, window)
+    current.offer_recovery
     assert_equal :recovery, current.palette[:kind]
     query = current.palette[:query].dup
     matches = current.palette[:matches].dup
@@ -225,8 +226,8 @@ class RecoveryTest < Minitest::Test
   def test_restore_reopens_requested_paths_and_reuses_the_recovered_draft
     recovered_path = File.join(@root, "recovered.rb")
     requested_path = File.join(@root, "requested.rb")
-    File.write(recovered_path, "disk recovered\n")
-    File.write(requested_path, "disk requested\n")
+    File.binwrite(recovered_path, "disk recovered\n")
+    File.binwrite(requested_path, "disk requested\n")
     recovered_path = File.realpath(recovered_path)
     requested_path = File.realpath(requested_path)
     crashed = workspace
@@ -241,6 +242,7 @@ class RecoveryTest < Minitest::Test
     current.open(requested_path)
     window = Zaniah::Platform.open_window(backend: :headless, width: 320, height: 200)
     Canopus::Controller.new(current, window)
+    current.offer_recovery
     assert_equal :recovery, current.palette[:kind]
     assert current.resolve_recovery(:restore)
     recovered = current.buffers.values.select { |buffer| buffer.path == recovered_path }
@@ -283,9 +285,8 @@ class RecoveryTest < Minitest::Test
     File.write(target, "puts :target\n")
     observed = {}
     constructor = Canopus::Controller.method(:new)
-    replacement = lambda do |current, window, offer_recovery: true|
-      controller = constructor.call(current, window, offer_recovery: offer_recovery)
-      observed[:offer_recovery] = offer_recovery
+    replacement = lambda do |current, window|
+      controller = constructor.call(current, window)
       observed[:path] = current.editor.buffer.path
       observed[:palette] = current.palette
       controller
@@ -296,7 +297,6 @@ class RecoveryTest < Minitest::Test
         output: StringIO.new, error: error)
     end
     assert_equal 0, result, error.string
-    refute observed[:offer_recovery]
     assert_equal File.realpath(target), observed[:path]
     assert_nil observed[:palette]
   end

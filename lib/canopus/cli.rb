@@ -21,6 +21,7 @@ module Canopus
         flags.on("--profile JSON_PATH", "Save frame timings and sampled Ruby stacks on exit") { |value| options[:profile] = value }
         flags.on("--trace-allocations", "Trace live allocation sites (slow; requires --profile)") { options[:trace_allocations] = true }
         flags.on("--crash-report JSON_PATH", "Save exceptions locally; review before sharing") { |value| options[:crash_report] = value }
+        flags.on("--wait", "Wait until the opened files are closed") { options[:wait] = true }
         flags.on("--vim", "Enable Vim keybindings") { options[:vim] = true }
         flags.on("--plugin RUBY", "Load a Ruby plugin (requires --trust-plugins)") { |value| options[:plugins] << value }
         flags.on("--trust-plugins", "Allow the selected plugins to execute trusted Ruby code") { options[:trust_plugins] = true }
@@ -74,7 +75,9 @@ module Canopus
         performance = PerformanceRecorder.new(window, trace_allocations: options[:trace_allocations]).start
         workspace.performance = performance
       end
-      controller = Controller.new(workspace, window, offer_recovery: platform != :headless)
+      controller = Controller.new(workspace, window)
+      controller.wait_for(files) if options[:wait] && !files.empty?
+      workspace.offer_recovery unless platform == :headless
       workspace.configure_text_system(cache_dir: options[:glyph_cache]) unless platform == :tui
       workspace.apply_settings
       warmup = Thread.new { window.text_system.prewarm(size: settings["font_size"]) } unless platform == :tui

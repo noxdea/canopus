@@ -4,7 +4,8 @@ module Canopus
     attr_reader view: Workspace::View
     attr_reader window: Zaniah::Platform::Headless::Window
     attr_reader keymap: Zaniah::Input::Keymap
-    def initialize: (Workspace workspace, Zaniah::Platform::Headless::Window window, ?offer_recovery: bool) -> void
+    def initialize: (Workspace workspace, Zaniah::Platform::Headless::Window window) -> void
+    def wait_for: (Array[String] paths) -> Array[String]
     def input: (Zaniah::Input::event event) -> void
     def input_text: (String text) -> void
     def key: (String stroke) -> void

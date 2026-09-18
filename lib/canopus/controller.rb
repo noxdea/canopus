@@ -5,7 +5,7 @@ require_relative "workspace/view"
 module Canopus
   class Controller
     attr_reader :workspace, :view, :window, :keymap
-    def initialize(workspace, window, offer_recovery: true)
+    def initialize(workspace, window)
       @workspace, @window, @view = workspace, window, Workspace::View.new(workspace)
       workspace.window = window
       workspace.register_action("terminal.copy", condition: "Terminal || TaskOutput") { terminal_copy }
@@ -30,10 +30,13 @@ module Canopus
         poll_language_documents
         poll_scroll
         window.request_frame if @view.tick
+        window.close if wait_complete?
       end
       @clipboard, @terminal_focus = "", nil
       workspace.new_buffer unless workspace.editor
-      workspace.offer_recovery if offer_recovery
+    end
+    def wait_for(paths)
+      @wait_paths = paths.map { |path| @workspace.canonical_path(path) }.uniq
     end
     def input(event)
       return if focused_ui_widget? &&
@@ -341,6 +344,15 @@ module Canopus
     end
 
     private
+    def wait_complete?
+      return false unless @wait_paths
+      return false if @wait_paths.any? do |path|
+        @workspace.panes.any? { |pane| pane.editors.any? { |editor| editor.buffer.path == path } }
+      end
+      @wait_paths = nil
+      true
+    end
+
     def focused_ui_widget? = !@window.dispatcher.focused.nil?
 
     def reload_keymap
