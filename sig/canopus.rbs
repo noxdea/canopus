@@ -307,6 +307,7 @@ module Canopus
     def self.schema: () -> values
     def self.schema_model: () -> Kochab::Schema
     def self.schema_metadata: () -> Kochab::Schema
+    def self.file_diagnostics: (String path) -> [Kochab::Document, Array[Kochab::Error | Kochab::Diagnostic]]?
     def self.user_path: () -> String
     def initialize: (*(String | values) layers) -> void
     attr_reader values: values

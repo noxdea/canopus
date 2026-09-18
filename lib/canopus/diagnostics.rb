@@ -5,7 +5,7 @@ require "sadr" unless defined?(Sadr::Protocol) && defined?(Sadr::Error)
 
 module Canopus
   module Diagnostics
-    SOURCES = %i[lsp task test].freeze
+    SOURCES = %i[lsp settings task test].freeze
     SEVERITIES = {error: 1, warning: 2, information: 3, hint: 4}.freeze
     URI_LIMIT = 16_384
     MESSAGE_LIMIT = 4_096

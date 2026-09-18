@@ -85,16 +85,52 @@ module Canopus
       initial = !defined?(@settings_state)
       @settings_state = state
       return if initial && !force
+      previous_paths = @settings.paths
       replacement = @settings.reload
       old, @settings = @settings, replacement
+      publish_settings_diagnostics(previous_paths | @settings.paths)
       apply_settings
       @message = "Settings reloaded"
     rescue StandardError => error
       @settings = old if old
+      publish_settings_diagnostics(@settings.paths) if @settings
       @message = "Settings unchanged: #{error.message}"
     end
 
     private
+
+    def publish_settings_diagnostics(paths)
+      paths.uniq.each do |path|
+        uri = Sadr::Protocol.uri(File.expand_path(path))
+        @diagnostics.publish(:settings, uri, settings_diagnostics(path))
+      rescue StandardError
+        @diagnostics.publish(:settings, uri, [], notify: false) rescue nil
+      end
+    end
+
+    def settings_diagnostics(path)
+      parsed = Settings.file_diagnostics(path)
+      return [] unless parsed
+
+      document, diagnostics = parsed
+      diagnostics.filter_map do |diagnostic|
+        range = diagnostic.range
+        start_position = document.utf16_position_at(range&.begin || 0)
+        end_position = document.utf16_position_at(range&.end || range&.begin || 0)
+        {
+          "range" => {
+            "start" => {"line" => start_position[0], "character" => start_position[1]},
+            "end" => {"line" => end_position[0], "character" => end_position[1]}
+          },
+          "severity" => Diagnostics::SEVERITIES.fetch(diagnostic.severity, 2),
+          "message" => diagnostic.message.to_s,
+          "source" => "settings"
+        }
+      rescue EncodingError, RangeError
+        nil
+      end
+    end
+
     def apply_editor_settings(current)
       values = settings_for_editor(current)
       current.tab_size = values["tab_size"]

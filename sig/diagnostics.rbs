@@ -1,6 +1,6 @@
 module Canopus
   module Diagnostics
-    type source = :lsp | :task | :test
+    type source = :lsp | :settings | :task | :test
     type severity = :error | :warning | :information | :hint
 
     SOURCES: Array[source]

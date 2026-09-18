@@ -17,6 +17,18 @@ module Canopus
     def self.schema = SCHEMA
     def self.schema_model = SCHEMA_MODEL
     def self.schema_metadata = SCHEMA_MODEL
+    def self.file_diagnostics(path)
+      return nil unless File.file?(path)
+
+      document = Kochab.parse(File.read(path))
+      diagnostics = document.errors.dup
+      if document.valid?
+        diagnostics.concat(SCHEMA_MODEL.validate(document).reject { |diagnostic| diagnostic.message == "Required value is missing" })
+      end
+      [document, diagnostics.freeze].freeze
+    rescue Errno::ENOENT, Errno::EACCES, Errno::EISDIR
+      nil
+    end
     def self.user_path
       File.join(ENV["XDG_CONFIG_HOME"] || File.expand_path("~/.config"), "canopus", "settings.jsonc")
     end

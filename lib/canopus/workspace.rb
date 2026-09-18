@@ -95,6 +95,7 @@ module Canopus
       @diagnostics = Diagnostics::Registry.new do |uri|
         @window ? post { diagnostics_changed(uri) } : diagnostics_changed(uri)
       end
+      publish_settings_diagnostics(@settings.paths)
       @providers = Provider::Registry.new
       @providers.register_completion(:lsp, priority: 100) { |buffer, offset, context| lsp_completions(buffer, offset, context) }
       @languages, @terminals = {}, []
