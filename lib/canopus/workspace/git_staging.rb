@@ -337,6 +337,8 @@ module Canopus
       raw = raw&.dup&.freeze
       raise EncodingError if raw && raw.bytesize > SCM_DIFF_MAX_BYTES
       text, encoding, bom = Buffer.decode_bytes(raw.to_s)
+      detection = Buffer.send(:detect_bytes, raw.to_s)
+      raise EncodingError if raw && bom.empty? && encoding != Encoding::UTF_8 && detection.confidence < 0.9
       raise EncodingError if raw && raw != bom + text.encode(encoding).b
 
       SCMContent.new(exists, raw, text.freeze, encoding, bom.dup.freeze, mode)
