@@ -29,6 +29,7 @@ jobs:
       - run: bundle install
       - run: bundle exec rake test
       - run: bundle exec ruby tools/package_signature_test.rb
+      - run: bundle exec ruby tools/update_test.rb
       - run: bundle exec rbs -I sig -r kochab -r porrima -r thuban -r alhena -r antares -r denebola -r zaniah -r sadr -r saiph -r rexml -r megrez -r tarazed -r alkaid -r stringio -r strscan validate
       - run: bundle exec ruby test/type/check.rb
       - run: bundle exec ruby tools/check_dependencies.rb test/type/smoke.rb

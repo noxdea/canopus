@@ -350,7 +350,8 @@ submitted through [GitHub issues and pull requests](https://github.com/noxdea/ca
 - Mixed line endings are shown as `mixed` in the status bar and can be normalized to LF, CRLF, or CR from the encoding actions.
 - Git support targets SHA-1 repositories and does not implement every index or object extension.
 - The integrated terminal uses a POSIX PTY on macOS/Linux and ConPTY on 64-bit Windows.
-- Desktop packages are unsigned and do not bundle Ruby or automatic updates.
+- Desktop packages are unsigned and do not bundle Ruby or automatic updates;
+  signed updates are available as an explicit `tools/update.rb` operation.
 
 ## License
 

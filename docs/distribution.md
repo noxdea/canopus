@@ -32,6 +32,12 @@ per-user install under `~/.local/share/canopus` and register the desktop MIME
 associations. Windows packages include `Install.ps1` and `Uninstall.ps1`,
 which register a per-user `Canopus.Document` ProgID and OpenWith entries.
 
+Updates are explicit: `tools/update.rb` accepts a signed JSON feed containing
+the channel, platform, semver, HTTPS archive URL, size, SHA-256, and RSA
+signature. It downloads into a same-filesystem staging directory, rejects
+unsafe tar entries, verifies the archive hash, and atomically swaps the install
+directory with rollback if activation fails.
+
 The output path must not exist and must be outside the source tree. Without
 `--ruby-root`, build for the Ruby executable available on the destination
 machine. With `--ruby-root`, the directory must be a relocatable CRuby staging
