@@ -212,9 +212,11 @@ module Canopus
     def redo: () -> bool
     def move: (Symbol direction, ?extend: bool, ?count: Integer) -> void
     def select_all: () -> self
+    def select_matches: (String | Regexp pattern, ?case_sensitive: bool, ?whole_word: bool, ?range: Range[Integer]?) -> Array[Range[Integer]]
     def select_next_occurrence: (?all: bool) -> untyped
     def rectangle: (DisplayPoint first, DisplayPoint last) -> void
     def add_cursor: (:up | :down direction) -> Array[Selection]?
+    def add_cursors_to_selected_lines: (:start | :end edge) -> Array[Selection]
     def indent: (?outdent: bool) -> untyped
     def toggle_comment: (?prefix: String, ?suffix: String?) -> untyped
     def duplicate_lines: () -> untyped

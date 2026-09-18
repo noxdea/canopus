@@ -186,6 +186,18 @@ module Canopus
     end
 
     def select_all = select(0, @buffer.rope.bytesize)
+    def select_matches(pattern, **options)
+      matches = search(pattern, **options)
+      return matches if matches.empty?
+      selections = matches.map do |range|
+        selection = Selection.new(@next_selection, range.begin, range.end, nil)
+        @next_selection += 1
+        selection
+      end
+      set_selections(selections, merge: false)
+      reveal_cursor
+      matches
+    end
     def select_next_occurrence(all: false)
       needle = @buffer.rope.byteslice(primary.range).to_s
       if needle.empty?
@@ -236,6 +248,17 @@ module Canopus
       selection = Selection.new(@next_selection, offset, offset, column)
       @next_selection += 1
       set_selections([*@selections, selection], merge: false)
+    end
+    def add_cursors_to_selected_lines(edge)
+      raise ArgumentError, "line edge must be start or end" unless %i[start end].include?(edge)
+      selections = selected_rows.map do |row|
+        start = @buffer.rope.line_start(row)
+        offset = edge == :start ? start : start + @buffer.line(row).bytesize
+        selection = Selection.new(@next_selection, offset, offset, nil)
+        @next_selection += 1
+        selection
+      end
+      set_selections(selections, merge: false)
     end
     def indent(outdent: false)
       change_lines(:indent) do |line|

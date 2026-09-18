@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add command-palette actions for cursors at every selected line start or end and selections for every regular-expression match.
+
 - Add rectangular Alt-drag selection and Ctrl-Alt-Up/Down cursor insertion across wrapped Unicode text.
 
 - Track shell commands and working directories through Tarazed OSC 133/7 integration, fold output, show exit status, and navigate command boundaries or failed commands.

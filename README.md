@@ -42,6 +42,7 @@ installable.
 - LSP-aware selection expansion with an asynchronous Antares fallback
 - LSP linked-range selection for starting a multi-cursor edit from the command palette
 - Rectangular selection with Alt-drag and vertical cursor insertion
+- Multi-cursor expansion to selected line starts, line ends, or every regular-expression match
 - Lazy call and type hierarchy trees with bidirectional navigation
 - Ranked, extensible completion and inline-completion provider registry
 - Viewport-scoped LSP inlay hints with clickable label locations
@@ -106,6 +107,7 @@ plugin options.
 | Replace / next occurrence | Cmd-Alt-F / Cmd-D | Ctrl-H / Ctrl-D |
 | All occurrences / expand or shrink selection | Cmd-Shift-L / Alt-Up or Down | Ctrl-Shift-L / Alt-Up or Down |
 | Add cursor above / below | Ctrl-Alt-Up or Down | Ctrl-Alt-Up or Down |
+| Line-start, line-end, or regex cursors | Command palette | Command palette |
 | Move lines | Alt-Shift-Up or Down | Alt-Shift-Up or Down |
 | Completion / definition / rename | Ctrl-Space / F12 / F2 | Ctrl-Space / F12 / F2 |
 | Split / terminal | Cmd-Backslash / Ctrl-Backtick | Ctrl-Backslash / Ctrl-Backtick |

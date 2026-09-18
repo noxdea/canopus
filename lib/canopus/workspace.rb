@@ -683,6 +683,8 @@ module Canopus
         @palette[:search_options] = {regexp: false, case_sensitive: true, whole_word: false, selection_only: false}
         @palette[:selection] = editor.primary.range unless editor.primary.empty?
         @palette[:editor], @palette[:version] = editor, editor.buffer.version
+      elsif kind == :regex_matches
+        @palette[:editor], @palette[:version] = editor, editor.buffer.version
       end
       update_palette
     end
@@ -904,6 +906,9 @@ module Canopus
         @minimap.record_search(editor.buffer, editor.buffer.version, matches)
         editor.select(matches.first.begin, matches.first.end) unless matches.empty?
         @message = "#{matches.length} matches"
+      elsif kind == :regex_matches
+        pattern, options = search_query(query, search_state.merge(search_options: {regexp: true}))
+        @message = "#{editor.select_matches(pattern, **options).length} matches"
       elsif kind == :project_search
         search_project(query, **search_state.fetch(:search_options, {}).reject { |key, _| key == :selection_only })
       elsif kind == :replace_query
@@ -1078,6 +1083,14 @@ module Canopus
         register_action("edit.add_cursor_#{direction}", description: "Add Cursor #{direction.capitalize}", condition: "Editor && !vim_mode") do
           editor.add_cursor(direction)
         end
+      end
+      %i[start end].each do |edge|
+        register_action("edit.add_cursors_to_line_#{edge}s", description: "Add Cursors to Line #{edge.capitalize}s", condition: "Editor && !vim_mode") do
+          editor.add_cursors_to_selected_lines(edge)
+        end
+      end
+      register_action("edit.select_all_regex_matches", description: "Select All Regular Expression Matches", condition: "Editor && !vim_mode") do
+        palette_open(:regex_matches)
       end
       register_action("edit.select_all_occurrences") { editor.select_next_occurrence(all: true) }
       register_action("edit.duplicate_line") { editor.duplicate_lines }
