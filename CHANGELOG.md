@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.5.0 — 2026-09-19
+
 - Configure automatic pairs and selection surrounding globally or per language without affecting paste, completion, or Vim insertion.
 
 - Add command-palette actions for cursors at every selected line start or end and selections for every regular-expression match.
