@@ -66,6 +66,7 @@ module Canopus
       invalidate_inlay_hints
       invalidate_code_lenses
       invalidate_brackets
+      @decorations.invalidate(:blame)
       reload_language_servers(servers)
       @window&.request_frame
     end

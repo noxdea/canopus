@@ -44,6 +44,69 @@ module Canopus
     end
   end
 
+  module Workspace::GitHistory
+    MAX_COMMITS: Integer
+    MAX_HISTORY_TREE_ENTRIES: Integer
+    MAX_COMMIT_PATHS: Integer
+
+    def git_commit_history: (?revision: String, ?limit: Integer) -> Array[GitCommitEntry]
+    def show_git_commit_history: (?revision: String, ?limit: Integer, ?async: bool) -> (Hash[Symbol, untyped] | Thread)
+    def open_git_commit: (GitCommitEntry entry) -> (Editor | Thread | Hash[Symbol, untyped] | nil)
+    def close_git: () -> untyped
+
+    class GitCommitEntry < Data
+      attr_reader oid: String
+      attr_reader parents: Array[String]
+      attr_reader subject: String
+      attr_reader author: String
+      attr_reader time: Integer
+      attr_reader paths: Array[String]
+      attr_reader graph: String
+      attr_reader paths_truncated: bool
+      def self.new: (String oid, Array[String] parents, String subject, String author, Integer time,
+        Array[String] paths, String graph, bool paths_truncated) -> instance
+    end
+  end
+
+  module Workspace::GitRemote
+    TRANSFER_PHASES: Array[Symbol]
+
+    def git_remotes: () -> Hash[String, String]
+    def fetch_git: (?String? remote, ?credentials: untyped) -> (Thread | Hash[Symbol, untyped])
+    def pull_git: (?String? remote, ?credentials: untyped) -> (Thread | Hash[Symbol, untyped])
+    def push_git: (?String? remote, ?credentials: untyped) -> (Thread | Hash[Symbol, untyped])
+    def cancel_git_transfer: () -> bool
+    def git_transfer_progress: () -> Hash[Symbol, untyped]?
+    def poll_git_changes: (?now: Numeric) -> void
+    def accept_git_credentials: () -> (Thread | Hash[Symbol, untyped])
+    def close_git: () -> untyped
+  end
+
+  module Workspace::GitBlame
+    BLAME_MAX_BYTES: Integer
+    BLAME_MAX_LINES: Integer
+    BLAME_CACHE_LIMIT: Integer
+
+    def git_blame_decorations: (Buffer buffer, Range[Integer] rows, ?Editor? current) -> Array[Decoration::Item]
+    def invalidate_git_blame: (?Buffer? buffer) -> nil
+    def invalidate_git: () -> nil
+    def close_git: () -> untyped
+
+    class GitBlameLine < Data
+      attr_reader commit: String
+      attr_reader author: String
+      attr_reader original_line: Integer
+      attr_reader path: String
+      def self.new: (String commit, String author, Integer original_line, String path) -> instance
+    end
+    class GitBlameSnapshot < Data
+      attr_reader key: Array[untyped]
+      attr_reader lines: Array[GitBlameLine?]
+      attr_reader reason: String?
+      def self.new: (Array[untyped] key, Array[GitBlameLine?] lines, String? reason) -> instance
+    end
+  end
+
   class Project::Tree
     class Entry < Data
       attr_reader path: String
@@ -184,6 +247,18 @@ module Canopus
     def git_file_history: (?String? path, ?revision: String, ?limit: Integer) -> Array[Workspace::GitDiffView::GitHistoryEntry]
     def show_git_file_history: (?String? path, ?revision: String, ?limit: Integer, ?async: bool) -> (palette_state | Thread)
     def show_git_revision_compare: (?String? path) -> palette_state
+    def git_commit_history: (?revision: String, ?limit: Integer) -> Array[Workspace::GitHistory::GitCommitEntry]
+    def show_git_commit_history: (?revision: String, ?limit: Integer, ?async: bool) -> (palette_state | Thread)
+    def open_git_commit: (Workspace::GitHistory::GitCommitEntry entry) -> (Editor | Thread | palette_state | nil)
+    def git_remotes: () -> Hash[String, String]
+    def fetch_git: (?String? remote, ?credentials: untyped) -> (Thread | palette_state)
+    def pull_git: (?String? remote, ?credentials: untyped) -> (Thread | palette_state)
+    def push_git: (?String? remote, ?credentials: untyped) -> (Thread | palette_state)
+    def cancel_git_transfer: () -> bool
+    def git_transfer_progress: () -> Hash[Symbol, untyped]?
+    def accept_git_credentials: () -> (Thread | palette_state)
+    def git_blame_decorations: (Buffer buffer, Range[Integer] rows, ?Editor? current) -> Array[Decoration::Item]
+    def invalidate_git_blame: (?Buffer? buffer) -> nil
     def show_git_conflicts: (?String? path, ?async: bool) -> (Editor | Thread | nil)
     def show_git_conflict: (?String? path, ?async: bool) -> (Editor | Thread | nil)
     def resolve_git_conflict: ((:ours | :theirs | :both | :manual) choice, ?content: String?, ?mode: Integer?, ?async: bool, ?expected: untyped) -> (Editor | Thread | String)

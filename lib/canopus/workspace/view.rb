@@ -1043,7 +1043,9 @@ module Canopus
       @scene.quad(box.x, box.y, box.width, box.height, color: @theme[:panel], radius: 8, border_width: 1, border_color: @theme[:border])
       labels = {commands: "Command palette", files: "Open file", search: "Find in buffer", save_as: "Save as",
                 confirm_close: "Unsaved changes", breakpoint_actions: "Breakpoint", breakpoint_edit: "Breakpoint value",
-                git_file_history: "File history", git_revision_compare: "Compare revisions (FROM..TO)"}
+                git_file_history: "File history", git_commit_history: "Commit history", git_commit_paths: "Changed files",
+                git_revision_compare: "Compare revisions (FROM..TO)", git_remotes: "Git remote",
+                git_credentials: palette[:stage] == :username ? "Git username (blank for token)" : "Git credential"}
       title = labels.fetch(palette[:kind], palette[:kind].to_s)
       if palette[:search_options]
         title += "  Ctrl+Alt " + {regexp: "R:regex", case_sensitive: "C:case", whole_word: "W:word", selection_only: "S:selection"}.filter_map do |key, label|
@@ -1051,7 +1053,8 @@ module Canopus
         end.join(" ")
       end
       @scene.clip(box) { text(title, box.x + 16, box.y + 12, color: :muted, size: palette[:search_options] ? 10 : 12) }
-      text(palette[:query].empty? ? "Type here…" : palette[:query], box.x + 16, box.y + 36, color: palette[:query].empty? ? :muted : :foreground)
+      query = palette_query_text(palette)
+      text(query.empty? ? "Type here…" : query, box.x + 16, box.y + 36, color: query.empty? ? :muted : :foreground)
       @scene.clip(box) do
         matches.each_with_index do |match, index|
           row = Zaniah::Bounds.new(box.x + 6, box.y + 74 + index * 28, list_width - 12, 28)
@@ -1079,6 +1082,10 @@ module Canopus
           end
         end
       end
+    end
+
+    def palette_query_text(palette)
+      palette[:secret] && !palette[:query].empty? ? "•" * [palette[:query].length, 64].min : palette[:query]
     end
   end
 end

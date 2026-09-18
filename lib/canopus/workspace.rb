@@ -82,6 +82,7 @@ module Canopus
       @decorations.register(:git) { |buffer, rows| git_decorations(buffer, rows) }
       @decorations.register(:scm_diff) { |buffer, rows| scm_diff_decorations(buffer, rows) }
       @decorations.register(:merge_conflict) { |buffer, rows| git_conflict_decorations(buffer, rows) }
+      @decorations.register(:blame) { |buffer, rows, current| git_blame_decorations(buffer, rows, current) }
       @decorations.register(:diagnostics) { |buffer, rows| diagnostic_decorations(buffer, rows) }
       @decorations.register(:document_highlight) { |buffer, rows, current| document_highlight_decorations(buffer, rows, current) }
       @decorations.register(:document_link) { |buffer, rows, current| document_link_decorations(buffer, rows, current) }
@@ -656,9 +657,21 @@ module Canopus
         @palette[:index] = 0
         return
       end
+      if @palette[:kind] == :git_commit_history
+        labels = @palette[:all_matches] ||= @palette[:matches].dup
+        groups = @palette[:history_search_groups] ||= @palette.fetch(:search_values).each_with_index.each_with_object({}) do |(value, index), result|
+          (result[value] ||= []) << index
+        end
+        session = @palette[:search] ||= Spica::Index.new(groups.keys, tie_break: :index).session
+        session.query = @palette[:query]
+        @palette[:indices] = session.matches(12).flat_map { |match| groups.fetch(match.candidate) }.first(12)
+        @palette[:matches] = @palette[:indices].map { |index| labels.fetch(index) }
+        @palette[:index] = 0
+        return
+      end
       if [:locations, :symbols, :code_actions, :outline, :branches, :settings_keys, :snippet_choices,
           :breadcrumbs, :hierarchy_roots, :language_servers, :debug_configurations, :debug_watch_remove, :tasks,
-          :git_file_history].include?(@palette[:kind])
+          :git_file_history, :git_commit_paths, :git_remotes].include?(@palette[:kind])
         labels = @palette[:all_matches] ||= @palette[:matches].dup
         index = [:language_servers, :git_file_history].include?(@palette[:kind]) ?
           Spica::Index.new(labels, tie_break: :index) : Spica::Index.new(labels)
@@ -687,6 +700,7 @@ module Canopus
       return accept_breakpoint_palette if [:breakpoint_actions, :breakpoint_edit].include?(@palette[:kind])
       return accept_debug_watch_palette if [:debug_watch_add, :debug_watch_remove].include?(@palette[:kind])
       return accept_debug_console_palette if @palette[:kind] == :debug_console
+      return accept_git_credentials if @palette[:kind] == :git_credentials
       search_state = @palette.slice(:search_options, :selection, :editor, :version)
       after_save = @palette[:after_save]
       if @palette[:kind] == :snippet_choices
@@ -740,6 +754,25 @@ module Canopus
         entry = index && current[:items][index]
         self.palette = nil
         return compare_git_revisions(entry.parent, entry.oid, path: entry.path) if entry
+      elsif @palette[:kind] == :git_commit_history
+        current = @palette
+        index = current[:indices] ? current[:indices][current[:index]] : current[:index]
+        entry = index && current[:items][index]
+        self.palette = nil
+        return open_git_commit(entry) if entry
+      elsif @palette[:kind] == :git_commit_paths
+        current = @palette
+        index = current[:indices] ? current[:indices][current[:index]] : current[:index]
+        path = index && current[:items][index]
+        self.palette = nil
+        commit = current.fetch(:commit)
+        return compare_git_revisions(commit.parents.first, commit.oid, path: path) if path
+      elsif @palette[:kind] == :git_remotes
+        current = @palette
+        index = current[:indices] ? current[:indices][current[:index]] : current[:index]
+        remote = index && current[:items][index]
+        self.palette = nil
+        return public_send(:"#{current.fetch(:operation)}_git", remote) if remote
       elsif @palette[:kind] == :git_revision_compare
         current = @palette
         revisions = current[:query].split("..", -1)
@@ -917,6 +950,11 @@ module Canopus
       register_action("git.diff.toggle_mode", description: "Toggle Inline / Side-by-Side Diff") { toggle_git_diff_mode }
       register_action("git.compare_revisions", description: "Compare Git Revisions") { show_git_revision_compare }
       register_action("git.file_history", description: "Show File History") { show_git_file_history }
+      register_action("git.history", description: "Show Commit History") { show_git_commit_history }
+      register_action("git.fetch", description: "Fetch from Remote") { fetch_git }
+      register_action("git.pull", description: "Pull from Remote") { pull_git }
+      register_action("git.push", description: "Push to Remote") { push_git }
+      register_action("git.cancel_transfer", description: "Cancel Git Transfer") { cancel_git_transfer }
       register_action("git.conflicts", description: "Resolve Merge Conflicts") { show_git_conflicts }
       register_action("git.conflict.ours", description: "Resolve Conflict with Ours") { resolve_git_conflict(:ours) }
       register_action("git.conflict.theirs", description: "Resolve Conflict with Theirs") { resolve_git_conflict(:theirs) }
@@ -1109,6 +1147,9 @@ require_relative "workspace/git_aware"
 require_relative "workspace/git_staging"
 require_relative "workspace/git_diff_view"
 require_relative "workspace/git_conflict_resolution"
+require_relative "workspace/git_history"
+require_relative "workspace/git_remote"
+require_relative "workspace/git_blame"
 require_relative "workspace/project_searchable"
 require_relative "workspace/settings_aware"
 require_relative "workspace/file_previewable"
@@ -1126,6 +1167,9 @@ Canopus::Workspace.include Canopus::Workspace::GitAware
 Canopus::Workspace.include Canopus::Workspace::GitStaging
 Canopus::Workspace.include Canopus::Workspace::GitDiffView
 Canopus::Workspace.include Canopus::Workspace::GitConflictResolution
+Canopus::Workspace.include Canopus::Workspace::GitHistory
+Canopus::Workspace.include Canopus::Workspace::GitRemote
+Canopus::Workspace.include Canopus::Workspace::GitBlame
 Canopus::Workspace.include Canopus::Workspace::ProjectSearchable
 Canopus::Workspace.include Canopus::Workspace::SettingsAware
 Canopus::Workspace.include Canopus::Workspace::FilePreviewable

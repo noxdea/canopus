@@ -48,7 +48,7 @@ installable.
 - Optional GPU minimap with shared line textures, viewport navigation, and overview markers
 - Resizable integrated terminal with multiple tabs, scrollback, selection, colors, and clickable links
 - Bounded JSONC project tasks with color-preserving, interactive Output tabs
-- Git diff, blame, hunk reversal, and branch switching
+- Git diff and staging, searchable commit graphs, cancellable fetch/pull/push, inline blame, and branch switching
 - Editable project-wide search results and safe project file operations
 - Optional Vim-compatible modes, motions, operators, registers, macros, and Ex commands
 - Layered JSONC settings, keymaps, themes, snippets, and trusted Ruby plugins
@@ -112,7 +112,8 @@ plugin options.
 The command palette also exposes Git operations, language actions (including
 `language.linked_editing`, `language.call_hierarchy`, and
 `language.type_hierarchy`), project file operations, settings, themes, docks,
-Vim mode, `panel.problems`, and `problems.filter`. The problem filter accepts
+Vim mode, `git.history`, `git.fetch`, `git.pull`, `git.push`,
+`panel.problems`, and `problems.filter`. The problem filter accepts
 free text plus optional `severity:error` and `source:lsp` terms (`warning`,
 `information`, `hint`, `task`, and `test` are also accepted). Project deletion
 moves files to `.canopus/trash` instead of deleting them immediately.
@@ -142,6 +143,7 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
   "format_on_save": false,
   "code_actions_on_save": [],
   "format_on_save_timeout": 2000,
+  "git": { "inline_blame": "off", "autofetch": false, "autofetch_interval": 180 },
   "tabs": { "activate_on_close": "history", "reopen_history_limit": 20 },
   "terminal": { "working_directory": "project", "scrollback_lines": 10000 },
   "dock": {

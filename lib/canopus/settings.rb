@@ -21,6 +21,7 @@ module Canopus
       "breadcrumbs" => {"enabled" => true}.freeze,
       "minimap" => {"enabled" => false, "width" => 100, "show_diagnostics" => true}.freeze,
       "format_on_save" => false, "code_actions_on_save" => [].freeze, "format_on_save_timeout" => 2_000,
+      "git" => {"inline_blame" => "off", "autofetch" => false, "autofetch_interval" => 180}.freeze,
       "dock" => {"left" => {"size" => 220, "visible" => true}.freeze,
         "right" => {"size" => 260, "visible" => false}.freeze,
         "bottom" => {"size" => 280, "visible" => false}.freeze,
@@ -68,6 +69,11 @@ module Canopus
       "code_actions_on_save" => {"type" => "array", "maxItems" => 64, "uniqueItems" => true,
         "items" => {"type" => "string", "minLength" => 1, "maxLength" => 256}},
       "format_on_save_timeout" => {"type" => "integer", "minimum" => 1, "maximum" => 60_000},
+      "git" => {"type" => "object", "additionalProperties" => false,
+        "required" => %w[inline_blame autofetch autofetch_interval], "properties" => {
+          "inline_blame" => {"type" => "string", "enum" => %w[off cursor all]},
+          "autofetch" => {"type" => "boolean"},
+          "autofetch_interval" => {"type" => "integer", "minimum" => 10, "maximum" => 86_400}}},
       "dock" => {"type" => "object", "properties" => {
         "left" => {"$ref" => "#/$defs/dock"}, "right" => {"$ref" => "#/$defs/dock"},
         "bottom" => {"$ref" => "#/$defs/dock"}, "panels" => {"type" => "object", "maxProperties" => 1000,
@@ -179,6 +185,7 @@ module Canopus
       validate_breadcrumbs!
       validate_minimap!
       validate_save_actions!
+      validate_git!
       validate_language_server_keys!
       snapshot_language_servers!
       validate_debug_adapters!
@@ -249,6 +256,15 @@ module Canopus
         value = terminal[key]
         raise Error, "invalid terminal.#{key}" unless value.is_a?(Integer) && range.cover?(value)
       end
+    end
+
+    def validate_git!
+      git = @values["git"]
+      raise Error, "git must be an object" unless git.is_a?(Hash)
+      raise Error, "invalid git.inline_blame" unless %w[off cursor all].include?(git["inline_blame"])
+      raise Error, "git.autofetch must be true or false" unless [true, false].include?(git["autofetch"])
+      interval = git["autofetch_interval"]
+      raise Error, "invalid git.autofetch_interval" unless interval.is_a?(Integer) && interval.between?(10, 86_400)
     end
 
     def validate_diagnostics!

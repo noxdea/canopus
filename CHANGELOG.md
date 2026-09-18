@@ -41,6 +41,7 @@
 - Stage Git files, hunks, and lines and create or amend commits from the Source Control panel.
 - Compare Git changes and revisions inline or side by side, with word highlights and per-file history.
 - Resolve text merge regions in base/ours/theirs panes, stage the completed file atomically, and advance to the next conflict.
+- Browse and search bounded commit graphs, run cancellable authenticated remote transfers, and show cached inline blame on clean or edited buffers.
 
 ## 0.4.0 — 2026-09-15
 
