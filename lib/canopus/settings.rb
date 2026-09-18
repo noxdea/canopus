@@ -20,22 +20,25 @@ module Canopus
     def self.user_path
       File.join(ENV["XDG_CONFIG_HOME"] || File.expand_path("~/.config"), "canopus", "settings.jsonc")
     end
-    def initialize(*layers)
+    def initialize(*layers, fallback: nil)
       @values, @errors = DEFAULTS.dup, []
       @layers = layers.compact
+      @reload_fallback = fallback
       @initializing = true
       layers.compact.each { |layer| merge!(layer.is_a?(String) ? parse_file(layer) : layer) }
       @initializing = false
+      @reload_fallback = nil
       validate!
     end
     def [](key) = @values[key.to_s]
     def paths = @layers.grep(String)
-    def reload = self.class.new(*@layers)
+    def reload = self.class.new(*@layers, fallback: @values)
     def for_language(language) = Settings.new(@values, @values.fetch("languages", {}).fetch(language, {}))
     def merge!(layer)
-      raise Error, "settings must be an object" unless layer.is_a?(Hash)
+      document = layer.is_a?(Kochab::Document)
+      raise Error, "settings must be an object" unless document || layer.is_a?(Hash)
       previous = @values
-      @values = merge(@values, layer)
+      @values = document ? merge_document(@values, layer) : merge_hash(@values, layer)
       validate!
       @layers << snapshot_layer(layer) unless @initializing
       self
@@ -65,10 +68,23 @@ module Canopus
       document = Kochab.parse(File.read(path))
       @errors.concat(document.errors)
       raise Error, "invalid settings: #{path}" unless document.valid?
-      document.value
+      raise Error, "settings must be an object" unless document.value.is_a?(Hash)
+      document
     end
-    def merge(left, right)
-      left.merge(right) { |_, old, new| old.is_a?(Hash) && new.is_a?(Hash) ? merge(old, new) : new }
+    def merge_hash(left, right)
+      left.merge(right) { |_, old, new| old.is_a?(Hash) && new.is_a?(Hash) ? merge_hash(old, new) : new }
+    end
+    def merge_document(previous, document)
+      fallback = previous_layer(document.value, @reload_fallback || previous)
+      SCHEMA_MODEL.merge(previous, fallback, document)
+    end
+    def previous_layer(layer, previous)
+      layer.each_with_object({}) do |(key, value), result|
+        old = previous[key]
+        next unless previous.key?(key)
+
+        result[key] = value.is_a?(Hash) && old.is_a?(Hash) ? previous_layer(value, old) : snapshot_layer(old)
+      end
     end
     def snapshot_layer(value)
       case value
