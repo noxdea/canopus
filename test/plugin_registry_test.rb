@@ -2,6 +2,7 @@
 
 require_relative "test_helper"
 require "tmpdir"
+require "saiph"
 
 class PluginRegistryTest < Minitest::Test
   def with_plugin(source)

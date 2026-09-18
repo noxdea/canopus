@@ -183,6 +183,7 @@ module Canopus
       end
 
       def sandbox_policy
+        load_saiph
         Saiph::Policy.new(
           @permissions.include?("read_project") ? [@workspace.root] : [],
           @permissions.include?("write_project") ? [@workspace.root] : [],
