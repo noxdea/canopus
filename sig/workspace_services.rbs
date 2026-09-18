@@ -27,8 +27,6 @@ module Canopus
     def settings_for_editor: (Editor editor) -> Settings
     def invalidate_editorconfig: () -> nil
     def prepare_editorconfig_save: (Buffer buffer, String path) -> void
-    def show_encoding_actions: (?Buffer? buffer) -> Hash[Symbol, untyped]?
-    def convert_line_endings: (:lf | :crlf | :cr to, ?confirmed: bool) -> void
   end
 
   module Workspace::PersistentUndo
@@ -187,6 +185,8 @@ module Canopus
     attr_reader debug_position: {path: String, row: Integer}?
     attr_reader debug_panel: Debug::Panel
     attr_reader debug_console: Debug::Console
+    def show_encoding_actions: (?Buffer? buffer) -> Hash[Symbol, untyped]?
+    def convert_line_endings: (:lf | :crlf | :cr to, ?confirmed: bool) -> void
     attr_accessor window: Zaniah::Platform::Headless::Window?
     attr_reader palette: palette_state?
     def palette=: (palette_state? value) -> void
