@@ -2,8 +2,6 @@
 
 require "fileutils"
 require "json"
-require "rubygems/dependency_installer"
-require "rubygems/spec_fetcher"
 require "tempfile"
 
 module Canopus
@@ -11,7 +9,7 @@ module Canopus
     class Registry
       API_VERSION = "1"
       NAME_PATTERN = /\Acanopus-plugin-[a-z0-9][a-z0-9-]*\z/
-      PERMISSIONS = %w[read_buffer edit_buffer read_project write_project exec process network].freeze
+      PERMISSIONS = Plugins::PERMISSIONS
 
       def initialize(workspace, state_path: nil)
         @workspace, @loaded = workspace, []
@@ -20,6 +18,7 @@ module Canopus
       end
 
       def search(query, limit: 20)
+        require "rubygems/spec_fetcher"
         query = String(query)
         raise ArgumentError, "plugin search query must not be empty" if query.strip.empty?
         raise ArgumentError, "invalid plugin search limit" unless limit.is_a?(Integer) && limit.between?(1, 100)
@@ -35,9 +34,10 @@ module Canopus
         end.uniq { |plugin| plugin[:name] }.first(limit)
       end
 
-      def install(name, version: Gem::Requirement.default)
+      def install(name, version: nil)
+        require "rubygems/dependency_installer"
         name = validate_name(name)
-        specifications = Gem::DependencyInstaller.new.install(name, version)
+        specifications = Gem::DependencyInstaller.new.install(name, version || Gem::Requirement.default)
         specification = specifications.reverse.find { |candidate| candidate.name == name }
         validate_specification!(specification)
         specification

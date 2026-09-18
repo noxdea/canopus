@@ -25,7 +25,7 @@ module Canopus
         flags.on("--vim", "Enable Vim keybindings") { options[:vim] = true }
         flags.on("--plugin RUBY", "Load a Ruby plugin (requires --trust-plugins)") { |value| options[:plugins] << value }
         flags.on("--trust-plugins", "Allow the selected plugins to execute trusted Ruby code") { options[:trust_plugins] = true }
-        flags.on("--grant PERMISSION", Plugins::Registry::PERMISSIONS, "Grant a plugin API permission (repeatable)") { |value| options[:grants] << value }
+        flags.on("--grant PERMISSION", Plugins::PERMISSIONS, "Grant a plugin API permission (repeatable)") { |value| options[:grants] << value }
         flags.on("--plugins-in-process", "Run trusted plugins in the editor process") { options[:plugins_in_process] = true }
         flags.on("--version") { output.puts(VERSION); return 0 }
         flags.on("--help") { output.puts(flags); return 0 }

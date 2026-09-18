@@ -39,10 +39,16 @@ module Canopus
       end
     end
     def self.load(path, warnings: nil)
-      return Import.load(path, warnings: warnings) if File.extname(path).downcase == ".tmtheme"
+      if File.extname(path).downcase == ".tmtheme"
+        require_relative "theme/import"
+        return Import.load(path, warnings: warnings)
+      end
 
       data = Kochab.parse(File.read(path), strict: false).value
-      return Import.vscode(data, warnings: warnings) if data.is_a?(Hash) && (data.key?("colors") || data.key?("tokenColors"))
+      if data.is_a?(Hash) && (data.key?("colors") || data.key?("tokenColors"))
+        require_relative "theme/import"
+        return Import.vscode(data, warnings: warnings)
+      end
 
       theme = data.fetch("themes", [data]).first
       style = theme.fetch("style", {})
@@ -59,5 +65,3 @@ module Canopus
     end
   end
 end
-
-require_relative "theme/import"

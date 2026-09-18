@@ -3,9 +3,6 @@
 require "json"
 require "open3"
 require "rbconfig"
-saiph_path = ENV["SAIPH_PATH"]
-saiph_root = File.expand_path("../..", __dir__)
-saiph_path ? require(File.expand_path("lib/saiph", File.expand_path(saiph_path, saiph_root))) : require("saiph")
 
 # Separate-process execution isolates crashes and accidental global state.
 # Saiph adds an OS sandbox when the host backend supports the requested policy.
@@ -154,7 +151,9 @@ module Canopus
         return start_open3(command) if mode == "off"
 
         start_saiph(command)
-      rescue Saiph::Unsupported => error
+      rescue StandardError => error
+        raise unless defined?(Saiph::Unsupported) && error.is_a?(Saiph::Unsupported)
+
         raise Canopus::Error, "plugin sandbox is required: #{error.message}" if mode == "required"
 
         @workspace.message = "Plugin OS sandbox disabled: #{error.message}"
@@ -167,6 +166,7 @@ module Canopus
       end
 
       def start_saiph(command)
+        load_saiph
         child_input, input = IO.pipe
         output, child_output = IO.pipe
         @pid = Saiph.spawn(command, policy: sandbox_policy, in: child_input, out: child_output)
@@ -190,6 +190,14 @@ module Canopus
           @permissions.include?("exec"),
           []
         )
+      end
+
+      def load_saiph
+        return if defined?(Saiph::Policy)
+
+        saiph_path = ENV["SAIPH_PATH"]
+        saiph_root = File.expand_path("../..", __dir__)
+        saiph_path ? require(File.expand_path("lib/saiph", File.expand_path(saiph_path, saiph_root))) : require("saiph")
       end
 
       def response

@@ -1,11 +1,12 @@
 # frozen_string_literal: true
 
 module Canopus
-  module Plugins; end
+  module Plugins
+    PERMISSIONS = %w[read_buffer edit_buffer read_project write_project exec process network].freeze
+    autoload :PermissionDenied, "canopus/plugins/permission_denied"
+    autoload :API, "canopus/plugins/api"
+    autoload :LocalRuntime, "canopus/plugins/local_runtime"
+    autoload :IsolatedRuntime, "canopus/plugins/isolated_runtime"
+    autoload :Registry, "canopus/plugins/registry"
+  end
 end
-
-require_relative "plugins/permission_denied"
-require_relative "plugins/api"
-require_relative "plugins/local_runtime"
-require_relative "plugins/isolated_runtime"
-require_relative "plugins/registry"
