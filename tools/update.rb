@@ -124,7 +124,7 @@ module CanopusUpdater
         raise Error, "duplicate update archive path" if seen[name]
         seen[name] = true
         path = File.expand_path(name, destination)
-        raise Error, "unsafe update archive path" unless path.start_with?(destination + File::SEPARATOR)
+        raise Error, "unsafe update archive path" unless path == destination || path.start_with?(destination + File::SEPARATOR)
         if entry.directory?
           FileUtils.mkdir_p(path)
         elsif entry.file?
