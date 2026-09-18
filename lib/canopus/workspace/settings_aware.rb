@@ -98,6 +98,7 @@ module Canopus
       values = @settings.for_language(current.language_document.definition.name)
       current.tab_size = values["tab_size"]
       current.use_tabs = values["use_tabs"]
+      current.closing_pairs = values["auto_pairs"].to_h.freeze
       current.display_map.tab_size = current.tab_size
       current.display_map.wrap_width = values["soft_wrap"] ? 100 : nil unless current.buffer.read_only
     end

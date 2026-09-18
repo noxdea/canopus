@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Configure automatic pairs and selection surrounding globally or per language without affecting paste, completion, or Vim insertion.
+
 - Add command-palette actions for cursors at every selected line start or end and selections for every regular-expression match.
 
 - Add rectangular Alt-drag selection and Ctrl-Alt-Up/Down cursor insertion across wrapped Unicode text.

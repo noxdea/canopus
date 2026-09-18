@@ -1195,7 +1195,7 @@ module Canopus
       begin
         current.select(range.begin, range.end)
         current.buffer.edit(additional, kind: :completion) unless additional.empty?
-        snippet ? current.insert_snippet(value, variables: variables) : current.insert_text(value, auto_indent: false)
+        snippet ? current.insert_snippet(value, variables: variables) : current.insert_text(value, auto_indent: false, pair: false)
       ensure
         current.buffer.end_undo_group
       end
@@ -1258,7 +1258,7 @@ module Canopus
         begin
           editor.select(range.begin, range.end)
           editor.buffer.edit(additional, kind: :completion) unless additional.empty?
-          snippet ? editor.insert_snippet(value, variables: variables) : editor.insert_text(value, auto_indent: false)
+          snippet ? editor.insert_snippet(value, variables: variables) : editor.insert_text(value, auto_indent: false, pair: false)
         ensure
           editor.buffer.end_undo_group
         end

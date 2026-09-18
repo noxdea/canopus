@@ -149,6 +149,7 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
   "font_size": 14,
   "vim_mode": false,
   "use_tabs": false,
+  "auto_pairs": [["(", ")"], ["[", "]"], ["{", "}"], ["\"", "\""], ["'", "'"]],
   "diagnostics": { "inline": true, "inline_max_length": 80, "severity": "warning" },
   "inlay_hints": { "enabled": true, "parameter_names": true, "types": true, "max_length": 30 },
   "code_lens": { "enabled": true },
@@ -177,7 +178,7 @@ settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
   "keymap": [
     { "context": "Editor && !vim_mode", "bindings": { "ctrl-k ctrl-s": "file.save" } }
   ],
-  "languages": { "ruby": { "tab_size": 2 } },
+  "languages": { "ruby": { "tab_size": 2, "auto_pairs": [] } },
   "language_servers": {
     "ruby": [
       { "command": ["ruby-lsp"], "features": ["completion", "definition", "hover", "formatting"] },
@@ -202,6 +203,10 @@ its Cmd-T / Ctrl-T binding.
 `boundary` hides only single spaces between non-whitespace characters. Tabs use
 `→`, spaces use `·`, and ideographic spaces use `□`; the last remains visible
 independently when `render_ideographic_space` is enabled.
+
+`auto_pairs` replaces the opener/closer list for the current settings layer;
+set it to `[]` globally or for one language to disable automatic pairing and
+selection surrounding. Each opener and closer must be one Unicode grapheme.
 
 Sticky scroll keeps the declarations containing the first visible source byte
 above the editor body. It prefers cached LSP document symbols and falls back to

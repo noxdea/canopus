@@ -937,7 +937,7 @@ module Canopus
       elsif kind == :branches && selected
         checkout_branch(selected)
       elsif kind == :settings_keys && selected
-        editor.insert_text("#{JSON.generate(selected)}: #{JSON.generate(Settings::DEFAULTS.fetch(selected))}", auto_indent: false)
+        editor.insert_text("#{JSON.generate(selected)}: #{JSON.generate(Settings::DEFAULTS.fetch(selected))}", auto_indent: false, pair: false)
       end
     end
     def search_query(query, state)

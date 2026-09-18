@@ -408,7 +408,7 @@ module Canopus
       editor = @workspace.editor
       if operation == "v"
         value = @window.respond_to?(:clipboard) ? @window.clipboard : @clipboard
-        editor.insert_text(value.to_s, auto_indent: false)
+        editor.insert_text(value.to_s, auto_indent: false, pair: false)
       else
         value = editor.selections.map { |selection| editor.buffer.rope.byteslice(selection.range).to_s }.join("\n")
         @clipboard = value

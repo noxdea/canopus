@@ -184,6 +184,7 @@ module Canopus
   end
 
   class Editor
+    type closing_pairs = Hash[String, String]
     def self.search_pattern: (String | Regexp pattern, ?case_sensitive: bool, ?whole_word: bool) -> Regexp
     def initialize: (?Buffer buffer, ?wrap_width: Integer?, ?tab_size: Integer) -> void
     attr_reader buffer: Buffer
@@ -194,6 +195,7 @@ module Canopus
     attr_accessor tab_size: Integer
     attr_accessor use_tabs: bool
     attr_accessor auto_pairs: bool
+    attr_accessor closing_pairs: closing_pairs
     attr_accessor viewport_rows: Integer
     attr_accessor relative_line_numbers: bool?
     attr_accessor composition: Zaniah::Input::Composition?
@@ -204,7 +206,7 @@ module Canopus
     def select: (Integer first, ?Integer last, ?add: bool) -> self
     def on_selection: () { (Array[Selection]) -> void } -> Zaniah::Subscription
     def set_selections: (Array[Selection] selections, ?merge: bool) -> Array[Selection]
-    def insert_text: (String text, ?auto_indent: bool) -> untyped
+    def insert_text: (String text, ?auto_indent: bool, ?pair: bool) -> untyped
     def edit: (Array[[Range[Integer], String]] changes, ?kind: Symbol) -> Array[Selection]?
     def delete_backward: () -> untyped
     def delete_forward: () -> untyped

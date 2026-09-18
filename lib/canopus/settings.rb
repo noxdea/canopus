@@ -5,7 +5,9 @@ require "kochab"
 
 module Canopus
   class Settings
+    DEFAULT_AUTO_PAIRS = [["(", ")"], ["[", "]"], ["{", "}"], ['"', '"'], ["'", "'"]].map(&:freeze).freeze
     DEFAULTS = {"font_size" => 14, "tab_size" => 4, "use_tabs" => false, "soft_wrap" => false, "vim_mode" => false, "keymap" => [].freeze,
+      "auto_pairs" => DEFAULT_AUTO_PAIRS,
       "scroll_friction" => 12,
       "theme" => "Canopus Dark", "font_family" => nil, "icon_theme" => nil, "languages" => {}, "language_servers" => {},
       "debug_adapters" => {}.freeze,
@@ -41,6 +43,8 @@ module Canopus
       "scroll_friction" => {"type" => "number", "minimum" => 0, "maximum" => 100},
       "soft_wrap" => {"type" => "boolean"}, "vim_mode" => {"type" => "boolean"},
       "use_tabs" => {"type" => "boolean"},
+      "auto_pairs" => {"type" => "array", "maxItems" => 64, "items" => {"type" => "array", "minItems" => 2, "maxItems" => 2,
+        "items" => {"type" => "string"}}},
       "keymap" => {"type" => "array", "maxItems" => 128, "items" => {"type" => "object", "required" => ["bindings"], "properties" => {
         "context" => {"type" => "string", "maxLength" => 256},
         "bindings" => {"type" => "object", "maxProperties" => 1024, "additionalProperties" => {"type" => ["string", "null"]}}}}},
@@ -186,6 +190,7 @@ module Canopus
       %w[soft_wrap vim_mode use_tabs render_ideographic_space format_on_save].each { |key| raise Error, "#{key} must be true or false" unless [true, false].include?(@values[key]) }
       raise Error, "invalid render_whitespace" unless %w[none boundary selection all].include?(@values["render_whitespace"])
       validate_keymap!
+      validate_auto_pairs!
       %w[languages language_servers].each { |key| raise Error, "#{key} must be an object" unless @values[key].is_a?(Hash) }
       raise Error, "theme must be a string" unless @values["theme"].is_a?(String)
       raise Error, "font_family must be a string or null" unless @values["font_family"].nil? || @values["font_family"].is_a?(String)
@@ -214,6 +219,7 @@ module Canopus
         end
         checked = Settings.new(@values.merge("languages" => {}), layer)
         layer = layer.merge("keymap" => checked["keymap"]) if layer.key?("keymap")
+        layer = layer.merge("auto_pairs" => checked["auto_pairs"]) if layer.key?("auto_pairs")
         layer = layer.merge("code_actions_on_save" => checked["code_actions_on_save"]) if layer.key?("code_actions_on_save")
         layer = layer.merge("language_servers" => checked["language_servers"]) if layer.key?("language_servers")
         [name, layer]
@@ -240,6 +246,23 @@ module Canopus
       end.freeze
     rescue ArgumentError => error
       raise Error, "invalid keymap: #{error.message}"
+    end
+
+    def validate_auto_pairs!
+      pairs = @values["auto_pairs"]
+      raise Error, "auto_pairs must be an array of at most 64 pairs" unless pairs.is_a?(Array) && pairs.length <= 64
+      openers = {}
+      @values["auto_pairs"] = pairs.map do |pair|
+        raise Error, "auto_pairs entries must contain an opener and closer" unless pair.is_a?(Array) && pair.length == 2
+        opener, closer = pair
+        unless [opener, closer].all? { |value| value.is_a?(String) && value.encoding == Encoding::UTF_8 && value.valid_encoding? &&
+          value.each_grapheme_cluster.one? && !value.match?(/\p{Cc}/) }
+          raise Error, "auto_pairs openers and closers must be single non-control UTF-8 graphemes"
+        end
+        raise Error, "auto_pairs openers must be unique" if openers[opener]
+        openers[opener] = true
+        [opener.dup.freeze, closer.dup.freeze].freeze
+      end.freeze
     end
 
     def validate_tabs!

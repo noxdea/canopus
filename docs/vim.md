@@ -22,3 +22,6 @@ Vimscript, arbitrary shell commands, and user mappings are not interpreted.
 Clipboard registers `+` and `*` are in-memory registers rather than OS clipboard
 integrations. Counts are capped at 10,000; macro playback allows 10 nested calls
 and 10,000 keys.
+
+Insert and Replace modes follow Vim's literal insertion behavior and do not
+apply the editor's `auto_pairs` setting.

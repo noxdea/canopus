@@ -4,13 +4,13 @@ require_relative "selection"
 
 module Canopus
   class Editor
-    PAIRS = {"(" => ")", "[" => "]", "{" => "}", '"' => '"', "'" => "'"}.freeze
+    DEFAULT_CLOSING_PAIRS = {"(" => ")", "[" => "]", "{" => "}", '"' => '"', "'" => "'"}.freeze
     attr_reader :buffer, :display_map, :selections, :scroll_x, :scroll_y
-    attr_accessor :tab_size, :use_tabs, :auto_pairs, :composition, :viewport_rows, :relative_line_numbers
+    attr_accessor :tab_size, :use_tabs, :auto_pairs, :closing_pairs, :composition, :viewport_rows, :relative_line_numbers
 
     def initialize(buffer = Buffer.new, wrap_width: nil, tab_size: 4)
       @buffer, @next_selection = buffer, 0
-      @tab_size, @use_tabs, @auto_pairs = tab_size, false, true
+      @tab_size, @use_tabs, @auto_pairs, @closing_pairs = tab_size, false, true, DEFAULT_CLOSING_PAIRS
       @display_map = DisplayMap.new(buffer, wrap_width: wrap_width, tab_size: tab_size)
       @scroll_x, @scroll_y, @viewport_rows = 0, 0, 30
       select(0)
@@ -63,8 +63,9 @@ module Canopus
       @selections
     end
 
-    def insert_text(text, auto_indent: true)
+    def insert_text(text, auto_indent: true, pair: true)
       raise ArgumentError, "text must be UTF-8" unless text.is_a?(String) && text.valid_encoding?
+      closer = @closing_pairs[text] if pair && @auto_pairs
       texts = merged_selections(@selections, touching: false).map do |selection|
         if text == "\n" && auto_indent
           indent = language_document.indent_for(selection.start, tab_size: @tab_size, use_tabs: @use_tabs)
@@ -73,14 +74,13 @@ module Canopus
             indent += @use_tabs ? "\t" : " " * @tab_size if before.rstrip.end_with?("{", "[", "(")
           end
           @buffer.line_ending + indent
-        elsif @auto_pairs && PAIRS.key?(text)
-          text + @buffer.rope.byteslice(selection.range).to_s + PAIRS[text]
+        elsif closer
+          text + @buffer.rope.byteslice(selection.range).to_s + closer
         else
           text
         end
       end
-      paired = @auto_pairs && PAIRS.key?(text)
-      replace_selections(texts, kind: :typing, group: true, cursor_back: paired ? PAIRS[text].bytesize : 0)
+      replace_selections(texts, kind: :typing, group: true, cursor_back: closer ? closer.bytesize : 0)
       reveal_cursor
     end
 

@@ -209,24 +209,18 @@ module Canopus
         end
       when "delete" then @editor.delete_forward
       when "left", "right", "up", "down" then @editor.move(key.to_sym)
-      when "enter" then @editor.insert_text("\n")
-      when "tab" then @editor.insert_text(@editor.use_tabs ? "\t" : " " * @editor.tab_size)
+      when "enter" then @editor.insert_text("\n", pair: false)
+      when "tab" then @editor.insert_text(@editor.use_tabs ? "\t" : " " * @editor.tab_size, pair: false)
       else
         return unless key.grapheme_clusters.length == 1
-        auto_pairs = @editor.auto_pairs
-        begin
-          @editor.auto_pairs = false
-          if @mode == :replace
-            first = @editor.primary.head
-            ending = horizontal(first, 1, insertion: true)
-            original = @editor.buffer.rope.byteslice(first...ending).to_s
-            @editor.select(first, ending)
-            @replace_stack << [first, first + key.bytesize, original]
-          end
-          @editor.insert_text(key)
-        ensure
-          @editor.auto_pairs = auto_pairs
+        if @mode == :replace
+          first = @editor.primary.head
+          ending = horizontal(first, 1, insertion: true)
+          original = @editor.buffer.rope.byteslice(first...ending).to_s
+          @editor.select(first, ending)
+          @replace_stack << [first, first + key.bytesize, original]
         end
+        @editor.insert_text(key, pair: false)
       end
     end
 
@@ -243,7 +237,7 @@ module Canopus
       when "A" then @editor.select(line_end(row_at(cursor_position)))
       when "o"
         @editor.select(line_end(row_at(cursor_position)))
-        @editor.insert_text("\n")
+        @editor.insert_text("\n", pair: false)
       when "O"
         row = row_at(cursor_position)
         indent = @editor.buffer.line(row)[/\A[ \t]*/]
