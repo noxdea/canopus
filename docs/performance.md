@@ -30,6 +30,14 @@ private directory with appropriate ACLs.
 Developers can produce current, reproducible measurements with:
 
 ```sh
+BUDGET=1 ruby bench/require.rb
+```
+
+The require-only budget is 300 ms in a fresh Ruby process. It covers the
+library load, not window creation or the first rendered frame; those remain
+measured by the startup benchmark below.
+
+```sh
 ruby --yjit bench/frame_profile.rb --frames 120 --output /tmp/frames.json
 ruby --yjit bench/minimap.rb
 ruby bench/startup.rb --runs 3

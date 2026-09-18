@@ -39,5 +39,8 @@ require_relative "canopus/task/problem_matcher"
 require_relative "canopus/task/runner"
 require_relative "canopus/test_runner"
 require_relative "canopus/workspace"
-require_relative "canopus/plugins"
 require_relative "canopus/controller"
+
+module Canopus
+  autoload :Plugins, "canopus/plugins"
+end

@@ -56,6 +56,7 @@ Dir.mktmpdir("#{entry}-install-") do |directory|
   script = <<~RUBY
     require "prism"
     require #{entry.inspect}
+    Canopus::Plugins
     actual = $LOADED_FEATURES.find { |path| path.end_with?(#{"/lib/#{entry}.rb".inspect}) }
     raise "loaded outside clean installation: " + actual.to_s unless actual && File.realpath(actual).start_with?(#{File.realpath(installed).inspect} + File::SEPARATOR)
     load #{smoke.inspect} if #{!smoke.nil?}
