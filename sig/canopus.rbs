@@ -305,6 +305,8 @@ module Canopus
   class Settings
     type values = Hash[String, json]
     def self.schema: () -> values
+    def self.schema_model: () -> Kochab::Schema
+    def self.schema_metadata: () -> Kochab::Schema
     def self.user_path: () -> String
     def initialize: (*(String | values) layers) -> void
     attr_reader values: values

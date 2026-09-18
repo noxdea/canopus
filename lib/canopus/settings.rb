@@ -4,151 +4,19 @@ require "json"
 require "fileutils"
 require "tempfile"
 require "kochab"
+require_relative "settings/schema"
 
 module Canopus
   class Settings
-    DEFAULT_AUTO_PAIRS = [["(", ")"], ["[", "]"], ["{", "}"], ['"', '"'], ["'", "'"]].map(&:freeze).freeze
-    DEFAULTS = {"font_size" => 14, "tab_size" => 4, "use_tabs" => false, "soft_wrap" => false, "vim_mode" => false, "keymap" => [].freeze,
-      "auto_pairs" => DEFAULT_AUTO_PAIRS,
-      "scroll_friction" => 12,
-      "theme" => "Canopus Dark", "font_family" => nil, "icon_theme" => nil, "languages" => {}, "language_servers" => {},
-      "debug_adapters" => {}.freeze,
-      "tabs" => {"activate_on_close" => "history", "close_on_middle_click" => true, "close_empty_pane" => true,
-        "reopen_history_limit" => 20, "confirm_on_close_dirty" => true}.freeze,
-      "diagnostics" => {"inline" => true, "inline_max_length" => 80, "severity" => "warning"}.freeze,
-      "inlay_hints" => {"enabled" => true, "parameter_names" => true, "types" => true, "max_length" => 30}.freeze,
-      "code_lens" => {"enabled" => true}.freeze,
-      "bracket_colorization" => true,
-      "indent_guides" => {"enabled" => true, "active" => true}.freeze,
-      "render_whitespace" => "boundary", "render_ideographic_space" => true,
-      "sticky_scroll" => {"enabled" => true, "max_lines" => 5}.freeze,
-      "breadcrumbs" => {"enabled" => true}.freeze,
-      "minimap" => {"enabled" => false, "width" => 100, "show_diagnostics" => true}.freeze,
-      "auto_save" => "off", "auto_save_delay" => 1_000,
-      "editorconfig" => true, "trim_trailing_whitespace" => nil, "insert_final_newline" => nil,
-      "max_line_length" => nil,
-      "persistent_undo" => {"enabled" => true, "max_entries" => 1_000, "expire_days" => 30}.freeze,
-      "format_on_save" => false, "code_actions_on_save" => [].freeze, "format_on_save_timeout" => 2_000,
-      "git" => {"inline_blame" => "off", "autofetch" => false, "autofetch_interval" => 180}.freeze,
-      "recovery" => {"enabled" => true, "interval" => 5_000}.freeze,
-      "dock" => {"left" => {"size" => 220, "visible" => true}.freeze,
-        "right" => {"size" => 260, "visible" => false}.freeze,
-        "bottom" => {"size" => 280, "visible" => false}.freeze,
-        "panels" => {"explorer" => {"size" => 220, "visible" => true}.freeze,
-          "search" => {"size" => 220, "visible" => false}.freeze,
-          "terminal" => {"size" => 280, "visible" => false}.freeze}.freeze}.freeze,
-      "terminal" => {"shell" => nil, "working_directory" => "project", "env" => {}.freeze, "scrollback_lines" => 10_000,
-        "profiles" => {}.freeze, "default_profile" => nil,
-        "font_size" => nil, "line_height" => 1.2, "copy_on_select" => false, "blinking" => "terminal_controlled", "cursor_shape" => "block",
-        "close_on_exit" => "clean", "confirm_close_running" => true, "confirm_multiline_paste" => true,
-        "restore_on_startup" => false, "hide_when_empty" => false, "shell_integration" => true, "max_bytes_per_frame" => 262_144,
-        "queue_limit_bytes" => 8_388_608, "resize_debounce_ms" => 100, "min_rows" => 4, "min_cols" => 20}.freeze}.freeze
-    SCHEMA = {"$schema" => "https://json-schema.org/draft/2020-12/schema", "type" => "object", "properties" => {
-      "font_size" => {"type" => "number", "minimum" => 6, "maximum" => 96},
-      "tab_size" => {"type" => "integer", "minimum" => 1, "maximum" => 16},
-      "scroll_friction" => {"type" => "number", "minimum" => 0, "maximum" => 100},
-      "soft_wrap" => {"type" => "boolean"}, "vim_mode" => {"type" => "boolean"},
-      "use_tabs" => {"type" => "boolean"},
-      "auto_pairs" => {"type" => "array", "maxItems" => 64, "items" => {"type" => "array", "minItems" => 2, "maxItems" => 2,
-        "items" => {"type" => "string"}}},
-      "keymap" => {"type" => "array", "maxItems" => 128, "items" => {"type" => "object", "required" => ["bindings"], "properties" => {
-        "context" => {"type" => "string", "maxLength" => 256},
-        "bindings" => {"type" => "object", "maxProperties" => 1024, "additionalProperties" => {"type" => ["string", "null"]}}}}},
-      "theme" => {"type" => "string"}, "font_family" => {"type" => ["string", "null"]},
-      "icon_theme" => {"type" => ["string", "null"]},
-      "tabs" => {"type" => "object"}, "terminal" => {"type" => "object", "properties" => {
-        "shell_integration" => {"type" => "boolean"}, "default_profile" => {"type" => ["string", "null"]},
-        "profiles" => {"type" => "object", "additionalProperties" => {"$ref" => "#/$defs/terminal_profile"}}}},
-      "diagnostics" => {"type" => "object", "required" => %w[inline inline_max_length severity], "properties" => {
-        "inline" => {"type" => "boolean"}, "inline_max_length" => {"type" => "integer", "minimum" => 1, "maximum" => 10_000},
-        "severity" => {"type" => "string", "enum" => %w[error warning information hint]}}},
-      "inlay_hints" => {"type" => "object", "required" => %w[enabled parameter_names types max_length], "properties" => {
-        "enabled" => {"type" => "boolean"}, "parameter_names" => {"type" => "boolean"}, "types" => {"type" => "boolean"},
-        "max_length" => {"type" => "integer", "minimum" => 1, "maximum" => 10_000}}},
-      "code_lens" => {"type" => "object", "required" => ["enabled"], "properties" => {
-        "enabled" => {"type" => "boolean"}}},
-      "bracket_colorization" => {"type" => "boolean"},
-      "indent_guides" => {"type" => "object", "required" => %w[enabled active], "properties" => {
-        "enabled" => {"type" => "boolean"}, "active" => {"type" => "boolean"}}},
-      "render_whitespace" => {"type" => "string", "enum" => %w[none boundary selection all]},
-      "render_ideographic_space" => {"type" => "boolean"},
-      "sticky_scroll" => {"type" => "object", "required" => %w[enabled max_lines], "properties" => {
-        "enabled" => {"type" => "boolean"}, "max_lines" => {"type" => "integer", "minimum" => 1, "maximum" => 20}}},
-      "breadcrumbs" => {"type" => "object", "required" => ["enabled"], "properties" => {
-        "enabled" => {"type" => "boolean"}}},
-      "minimap" => {"type" => "object", "required" => %w[enabled width show_diagnostics], "properties" => {
-        "enabled" => {"type" => "boolean"}, "width" => {"type" => "integer", "minimum" => 40, "maximum" => 400},
-        "show_diagnostics" => {"type" => "boolean"}}},
-      "auto_save" => {"type" => "string", "enum" => %w[off after_delay on_focus_change]},
-      "auto_save_delay" => {"type" => "integer", "minimum" => 100, "maximum" => 3_600_000},
-      "editorconfig" => {"type" => "boolean"},
-      "trim_trailing_whitespace" => {"type" => ["boolean", "null"]},
-      "insert_final_newline" => {"type" => ["boolean", "null"]},
-      "max_line_length" => {"type" => ["integer", "null"], "minimum" => 1, "maximum" => 1_000_000},
-      "persistent_undo" => {"type" => "object", "additionalProperties" => false,
-        "required" => %w[enabled max_entries expire_days], "properties" => {
-          "enabled" => {"type" => "boolean"},
-          "max_entries" => {"type" => "integer", "minimum" => 1, "maximum" => 10_000},
-          "expire_days" => {"type" => "integer", "minimum" => 1, "maximum" => 3_650}}},
-      "format_on_save" => {"type" => "boolean"},
-      "code_actions_on_save" => {"type" => "array", "maxItems" => 64, "uniqueItems" => true,
-        "items" => {"type" => "string", "minLength" => 1, "maxLength" => 256}},
-      "format_on_save_timeout" => {"type" => "integer", "minimum" => 1, "maximum" => 60_000},
-      "git" => {"type" => "object", "additionalProperties" => false,
-        "required" => %w[inline_blame autofetch autofetch_interval], "properties" => {
-          "inline_blame" => {"type" => "string", "enum" => %w[off cursor all]},
-          "autofetch" => {"type" => "boolean"},
-          "autofetch_interval" => {"type" => "integer", "minimum" => 10, "maximum" => 86_400}}},
-      "recovery" => {"type" => "object", "additionalProperties" => false,
-        "required" => %w[enabled interval], "properties" => {
-          "enabled" => {"type" => "boolean"},
-          "interval" => {"type" => "integer", "minimum" => 100, "maximum" => 3_600_000}}},
-      "dock" => {"type" => "object", "properties" => {
-        "left" => {"$ref" => "#/$defs/dock"}, "right" => {"$ref" => "#/$defs/dock"},
-        "bottom" => {"$ref" => "#/$defs/dock"}, "panels" => {"type" => "object", "maxProperties" => 1000,
-          "additionalProperties" => {"$ref" => "#/$defs/panel"}}}},
-      "languages" => {"type" => "object", "additionalProperties" => {"allOf" => [
-        {"$ref" => "#"}, {"properties" => {"languages" => false, "debug_adapters" => false, "recovery" => false,
-          "auto_save" => false, "auto_save_delay" => false, "persistent_undo" => false}}
-      ]}},
-      "language_servers" => {"type" => "object", "additionalProperties" => {"anyOf" => [
-        {"type" => "null"}, {"$ref" => "#/$defs/language_server"},
-        {"type" => "array", "minItems" => 1, "items" => {"type" => "string", "minLength" => 1}},
-        {"type" => "array", "minItems" => 1, "maxItems" => 16,
-          "items" => {"$ref" => "#/$defs/language_server"}}
-      ]}},
-      "debug_adapters" => {"type" => "object", "maxProperties" => 64,
-        "propertyNames" => {"type" => "string", "minLength" => 1, "maxLength" => 128,
-          "pattern" => "^[A-Za-z0-9_.-]+$"},
-        "additionalProperties" => {"$ref" => "#/$defs/debug_adapter"}}}, "$defs" => {
-        "language_server" => {"type" => "object", "additionalProperties" => false,
-          "required" => ["command"], "properties" => {
-            "command" => {"type" => "array", "minItems" => 1,
-              "items" => {"type" => "string", "minLength" => 1}},
-            "env" => {"type" => "object", "additionalProperties" => {"type" => ["string", "null"]}},
-            "initialization_options" => {}, "configuration" => {"type" => "object"},
-            "features" => {"type" => "array", "minItems" => 1, "uniqueItems" => true,
-              "items" => {"type" => "string", "enum" => %w[completion diagnostics codeAction formatting definition typeDefinition implementation hover signatureHelp references rename documentSymbol codeLens inlayHint semanticTokens documentHighlight foldingRange selectionRange callHierarchy typeHierarchy documentLink linkedEditingRange workspaceSymbol]}}
-          }},
-        "debug_adapter" => {"type" => "object", "additionalProperties" => false,
-          "required" => %w[command transport], "properties" => {
-            "command" => {"type" => "array", "minItems" => 1, "maxItems" => 32,
-              "items" => {"type" => "string", "minLength" => 1, "maxLength" => 4096,
-                "pattern" => "^(?![\\s\\S]*[\\u0000-\\u001f\\u007f])[\\s\\S]+$"}},
-            "transport" => {"type" => "string", "enum" => %w[stdio tcp]}}},
-        "terminal_profile" => {"type" => "object", "additionalProperties" => false,
-          "properties" => {
-            "command" => {"anyOf" => [{"type" => "string", "minLength" => 1},
-              {"type" => "array", "minItems" => 1, "items" => {"type" => "string"}}]},
-            "path" => {"type" => "string", "minLength" => 1},
-            "args" => {"type" => "array", "items" => {"type" => "string"}},
-            "env" => {"type" => "object", "additionalProperties" => {"type" => ["string", "null"]}}}},
-        "dock" => {"type" => "object", "required" => %w[size visible], "properties" => {
-          "size" => {"type" => "number", "exclusiveMinimum" => 0}, "visible" => {"type" => "boolean"}}},
-        "panel" => {"type" => "object", "required" => %w[size visible], "properties" => {
-          "size" => {"type" => "number", "exclusiveMinimum" => 0}, "visible" => {"type" => "boolean"}}}}}.freeze
+    DEFAULT_AUTO_PAIRS = Schema::DEFAULT_AUTO_PAIRS
+    DEFAULTS = Schema::DEFAULTS
+    SCHEMA = Schema::JSON_SCHEMA
+    SCHEMA_MODEL = Schema::KOCHAB_SCHEMA
+    SCHEMA_METADATA = SCHEMA_MODEL
     attr_reader :values, :errors, :layers
     def self.schema = SCHEMA
+    def self.schema_model = SCHEMA_MODEL
+    def self.schema_metadata = SCHEMA_MODEL
     def self.user_path
       File.join(ENV["XDG_CONFIG_HOME"] || File.expand_path("~/.config"), "canopus", "settings.jsonc")
     end

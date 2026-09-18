@@ -161,6 +161,7 @@ Dir.mktmpdir("canopus-public-api-") do |root|
   future.fulfill(42)
   check(future.await == 42, "LSP future")
   check(Kochab.parse('{/* comment */"a":1,}').value == {"a" => 1}, "JSONC dependency")
+  check(Canopus::Settings.schema_model.describe(["font_size"]).default == 14, "settings schema metadata")
   check(Spica.filter("val", ["value"]).first.candidate == "value", "search dependency")
   window = Zaniah::Platform.open_window(width: 500, height: 240)
   controller = Canopus::Controller.new(workspace, window)

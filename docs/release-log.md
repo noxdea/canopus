@@ -2,6 +2,7 @@
 
 | Date | Repository | Version | Canopus follow-up | Reason |
 | --- | --- | --- | --- | --- |
+| 2026-09-18 | kochab | 0.2.0 | 2026-09-18 | Settings schema metadata and safe layer merge API |
 | 2026-09-18 | tarazed | 0.2.4 | 2026-09-18 | Explicit command-history clearing for terminal consumers |
 | 2026-09-18 | tarazed | 0.2.3 | 2026-09-18 | Shell executable detection for argument-bearing and Windows commands |
 | 2026-09-17 | thuban | 0.6.0 | 2026-09-17 | Transactional merge-conflict snapshots and resolution |
