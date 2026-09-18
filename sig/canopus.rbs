@@ -318,7 +318,7 @@ module Canopus
     def reload: () -> instance
     def for_language: (String language) -> instance
     def merge!: (String | values layer) -> instance
-    def set_file: (String path, String key, json value) -> instance
+    def set_file: (String path, String | Array[String] key, json value) -> instance
   end
   class Theme
     attr_reader name: String

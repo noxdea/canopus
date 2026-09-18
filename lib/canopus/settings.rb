@@ -8,6 +8,8 @@ require_relative "settings/schema"
 
 module Canopus
   class Settings
+    ReloadFallback = Struct.new(:values, keyword_init: true)
+    private_constant :ReloadFallback
     DEFAULT_AUTO_PAIRS = Schema::DEFAULT_AUTO_PAIRS
     DEFAULTS = Schema::DEFAULTS
     SCHEMA = Schema::JSON_SCHEMA
@@ -32,7 +34,8 @@ module Canopus
     def self.user_path
       File.join(ENV["XDG_CONFIG_HOME"] || File.expand_path("~/.config"), "canopus", "settings.jsonc")
     end
-    def initialize(*layers, fallback: nil)
+    def initialize(*layers)
+      fallback = layers.pop.values if layers.last.is_a?(ReloadFallback)
       @values, @errors = DEFAULTS.dup, []
       @layers = layers.compact
       @reload_fallback = fallback
@@ -44,7 +47,7 @@ module Canopus
     end
     def [](key) = @values[key.to_s]
     def paths = @layers.grep(String)
-    def reload = self.class.new(*@layers, fallback: @values)
+    def reload = self.class.new(*@layers, ReloadFallback.new(values: @values))
     def for_language(language) = Settings.new(@values, @values.fetch("languages", {}).fetch(language, {}))
     def merge!(layer)
       document = layer.is_a?(Kochab::Document)
@@ -62,8 +65,22 @@ module Canopus
       source = File.file?(path) ? File.read(path) : "{}\n"
       doc = Kochab.parse(source)
       raise Error, "cannot edit invalid settings" unless doc.valid?
-      replacement = Kochab.apply(source, doc.set([key.to_s], value))
-      Settings.new(Kochab.parse(replacement).value)
+      key_path = key.is_a?(Array) ? key : [key]
+      raise Error, "settings key path must contain strings" unless key_path.all? { |part| part.is_a?(String) && !part.empty? }
+      editable_source = source
+      (1...key_path.length).each do |length|
+        current = Kochab.parse(editable_source)
+        parent = key_path[0...length]
+        next if current.range_of(parent)
+
+        editable_source = Kochab.apply(editable_source, current.set(parent, {}))
+      end
+      doc = Kochab.parse(editable_source)
+      replacement = Kochab.apply(editable_source, doc.set(key_path, value))
+      candidate = Kochab.parse(replacement)
+      schema_errors = SCHEMA_MODEL.validate(candidate).reject { |diagnostic| diagnostic.message == "Required value is missing" }
+      raise Error, "invalid setting #{key_path.join(".")}: #{schema_errors.first.message}" unless schema_errors.empty?
+      Settings.new(candidate)
       FileUtils.mkdir_p(File.dirname(path))
       Tempfile.create([".settings-", ".json"], File.dirname(path)) do |file|
         file.write(replacement)

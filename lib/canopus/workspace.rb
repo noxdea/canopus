@@ -805,7 +805,11 @@ module Canopus
         @palette[:index] = 0
         return
       end
-      if [:locations, :symbols, :code_actions, :outline, :branches, :settings_keys, :snippet_choices,
+      if @palette[:kind] == :settings_edit
+        @palette[:index] = @palette[:index].clamp(0, @palette[:matches].length - 1)
+        return
+      end
+      if [:locations, :symbols, :code_actions, :outline, :branches, :settings_keys, :settings_gui, :snippet_choices,
           :breadcrumbs, :hierarchy_roots, :language_servers, :debug_configurations, :debug_watch_remove, :tasks,
           :git_file_history, :git_commit_paths, :git_remotes].include?(@palette[:kind])
         labels = @palette[:all_matches] ||= @palette[:matches].dup
@@ -969,6 +973,7 @@ module Canopus
       end
       command_context = @palette[:command_context]
       kind, query, pattern = @palette.values_at(:kind, :query, :pattern)
+      current = @palette
       self.palette = nil
       if kind == :files && selected
         open(selected)
@@ -1012,6 +1017,23 @@ module Canopus
         checkout_branch(selected)
       elsif kind == :settings_keys && selected
         editor.insert_text("#{JSON.generate(selected)}: #{JSON.generate(Settings::DEFAULTS.fetch(selected))}", auto_indent: false, pair: false)
+      elsif kind == :settings_gui && selected
+        index = current[:indices] ? current[:indices][current[:index]] : current[:index]
+        field = current.fetch(:fields).fetch(index)
+        self.palette = {kind: :settings_edit, query: JSON.generate(field[:value]), index: 0,
+          matches: ["Save", "Reset to default"], field: field, settings_file: current.fetch(:settings_file)}
+      elsif kind == :settings_edit
+        field = current.fetch(:field)
+        value = current[:index] == 1 ? field[:default] : JSON.parse(query)
+        begin
+          @settings.set_file(current.fetch(:settings_file), field.fetch(:path), value)
+          self.palette = nil
+          poll_settings(force: true)
+          @message = "Updated #{field[:path].join(".")}"
+        rescue StandardError => error
+          @message = error.message
+          self.palette = current
+        end
       end
     end
     def search_query(query, state)
@@ -1199,6 +1221,8 @@ module Canopus
       register_action("search.replace") { palette_open(:replace_query) }
       register_action("settings.open") { open_settings }
       register_action("settings.complete") { settings_completions }
+      register_action("settings.gui", description: "Settings GUI") { settings_gui }
+      register_action("settings.gui_changed", description: "Changed Settings GUI") { settings_gui(changed_only: true) }
       register_action("language.diagnostics") { show_diagnostics }
       register_action("language.restart_server") { show_language_server_restart }
       register_action("view.project") { @panels.toggle("explorer") }

@@ -18,6 +18,13 @@ module Canopus
       raise Error, "Open a settings document first" unless settings_document?(editor.buffer)
       self.palette = {kind: :settings_keys, query: +"", index: 0, matches: Settings::DEFAULTS.keys}
     end
+    def settings_browse(changed_only: false)
+      fields = settings_gui_fields(changed_only: changed_only)
+      labels = fields.map { |field| "#{field[:path].join(".")} = #{JSON.generate(field[:value])}" }
+      self.palette = {kind: :settings_gui, query: +"", index: 0, matches: labels, fields: fields,
+        settings_file: settings_path, changed_only: changed_only}
+    end
+    def settings_gui(changed_only: false) = settings_browse(changed_only: changed_only)
     def settings_document?(buffer)
       buffer.path && (buffer.path == settings_path || @settings.paths.any? { |path| File.expand_path(path) == buffer.path })
     end
@@ -98,6 +105,20 @@ module Canopus
     end
 
     private
+
+    def settings_gui_fields(changed_only: false)
+      defaults = Settings::SCHEMA_MODEL.defaults
+      Settings::SCHEMA_MODEL.fields.filter_map do |field|
+        path = field.path
+        next unless path.all? { |part| part.is_a?(String) && part != "*" }
+
+        value = path.reduce(@settings.values) { |current, key| current.is_a?(Hash) ? current[key] : nil }
+        default = path.reduce(defaults) { |current, key| current.is_a?(Hash) ? current[key] : nil }
+        next if changed_only && value == default
+
+        {path: path, value: value, default: default, description: field.description}.freeze
+      end
+    end
 
     def publish_settings_diagnostics(paths)
       paths.uniq.each do |path|
