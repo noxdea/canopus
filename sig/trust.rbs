@@ -1,0 +1,17 @@
+module Canopus
+  class Workspace
+    attr_reader trust: Workspace::Trust
+
+    class Trust
+      def initialize: (String root, ?state_path: String?) -> void
+      def trusted?: () -> bool
+      def status: () -> (:trusted | :untrusted)
+      def trust!: () -> bool
+      def untrust!: () -> bool
+    end
+
+    def workspace_trust: () -> Workspace::Trust
+    def toggle_workspace_trust: () -> (:trusted | :untrusted)
+    def show_workspace_trust: () -> (:trusted | :untrusted)
+  end
+end

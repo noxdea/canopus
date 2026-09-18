@@ -33,13 +33,14 @@ module Canopus
       "typeHierarchy" => "typeHierarchyProvider", "documentLink" => "documentLinkProvider",
       "linkedEditingRange" => "linkedEditingRangeProvider", "workspaceSymbol" => "workspaceSymbolProvider"
     }.freeze
-    attr_reader :panes, :active_pane, :buffers, :actions, :commands, :settings, :theme, :project, :clients, :root, :docks, :panels, :decorations, :providers, :minimap, :diagnostics, :breakpoints
+    attr_reader :panes, :active_pane, :buffers, :actions, :commands, :settings, :theme, :project, :clients, :root, :docks, :panels, :decorations, :providers, :minimap, :diagnostics, :breakpoints, :trust
     attr_reader :terminals, :active_terminal_index, :terminal_layout
     attr_accessor :window, :terminal_composition, :selected_project_path, :performance
     attr_reader :message, :palette
 
     def initialize(root: Dir.pwd, settings: nil)
       @root = File.realpath(root)
+      @trust = Trust.new(@root)
       @settings = settings || Settings.new(Settings.user_path, File.join(@root, ".canopus", "settings.jsonc"))
       @main_queue = Queue.new
       @panes, @buffers = [Pane.new], {}
@@ -1251,6 +1252,8 @@ module Canopus
       register_action("settings.gui_changed", description: "Changed Settings GUI") { settings_gui(changed_only: true) }
       register_action("keymap.gui", description: "Keymap GUI") { keymap_gui }
       register_action("keymap.preset", description: "Keymap Preset") { keymap_presets }
+      register_action("workspace.trust.toggle", description: "Toggle Workspace Trust") { toggle_workspace_trust }
+      register_action("workspace.trust.show", description: "Show Workspace Trust") { show_workspace_trust }
       register_action("language.diagnostics") { show_diagnostics }
       register_action("language.restart_server") { show_language_server_restart }
       register_action("view.project") { @panels.toggle("explorer") }
@@ -1484,6 +1487,7 @@ require_relative "workspace/project_searchable"
 require_relative "workspace/editor_configurable"
 require_relative "workspace/settings_aware"
 require_relative "workspace/keymap_aware"
+require_relative "workspace/trust"
 require_relative "workspace/auto_savable"
 require_relative "workspace/persistent_undo"
 require_relative "workspace/file_previewable"
@@ -1509,6 +1513,7 @@ Canopus::Workspace.include Canopus::Workspace::ProjectSearchable
 Canopus::Workspace.include Canopus::Workspace::EditorConfigurable
 Canopus::Workspace.include Canopus::Workspace::SettingsAware
 Canopus::Workspace.include Canopus::Workspace::KeymapAware
+Canopus::Workspace.include Canopus::Workspace::TrustAware
 Canopus::Workspace.include Canopus::Workspace::AutoSavable
 Canopus::Workspace.include Canopus::Workspace::PersistentUndo
 Canopus::Workspace.include Canopus::Workspace::FilePreviewable
