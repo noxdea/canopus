@@ -32,7 +32,7 @@ module Canopus
       "terminal" => {"shell" => nil, "working_directory" => "project", "env" => {}.freeze, "scrollback_lines" => 10_000,
         "font_size" => nil, "line_height" => 1.2, "copy_on_select" => false, "blinking" => "terminal_controlled", "cursor_shape" => "block",
         "close_on_exit" => "clean", "confirm_close_running" => true, "confirm_multiline_paste" => true,
-        "restore_on_startup" => false, "hide_when_empty" => false, "max_bytes_per_frame" => 262_144,
+        "restore_on_startup" => false, "hide_when_empty" => false, "shell_integration" => true, "max_bytes_per_frame" => 262_144,
         "queue_limit_bytes" => 8_388_608, "resize_debounce_ms" => 100, "min_rows" => 4, "min_cols" => 20}.freeze}.freeze
     SCHEMA = {"$schema" => "https://json-schema.org/draft/2020-12/schema", "type" => "object", "properties" => {
       "font_size" => {"type" => "number", "minimum" => 6, "maximum" => 96},
@@ -45,7 +45,8 @@ module Canopus
         "bindings" => {"type" => "object", "maxProperties" => 1024, "additionalProperties" => {"type" => ["string", "null"]}}}}},
       "theme" => {"type" => "string"}, "font_family" => {"type" => ["string", "null"]},
       "icon_theme" => {"type" => ["string", "null"]},
-      "tabs" => {"type" => "object"}, "terminal" => {"type" => "object"},
+      "tabs" => {"type" => "object"}, "terminal" => {"type" => "object", "properties" => {
+        "shell_integration" => {"type" => "boolean"}}},
       "diagnostics" => {"type" => "object", "required" => %w[inline inline_max_length severity], "properties" => {
         "inline" => {"type" => "boolean"}, "inline_max_length" => {"type" => "integer", "minimum" => 1, "maximum" => 10_000},
         "severity" => {"type" => "string", "enum" => %w[error warning information hint]}}},
@@ -252,7 +253,7 @@ module Canopus
       raise Error, "invalid terminal.env" unless terminal["env"].is_a?(Hash) && terminal["env"].all? { |key, value| key.is_a?(String) && (value.nil? || value.is_a?(String)) }
       raise Error, "invalid terminal.font_size" unless terminal["font_size"].nil? || terminal["font_size"].is_a?(Numeric) && terminal["font_size"].between?(6, 96)
       raise Error, "invalid terminal.line_height" unless terminal["line_height"].is_a?(Numeric) && terminal["line_height"].between?(0.5, 4)
-      %w[confirm_close_running confirm_multiline_paste copy_on_select restore_on_startup hide_when_empty].each do |key|
+      %w[confirm_close_running confirm_multiline_paste copy_on_select restore_on_startup hide_when_empty shell_integration].each do |key|
         raise Error, "terminal.#{key} must be true or false" unless [true, false].include?(terminal[key])
       end
       raise Error, "invalid terminal.close_on_exit" unless %w[never clean always].include?(terminal["close_on_exit"])

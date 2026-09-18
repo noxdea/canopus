@@ -12,6 +12,15 @@ module Canopus
       workspace.register_action("terminal.paste", condition: "Terminal || TaskOutput") do
         terminal_paste(@window.respond_to?(:clipboard) ? @window.clipboard.to_s : @clipboard)
       end
+      workspace.register_action("terminal.command.previous", description: "Go to Previous Terminal Command", condition: "Terminal") do
+        @view.terminal_command(:previous)
+      end
+      workspace.register_action("terminal.command.next", description: "Go to Next Terminal Command", condition: "Terminal") do
+        @view.terminal_command(:next)
+      end
+      workspace.register_action("terminal.command.toggle_fold", description: "Toggle Terminal Command Output", condition: "Terminal") do
+        @view.terminal_toggle_command
+      end
       reload_keymap
       window.draw { workspace.drain; @view }
       window.on_input { |event| input(event) }
@@ -86,7 +95,7 @@ module Canopus
           @terminal_drag == :selection ? @view.terminal_select(event.position, extend: true) : terminal_mouse(event, :move)
         elsif !(@drag || @resize_drag || @scroll_drag || @drag_file || @drag_tab)
           target = @view.hit(event.position)&.first
-          terminal = target == :terminal ? (@workspace.terminal if @workspace.terminal_visible) :
+          terminal = [:terminal, :terminal_command].include?(target) ? (@workspace.terminal if @workspace.terminal_visible) :
             (@workspace.task_terminal if target == :task_output && @workspace.task_output_visible)
           terminal_mouse(event, :move, terminal: terminal) if terminal&.vt&.modes&.[](1003)
         end
@@ -474,6 +483,9 @@ module Canopus
         elsif palette[:kind] == :terminal_rename
           @workspace.rename_terminal(palette[:query])
           @workspace.palette = nil
+        elsif palette[:kind] == :terminal_commands
+          command = @workspace.palette_accept
+          @workspace.message = "Command output is no longer in scrollback" if command && !@view.terminal_command_jump(command)
         else
           @workspace.palette_accept
         end
@@ -494,7 +506,7 @@ module Canopus
           return
         end
       end
-      @terminal_focus = if [:terminal, :terminal_tab, :terminal_close].include?(kind)
+      @terminal_focus = if [:terminal, :terminal_command, :terminal_tab, :terminal_close].include?(kind)
         :terminal
       elsif [:task_output, :task_output_tab, :task_output_close].include?(kind)
         :task_output
@@ -538,6 +550,8 @@ module Canopus
           @terminal_drag = :selection
           @view.terminal_select(event.position)
         end
+      when :terminal_command
+        @view.terminal_toggle_command(args.first) if event.button == :left
       when :terminal_tab
         @workspace.activate_terminal(args.first)
         @drag_terminal_tab = [args.first, event.position] if event.button == :left
@@ -617,11 +631,12 @@ module Canopus
         end
       elsif [:file, :directory].include?(action&.first)
         @view.project_scroll(event.delta.y / 24.0)
-      elsif [:terminal, :task_output].include?(action&.first)
-        terminal = action.first == :terminal ? @workspace.terminal : @workspace.task_terminal
+      elsif [:terminal, :terminal_command, :task_output].include?(action&.first)
+        terminal = action.first == :task_output ? @workspace.task_terminal : @workspace.terminal
         if [1000, 1002, 1003].any? { |mode| terminal.vt.modes[mode] }
-          column, row = @view.terminal_point(event.position)
-          terminal.mouse(button: event.delta.y.positive? ? :wheel_down : :wheel_up, column: column, row: row)
+          if (position = @view.terminal_point(event.position))
+            terminal.mouse(button: event.delta.y.positive? ? :wheel_down : :wheel_up, column: position[0], row: position[1])
+          end
         else
           @view.terminal_scroll(event.delta.y / 20.0)
         end
@@ -639,7 +654,9 @@ module Canopus
     end
     def terminal_mouse(event, action, terminal: focused_terminal)
       return unless terminal
-      column, row = @view.terminal_point(event.position)
+      position = @view.terminal_point(event.position)
+      return unless position
+      column, row = position
       modifiers = event.modifiers.map(&:to_s)
       terminal.mouse(button: @terminal_drag, column: column, row: row, action: action,
         shift: modifiers.include?("shift"), alt: modifiers.include?("alt"), control: modifiers.include?("ctrl"))

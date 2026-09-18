@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Track shell commands and working directories through Tarazed OSC 133/7 integration, fold output, show exit status, and navigate command boundaries or failed commands.
 - Add `--wait` for blocking editor invocations such as `EDITOR="canopus --wait"`.
 - Periodically save bounded private snapshots of dirty buffers and offer valid crash recovery on the next startup.
 - Require Zaniah 0.5.2 so equal-position inline overlays preserve source order on every platform.

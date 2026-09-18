@@ -2,6 +2,7 @@
 
 require "json"
 require "fileutils"
+require "shellwords"
 sadr_path = ENV["SADR_PATH"]
 sadr_root = File.expand_path("../..", __dir__)
 sadr_path ? require(File.expand_path("lib/sadr", File.expand_path(sadr_path, sadr_root))) : require("sadr")
@@ -419,11 +420,15 @@ module Canopus
       invalidate_hidden_selection_ranges
     end
 
-    def new_terminal(cwd: terminal_working_directory)
+    def new_terminal(cwd: nil)
       options = @settings["terminal"]
-      created = Tarazed::PTY.new(command: options["shell"] || ENV.fetch("SHELL", "/bin/sh"), cwd: cwd,
-        columns: 100, rows: 12, env: options["env"], scrollback: options["scrollback_lines"],
+      cwd ||= terminal&.respond_to?(:cwd) && terminal.cwd
+      cwd = terminal_working_directory unless cwd && File.directory?(cwd)
+      command = options["shell"] || ENV.fetch("SHELL", "/bin/sh")
+      created = Tarazed::Session.new(command: command, cwd: cwd,
+        columns: 100, rows: 12, env: options["env"], scrollback_limit: options["scrollback_lines"],
         queue_limit_bytes: options["queue_limit_bytes"])
+      inject_shell_integration(created) if options["shell_integration"]
       @terminals << created
       @active_terminal_index = @terminals.length - 1
       self.terminal_visible = true
@@ -480,7 +485,8 @@ module Canopus
     def restart_terminal(index = @active_terminal_index)
       current = @terminals[index]
       return unless current
-      cwd = current.vt.cwd || (current.respond_to?(:initial_cwd) ? current.initial_cwd : @root)
+      cwd = current.respond_to?(:cwd) ? current.cwd : current.vt.cwd
+      cwd ||= current.respond_to?(:initial_cwd) ? current.initial_cwd : @root
       name = @terminal_names[current]
       close_terminal(index)
       replacement = new_terminal(cwd: File.directory?(cwd) ? cwd : @root)
@@ -491,8 +497,9 @@ module Canopus
 
     def terminal_title(current = terminal)
       return "Terminal" unless current
+      cwd = current.respond_to?(:cwd) ? current.cwd : current.vt.cwd
       title = @terminal_names[current] || current.vt.title.to_s.then { |value| value.empty? ? nil : value } ||
-        current.vt.cwd&.then { |cwd| File.basename(cwd).empty? ? cwd : File.basename(cwd) } ||
+        cwd&.then { |path| File.basename(path).empty? ? path : File.basename(path) } ||
         (current.respond_to?(:foreground_process_name) ? current.foreground_process_name : nil) ||
         (current.respond_to?(:command_name) ? current.command_name : nil) || "shell"
       title.to_s.encode(Encoding::UTF_8, invalid: :replace, undef: :replace).scrub.slice(0, 200)
@@ -502,6 +509,14 @@ module Canopus
       return unless current
       value = name.to_s.strip
       value.empty? ? @terminal_names.delete(current) : @terminal_names[current] = value.slice(0, 200)
+    end
+
+    def show_terminal_commands(failed: false)
+      items = retained_terminal_commands
+      items = items.select { |command| command.exit_status && command.exit_status != 0 } if failed
+      self.palette = {kind: :terminal_commands, query: +"", index: 0, items: items,
+        matches: items.map { |command| terminal_command_label(command) }}
+      update_palette
     end
 
     def drain_terminals(now: Process.clock_gettime(Process::CLOCK_MONOTONIC))
@@ -669,6 +684,18 @@ module Canopus
         @palette[:index] = 0
         return
       end
+      if @palette[:kind] == :terminal_commands
+        labels = @palette[:all_matches] ||= @palette[:matches].dup
+        groups = @palette[:terminal_command_groups] ||= labels.each_with_index.each_with_object({}) do |(label, index), result|
+          (result[label] ||= []) << index
+        end
+        session = @palette[:search] ||= Spica::Index.new(groups.keys).session
+        session.query = @palette[:query]
+        @palette[:indices] = session.matches(12).flat_map { |match| groups.fetch(match.candidate) }.first(12)
+        @palette[:matches] = @palette[:indices].map { |index| labels.fetch(index) }
+        @palette[:index] = 0
+        return
+      end
       if [:locations, :symbols, :code_actions, :outline, :branches, :settings_keys, :snippet_choices,
           :breadcrumbs, :hierarchy_roots, :language_servers, :debug_configurations, :debug_watch_remove, :tasks,
           :git_file_history, :git_commit_paths, :git_remotes].include?(@palette[:kind])
@@ -744,6 +771,11 @@ module Canopus
         configuration = index && current[:items][index]
         self.palette = nil
         return start_debugging(configuration.fetch("name")) if configuration
+      elsif @palette[:kind] == :terminal_commands
+        current = @palette
+        index = current[:indices] ? current[:indices][current[:index]] : current[:index]
+        self.palette = nil
+        return index && current[:items][index]
       elsif @palette[:kind] == :problem_filter
         query = @palette[:query]
         self.palette = nil
@@ -1035,7 +1067,38 @@ module Canopus
       register_action("terminal.prev") { activate_terminal((@active_terminal_index - 1) % @terminals.length) unless @terminals.empty? }
       9.times { |index| register_action("terminal.select_#{index + 1}") { activate_terminal(index) if index < @terminals.length } }
       register_action("terminal.rename") { self.palette = {kind: :terminal_rename, query: +"", index: 0, matches: []} if terminal }
-      register_action("terminal.clear") { terminal&.grid&.reset }
+      register_action("terminal.commands", description: "Show Terminal Commands", condition: "Terminal") { show_terminal_commands }
+      register_action("terminal.commands.failed", description: "Show Failed Terminal Commands", condition: "Terminal") do
+        show_terminal_commands(failed: true)
+      end
+      register_action("terminal.clear") do
+        terminal&.grid&.reset
+        terminal&.clear_commands
+      end
+    end
+
+    def inject_shell_integration(current)
+      shell = current.command_name
+      path = Tarazed::ShellIntegration.path(shell)
+      source = File.basename(shell).downcase.delete_suffix(".exe") == "fish" ? "source" : "."
+      current.input("#{source} #{Shellwords.escape(path)}\n")
+    rescue ArgumentError, IOError, SystemCallError
+      nil
+    end
+
+    def retained_terminal_commands
+      return [] unless terminal&.respond_to?(:commands) && !terminal.grid.alternate?
+      grid = terminal.grid
+      first = grid.scrollback.total - grid.scrollback.length
+      last = grid.scrollback.total + grid.rows - 1
+      terminal.commands.select { |command| command.prompt_row.between?(first, last) }
+    end
+
+    def terminal_command_label(command)
+      input = command.input.to_s.encode(Encoding::UTF_8, invalid: :replace, undef: :replace).scrub
+        .gsub(/[\x00-\x1f\x7f]+/, " ").strip
+      input = "(empty command)" if input.empty?
+      "exit #{command.exit_status}  #{input}".slice(0, 240)
     end
     def encode_layout(node)
       node[:pane] ? {pane: @panes.index(node[:pane])} : {direction: node[:direction], ratio: node.fetch(:ratio, 0.5), children: node[:children].map { |child| encode_layout(child) }}

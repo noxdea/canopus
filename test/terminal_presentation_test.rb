@@ -15,6 +15,8 @@ class TerminalPresentationTest < Minitest::Test
     def key(name, **options) = write(@vt.key(name, **options))
     def paste(value) = write(@vt.paste(value))
     def mouse(**options) = write(@vt.mouse(**options))
+    def commands = @vt.commands
+    def cwd = @vt.cwd || "/tmp"
     def close; end
     def read = ""
   end
@@ -59,5 +61,30 @@ class TerminalPresentationTest < Minitest::Test
     @window.clipboard = "hello"
     @controller.key("cmd-v")
     assert @terminal.written.end_with?("\e[200~hello\e[201~")
+  end
+
+  def test_command_boundaries_and_exit_status_are_rendered
+    @terminal.grid.reset
+    @terminal.vt.feed("\e]133;A\e\\$ \e]133;B\e\\日本語\e]133;C\e\\\r\n失敗\r\n\e]133;D;7\a")
+    @window.request_frame
+    @controller.tick
+
+    assert_includes @window.text_runs.map { |run| run[2] }, "▾ exit 7"
+  end
+
+  def test_command_status_badge_toggles_output_fold
+    @terminal.grid.reset
+    @terminal.vt.feed("\e]133;A\a$ \e]133;B\aecho\e]133;C\a\r\none\r\ntwo\r\nthree\e]133;D;0\a")
+    @window.request_frame
+    @controller.tick
+    assert_includes @window.text_runs.map { |run| run[2] }.join, "one"
+    bounds, = @controller.view.regions.find { |_, action| action.first == :terminal_command }
+
+    point = Zaniah::Point.new(bounds.x + 1, bounds.y + 1)
+    @controller.input(Zaniah::Input::MouseDown.new(position: point, button: :left, modifiers: [], click_count: 1))
+    @controller.tick
+
+    refute_includes @window.text_runs.map { |run| run[2] }.join, "one"
+    assert_includes @window.text_runs.map { |run| run[2] }, "▸ ✓"
   end
 end

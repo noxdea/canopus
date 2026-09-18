@@ -59,6 +59,12 @@ class WorkspaceSettingsTest < Minitest::Test
     assert_raises(Canopus::Error) { Canopus::Settings.new("diagnostics" => {"severity" => "fatal"}) }
   end
 
+  def test_shell_integration_setting_is_defaulted_and_validated
+    assert_equal true, @workspace.settings["terminal"]["shell_integration"]
+    assert_equal "boolean", Canopus::Settings.schema.dig("properties", "terminal", "properties", "shell_integration", "type")
+    assert_raises(Canopus::Error) { Canopus::Settings.new("terminal" => {"shell_integration" => "yes"}) }
+  end
+
   def test_inlay_hint_settings_are_defaulted_and_validated
     expected = {"enabled" => true, "parameter_names" => true, "types" => true, "max_length" => 30}
     assert_equal expected, @workspace.settings["inlay_hints"]

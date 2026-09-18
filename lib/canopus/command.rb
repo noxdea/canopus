@@ -45,6 +45,8 @@ module Canopus
       "terminal.paste" => {"cmd-v" => "Terminal || TaskOutput", "ctrl-shift-v" => "Terminal || TaskOutput"}.freeze,
       "terminal.next" => {"ctrl-shift-]" => "Terminal"}.freeze,
       "terminal.prev" => {"ctrl-shift-[" => "Terminal"}.freeze,
+      "terminal.command.previous" => {"ctrl-shift-up" => "Terminal"}.freeze,
+      "terminal.command.next" => {"ctrl-shift-down" => "Terminal"}.freeze,
       "terminal.clear" => {"cmd-k" => "Terminal"}.freeze,
       **(1..9).to_h { |index| ["terminal.select_#{index}", {"cmd-#{index}" => "Terminal"}.freeze] }
     }.freeze

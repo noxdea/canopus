@@ -10,8 +10,10 @@ module Canopus
 
     def terminal_link_at(point)
       return unless @terminal_bounds&.contains?(point) && displayed_terminal
-      column, row = terminal_point(point)
-      cells = terminal_row(@terminal_first + row)
+      position = terminal_source_point(point)
+      return unless position
+      column, row = position
+      cells = terminal_row(row)
       column -= 1 while column.positive? && cells[column].width.zero?
       cell = cells[column]
       return terminal_link(cell.hyperlink, explicit: true) if cell.hyperlink
@@ -64,23 +66,33 @@ module Canopus
     end
     def terminal_point(point)
       grid = displayed_terminal.grid
-      column = ((point.x - @terminal_bounds.x) / @terminal_cell_width).floor.clamp(0, grid.columns - 1)
-      row = ((point.y - @terminal_bounds.y) / (@terminal_line_height || @line_height)).floor.clamp(0, grid.rows - 1)
-      [column, row]
+      position = terminal_source_point(point)
+      return unless position
+      column, row = position
+      [column, (row - grid.scrollback.length).clamp(0, grid.rows - 1)]
     end
     def terminal_scroll(delta)
-      @terminal_scroll = ((@terminal_scroll || 0) - delta).clamp(0, displayed_terminal.grid.scrollback.length)
+      map = terminal_row_map
+      maximum = [map[:visible] - displayed_terminal.grid.rows, 0].max
+      @terminal_scroll = ((@terminal_scroll || 0) - delta).clamp(0, maximum)
       @terminal_selection = nil
     end
     def terminal_select(point, extend: false)
-      column, row = terminal_point(point)
-      index = [@terminal_first + row, column]
+      position = terminal_source_point(point)
+      return unless position
+      column, row = position
+      index = [row, column]
       @terminal_selection = extend && @terminal_selection ? [@terminal_selection.first, index] : [index, index]
     end
     def terminal_selected_text
       return "" unless @terminal_selection
       first, last = @terminal_selection.sort
-      (first.first..last.first).map do |row|
+      map = terminal_row_map
+      from_row = terminal_display_for_source(map, first.first)
+      to_row = terminal_display_for_source(map, last.first)
+      return "" unless from_row && to_row
+      (from_row..to_row).map do |display_row|
+        row = terminal_source_for_display(map, display_row)
         cells = terminal_row(row)
         from = row == first.first ? first.last : 0
         to = row == last.first ? last.last : cells.length - 1
@@ -88,7 +100,125 @@ module Canopus
       end.join("\n")
     end
 
+    def terminal_command(direction)
+      terminal = displayed_terminal
+      return false unless terminal&.respond_to?(:commands) && !terminal.grid.alternate?
+      map = terminal_row_map(terminal)
+      maximum = [map[:visible] - terminal.grid.rows, 0].max
+      first_display = maximum - (@terminal_scroll || 0).floor
+      current = map[:base] + terminal_source_for_display(map, first_display)
+      commands = terminal.commands.select { |command| command.prompt_row >= map[:base] }
+      command = if direction == :previous
+        commands.reverse.find { |item| @terminal_scroll.to_i.zero? ? item.prompt_row <= current : item.prompt_row < current }
+      elsif direction == :next
+        commands.find { |item| item.prompt_row > current }
+      else
+        raise ArgumentError, "invalid terminal command direction"
+      end
+      terminal_command_jump(command)
+    end
+
+    def terminal_command_jump(command)
+      return false unless command && displayed_terminal && !displayed_terminal.grid.alternate?
+      map = terminal_row_map
+      source = command.prompt_row - map[:base]
+      display = terminal_display_for_source(map, source)
+      return false unless display
+      maximum = [map[:visible] - displayed_terminal.grid.rows, 0].max
+      @terminal_scroll = maximum - [display, maximum].min
+      @terminal_selection = nil
+      true
+    end
+
+    def terminal_toggle_command(command = nil)
+      terminal = displayed_terminal
+      return false unless terminal&.respond_to?(:commands) && !terminal.grid.alternate?
+      map = terminal_row_map(terminal)
+      unless command
+        maximum = [map[:visible] - terminal.grid.rows, 0].max
+        first = maximum - (@terminal_scroll || 0).floor
+        last = [first + terminal.grid.rows - 1, map[:visible] - 1].min
+        current = map[:base] + terminal_source_for_display(map, last)
+        command = terminal.commands.reverse.find { |item| item.prompt_row <= current && terminal_fold_interval(item, map) }
+      end
+      return false unless command && terminal_fold_interval(command, map)
+      folds = terminal_folds(terminal)
+      folds[command.id] ? folds.delete(command.id) : folds[command.id] = true
+      @terminal_selection = nil
+      terminal_command_jump(command)
+      true
+    end
+
     private
+    def terminal_visual_point(point)
+      grid = displayed_terminal.grid
+      column = ((point.x - @terminal_bounds.x) / @terminal_cell_width).floor.clamp(0, grid.columns - 1)
+      row = ((point.y - @terminal_bounds.y) / (@terminal_line_height || @line_height)).floor.clamp(0, grid.rows - 1)
+      [column, row]
+    end
+
+    def terminal_source_point(point)
+      column, row = terminal_visual_point(point)
+      source = @terminal_visible_rows ? @terminal_visible_rows[row] : @terminal_first.to_i + row
+      [column, source] if source
+    end
+
+    def terminal_folds(terminal)
+      terminal.instance_variable_get(:@canopus_command_folds) ||
+        terminal.instance_variable_set(:@canopus_command_folds, {})
+    end
+
+    def terminal_fold_interval(command, map)
+      range = command.output_range
+      return unless range && range.begin.is_a?(Integer) && range.end.is_a?(Integer)
+      first = [range.begin, command.prompt_row + 1, map[:base]].max - map[:base]
+      last = [range.end - 1, map[:base] + map[:length] - 1].min - map[:base]
+      [first, last] if first <= last
+    end
+
+    def terminal_row_map(terminal = displayed_terminal)
+      grid = terminal.grid
+      base = grid.scrollback.total - grid.scrollback.length
+      length = grid.scrollback.length + grid.rows
+      map = {base: base, length: length}
+      return map.merge(intervals: [], visible: length) if grid.alternate?
+      commands = terminal.respond_to?(:commands) ? terminal.commands : []
+      commands = commands.select { |command| command.prompt_row.between?(base, base + length - 1) }
+      folds = terminal_folds(terminal)
+      ids = commands.to_h { |command| [command.id, true] }
+      folds.delete_if { |id| !ids.key?(id) }
+      intervals = commands.filter_map { |command| terminal_fold_interval(command, map) if folds[command.id] }
+        .sort_by(&:first).each_with_object([]) do |interval, merged|
+          if merged.last && interval.first <= merged.last.last + 1
+            merged.last[1] = [merged.last.last, interval.last].max
+          else
+            merged << interval
+          end
+        end
+      map.merge(intervals: intervals, visible: length - intervals.sum { |first, last| last - first + 1 })
+    end
+
+    def terminal_source_for_display(map, display)
+      return unless display.between?(0, map[:visible] - 1)
+      source = display
+      map[:intervals].each do |first, last|
+        break if source < first
+        source += last - first + 1
+      end
+      source
+    end
+
+    def terminal_display_for_source(map, source)
+      return unless source.between?(0, map[:length] - 1)
+      hidden = 0
+      map[:intervals].each do |first, last|
+        return if source.between?(first, last)
+        break if source < first
+        hidden += last - first + 1
+      end
+      source - hidden
+    end
+
     def terminal_link(value, explicit: false)
       return if value.empty? || value.bytesize > 8192 || value.match?(/[\x00-\x1f\x7f]/)
       if value.match?(/\Ahttps?:\/\//i)
@@ -113,7 +243,7 @@ module Canopus
       if (location = value.match(/\A(.+?)(?::(\d+)(?::(\d+))?|\((\d+)(?:,(\d+))?\))\z/))
         value, line, column = location[1], (location[2] || location[4]).to_i, (location[3] || location[5])&.to_i
       end
-      directory = displayed_terminal.vt.cwd
+      directory = displayed_terminal.respond_to?(:cwd) ? displayed_terminal.cwd : displayed_terminal.vt.cwd
       directory = @workspace.root unless directory && File.directory?(directory)
       path = File.expand_path(value, directory)
       Link.new(:file, path, line, column) if File.file?(path)
@@ -183,12 +313,19 @@ module Canopus
       prefix == :terminal ? @workspace.resize_terminal(columns, rows) : @workspace.resize_task_output(columns, rows)
       grid = terminal.grid
       @terminal_bounds = Zaniah::Bounds.new(bounds.x + 12, bounds.y + 32, columns * @terminal_cell_width, rows * @terminal_line_height).intersect(bounds)
-      @terminal_scroll = (@terminal_scroll || 0).clamp(0, grid.scrollback.length)
-      @terminal_first = grid.scrollback.length - @terminal_scroll.floor
+      map = terminal_row_map(terminal)
+      maximum = [map[:visible] - rows, 0].max
+      @terminal_scroll = (@terminal_scroll || 0).clamp(0, maximum)
+      @terminal_first_display = maximum - @terminal_scroll.floor
+      @terminal_visible_rows = rows.times.map { |row| terminal_source_for_display(map, @terminal_first_display + row) }
+      @terminal_first = @terminal_visible_rows.compact.first || 0
       selection = @terminal_selection&.sort
+      command_regions = []
       @scene.clip(@terminal_bounds) do
         rows.times do |row|
-          cells = terminal_row(@terminal_first + row)
+          source_row = @terminal_visible_rows[row]
+          next unless source_row
+          cells = terminal_row(source_row)
           cells.each_with_index do |cell, column|
             next if cell.width.zero?
             x, y = @terminal_bounds.x + column * @terminal_cell_width, @terminal_bounds.y + row * @terminal_line_height
@@ -197,7 +334,7 @@ module Canopus
             foreground, background = background, foreground if cell.attributes[:inverse]
             rect = Zaniah::Bounds.new(x, y, cell.width * @terminal_cell_width, @terminal_line_height)
             fill(rect, background) if background != @theme[:panel]
-            position = [@terminal_first + row, column]
+            position = [source_row, column]
             fill(rect, :selection) if selection && (position <=> selection.first) >= 0 && (position <=> selection.last) <= 0
             next if cell.attributes[:hidden]
             foreground = Zaniah::Color.parse(foreground).opacity(0.6) if cell.attributes[:dim]
@@ -212,22 +349,44 @@ module Canopus
             fill(Zaniah::Bounds.new(x, y + @terminal_line_height / 2, rect.width, 1), foreground) if cell.attributes[:strikethrough]
           end
         end
+        if prefix == :terminal && terminal.respond_to?(:commands) && !grid.alternate?
+          terminal.commands.each do |command|
+            source_row = command.prompt_row - map[:base]
+            display_row = terminal_display_for_source(map, source_row)
+            next unless display_row
+            row = display_row - @terminal_first_display
+            next unless row.between?(0, rows - 1)
+            y = @terminal_bounds.y + row * @terminal_line_height
+            fill(Zaniah::Bounds.new(@terminal_bounds.x, y, @terminal_bounds.width, 1), :border)
+            foldable = terminal_fold_interval(command, map)
+            marker = foldable ? (terminal_folds(terminal)[command.id] ? "▸ " : "▾ ") : ""
+            label = marker + (command.exit_status.zero? ? "✓" : "exit #{command.exit_status}")
+            width = label.length * 7 + 8
+            text(label, @terminal_bounds.right - width + 4, y, color: command.exit_status.zero? ? :muted : :error, size: 10)
+            command_regions << [Zaniah::Bounds.new(@terminal_bounds.right - width, y, width, @terminal_line_height), command] if foldable
+          end
+        end
         blinking = @workspace.settings["terminal"]["blinking"]
         if grid.cursor_visible && @terminal_scroll.zero? &&
             (blinking == "off" || @cursor_visible || !@workspace.terminal_composition&.text.to_s.empty?)
-          x = @terminal_bounds.x + grid.cursor_x * @terminal_cell_width
-          y = @terminal_bounds.y + grid.cursor_y * @terminal_line_height
-          cursor = case @workspace.settings["terminal"]["cursor_shape"]
-          when "bar" then Zaniah::Bounds.new(x, y, 2, @terminal_line_height)
-          when "underline" then Zaniah::Bounds.new(x, y + @terminal_line_height - 2, @terminal_cell_width, 2)
-          else Zaniah::Bounds.new(x, y, @terminal_cell_width, @terminal_line_height)
-          end
-          fill(cursor, "#e9a66166")
-          composition = @workspace.terminal_composition
-          if composition && !composition.text.empty?
-            layout = text(composition.text, x, y, color: :accent, size: @terminal_font_size)
-            fill(Zaniah::Bounds.new(x, y + @terminal_line_height - 2, layout&.width || 20, 1), :accent)
-            @cx.window.ime_state = Zaniah::Bounds.new(x, y, 2, @terminal_line_height)
+          cursor_source = grid.scrollback.length + grid.cursor_y
+          cursor_display = terminal_display_for_source(map, cursor_source)
+          cursor_row = cursor_display && cursor_display - @terminal_first_display
+          if cursor_row&.between?(0, rows - 1)
+            x = @terminal_bounds.x + grid.cursor_x * @terminal_cell_width
+            y = @terminal_bounds.y + cursor_row * @terminal_line_height
+            cursor = case @workspace.settings["terminal"]["cursor_shape"]
+            when "bar" then Zaniah::Bounds.new(x, y, 2, @terminal_line_height)
+            when "underline" then Zaniah::Bounds.new(x, y + @terminal_line_height - 2, @terminal_cell_width, 2)
+            else Zaniah::Bounds.new(x, y, @terminal_cell_width, @terminal_line_height)
+            end
+            fill(cursor, "#e9a66166")
+            composition = @workspace.terminal_composition
+            if composition && !composition.text.empty?
+              layout = text(composition.text, x, y, color: :accent, size: @terminal_font_size)
+              fill(Zaniah::Bounds.new(x, y + @terminal_line_height - 2, layout&.width || 20, 1), :accent)
+              @cx.window.ime_state = Zaniah::Bounds.new(x, y, 2, @terminal_line_height)
+            end
           end
         end
       end
@@ -238,6 +397,9 @@ module Canopus
           [@terminal_bounds.bottom - @terminal_line_height, @terminal_bounds.y].max, color: :muted, size: 11)
       end
       region(@terminal_bounds, role: :terminal, label: prefix == :terminal ? "Terminal" : "Task output", action: [prefix])
+      command_regions.each do |bounds, command|
+        region(bounds, role: :button, label: "Toggle command output", action: [:terminal_command, command])
+      end
     end
   end
 end

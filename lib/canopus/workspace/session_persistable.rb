@@ -26,7 +26,10 @@ module Canopus
       end
       state = {version: 2, root: @root, layout: encode_layout(@layout), recent_files: @recent_files || [],
         active_pane: @panes.index(@active_pane), docks: @docks, panels: @panels.state,
-        terminals: @terminals.map { |current| {cwd: current.vt.cwd || (current.respond_to?(:initial_cwd) ? current.initial_cwd : @root), title: @terminal_names[current]} },
+        terminals: @terminals.map do |current|
+          cwd = current.respond_to?(:cwd) ? current.cwd : current.vt.cwd
+          {cwd: cwd || (current.respond_to?(:initial_cwd) ? current.initial_cwd : @root), title: @terminal_names[current]}
+        end,
         active_terminal: @active_terminal_index, terminal_visible: terminal_visible,
         panes: @panes.map do |pane|
           {active: pane.active_index, tabs: pane.editors.filter_map do |current|

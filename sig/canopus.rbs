@@ -366,7 +366,7 @@ module Canopus
     def buffer_refs: (String | Buffer path_or_buffer) -> Array[[Symbol, Integer]]
     def clear_vim_states: () -> void
     def move_tab: (from: Pane, to: Pane, ?editor: Editor, ?index: Integer?) -> void
-    def new_terminal: (?cwd: String) -> Tarazed::PTY
+    def new_terminal: (?cwd: String?) -> Tarazed::Session
     def activate_terminal: (Integer index) -> Tarazed::PTY
     def move_terminal: (Integer from, Integer to) -> Tarazed::PTY
     def request_terminal_close: (?Integer index) -> (Tarazed::PTY | false | nil)
@@ -374,6 +374,7 @@ module Canopus
     def restart_terminal: (?Integer index) -> Tarazed::PTY?
     def terminal_title: (?Tarazed::PTY? current) -> String
     def rename_terminal: (String name, ?Tarazed::PTY? current) -> String?
+    def show_terminal_commands: (?failed: bool) -> void
     def drain_terminals: (?now: Numeric) -> bool
     def resize_terminal: (Integer columns, Integer rows, ?final: bool, ?now: Numeric) -> void
     def flush_terminal_resize: () -> void
