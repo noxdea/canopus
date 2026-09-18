@@ -1074,6 +1074,11 @@ module Canopus
       register_action("edit.redo") { editor.redo }
       register_action("edit.select_all") { editor.select_all }
       register_action("edit.select_next") { editor.select_next_occurrence }
+      %i[up down].each do |direction|
+        register_action("edit.add_cursor_#{direction}", description: "Add Cursor #{direction.capitalize}", condition: "Editor && !vim_mode") do
+          editor.add_cursor(direction)
+        end
+      end
       register_action("edit.select_all_occurrences") { editor.select_next_occurrence(all: true) }
       register_action("edit.duplicate_line") { editor.duplicate_lines }
       %i[up down].each do |direction|

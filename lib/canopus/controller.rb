@@ -606,7 +606,8 @@ module Canopus
           editor.move(:line_start)
           editor.move(:down, extend: true)
         end
-        @drag = [editor, editor.primary.anchor, event.position, modifiers.include?("alt") && modifiers.include?("shift")]
+        rectangle = modifiers.include?("alt") && event.click_count == 1
+        @drag = [editor, rectangle ? anchor : editor.primary.anchor, event.position, rectangle]
       when :sticky
         pane, editor, offset, version, generation = args
         if event.button == :left && editor.buffer.version == version &&

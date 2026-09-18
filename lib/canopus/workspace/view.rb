@@ -352,8 +352,11 @@ module Canopus
       editor.scroll
       map, first = editor.display_map, editor.scroll_y.floor
       last = [first + editor.viewport_rows + 1, map.row_count].min
-      cursor_offset = @workspace.settings["vim_mode"] && active ? @workspace.vim.cursor_position : editor.primary.head
+      vim_cursor = @workspace.settings["vim_mode"] && active
+      cursor_offsets = vim_cursor ? [@workspace.vim.cursor_position] : editor.selections.map(&:head)
+      cursor_offset = cursor_offsets.last
       cursor = map.to_display(cursor_offset)
+      cursors = cursor_offsets.map { |offset| map.to_display(offset) }
       decorations ||= decorations_for_display_rows(editor, map, first, last)
       if map.set_overlays(decorations.select { |item| %i[inline block].include?(item.kind) },
         font: @cx.text_system.respond_to?(:font) ? @cx.text_system.font : nil,
@@ -362,6 +365,7 @@ module Canopus
         first = editor.scroll_y.floor
         last = [first + editor.viewport_rows + 1, map.row_count].min
         cursor = map.to_display(cursor_offset)
+        cursors = cursor_offsets.map { |offset| map.to_display(offset) }
         decorations = (decorations + decorations_for_display_rows(editor, map, first, last)).uniq.sort_by(&:priority).freeze
       end
       gutter_items = decorations.select { |item| item.kind == :gutter }
@@ -450,14 +454,18 @@ module Canopus
           paint_whitespace(editor, map, index, source_row, row, line, left, y, bounds) if row.kind == :text
           paint_overlays&.call
           paint_indent_guides(row, line, left, y, guides_by_row[index] || [])
-          if cursor.row == index && active
-            x = left + column_x(row.text, line, cursor.column)
-            width = @workspace.settings["vim_mode"] && @workspace.vim.mode != :insert ? @font_size * 0.6 : 1.5
-            fill(Zaniah::Bounds.new(x, y, width, @line_height - 2), width > 2 ? "#e9a66177" : :cursor) if @cursor_visible || editor.composition
-            @cx.window.ime_state = Zaniah::Bounds.new(x, y, 2, @line_height)
-            if editor.composition && !editor.composition.text.empty?
-              composition = text(editor.composition.text, x, y, color: :accent)
-              fill(Zaniah::Bounds.new(x, y + @line_height - 2, composition&.width || 20, 1), :accent)
+          if active
+            cursors.each_with_index do |caret, caret_index|
+              next unless caret.row == index
+              x = left + column_x(row.text, line, caret.column)
+              width = vim_cursor && @workspace.vim.mode != :insert ? @font_size * 0.6 : 1.5
+              fill(Zaniah::Bounds.new(x, y, width, @line_height - 2), width > 2 ? "#e9a66177" : :cursor) if @cursor_visible || editor.composition
+              next unless caret_index == cursors.length - 1
+              @cx.window.ime_state = Zaniah::Bounds.new(x, y, 2, @line_height)
+              if editor.composition && !editor.composition.text.empty?
+                composition = text(editor.composition.text, x, y, color: :accent)
+                fill(Zaniah::Bounds.new(x, y + @line_height - 2, composition&.width || 20, 1), :accent)
+              end
             end
           end
         end

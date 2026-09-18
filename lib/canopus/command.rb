@@ -17,6 +17,8 @@ module Canopus
       "edit.redo" => {"cmd-shift-z" => "", "ctrl-shift-z" => ""}.freeze,
       "edit.select_all" => {"cmd-a" => "", "ctrl-a" => ""}.freeze,
       "edit.select_next" => {"cmd-d" => "", "ctrl-d" => ""}.freeze,
+      "edit.add_cursor_up" => {"ctrl-alt-up" => ""}.freeze,
+      "edit.add_cursor_down" => {"ctrl-alt-down" => ""}.freeze,
       "search.buffer" => {"cmd-f" => "", "ctrl-f" => ""}.freeze,
       "edit.select_all_occurrences" => {"cmd-shift-l" => "", "ctrl-shift-l" => ""}.freeze,
       "edit.move_line_up" => {"alt-shift-up" => ""}.freeze,

@@ -28,6 +28,15 @@ module Canopus
     def reversed?: () -> bool
   end
 
+  class BlockSelection < Data
+    include Enumerable[[DisplayPoint, DisplayPoint]]
+    attr_reader anchor: DisplayPoint
+    attr_reader head: DisplayPoint
+    def self.new: (DisplayPoint anchor, DisplayPoint head) -> instance
+    def each: () { ([DisplayPoint, DisplayPoint]) -> void } -> self
+            | () -> Enumerator[[DisplayPoint, DisplayPoint], self]
+  end
+
   class Patch
     class Edit < Data
       attr_reader old_range: Range[Integer]
@@ -205,6 +214,7 @@ module Canopus
     def select_all: () -> self
     def select_next_occurrence: (?all: bool) -> untyped
     def rectangle: (DisplayPoint first, DisplayPoint last) -> void
+    def add_cursor: (:up | :down direction) -> Array[Selection]?
     def indent: (?outdent: bool) -> untyped
     def toggle_comment: (?prefix: String, ?suffix: String?) -> untyped
     def duplicate_lines: () -> untyped

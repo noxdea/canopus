@@ -206,13 +206,36 @@ module Canopus
     end
 
     def rectangle(first, last)
-      selections = (first.row..last.row).map do |row|
-        anchor = @display_map.to_buffer(DisplayPoint.new(row, first.column))
-        head = @display_map.to_buffer(DisplayPoint.new(row, last.column))
+      selections = BlockSelection.new(first, last).filter_map do |anchor, head|
+        next unless @display_map.row(anchor.row).kind == :text
+        selection = Selection.new(@next_selection, @display_map.to_buffer(anchor), @display_map.to_buffer(head), nil)
         @next_selection += 1
-        Selection.new(@next_selection, anchor, head, nil)
+        selection
       end
-      set_selections(selections)
+      return if selections.empty?
+      set_selections(selections, merge: false)
+    end
+    def add_cursor(direction)
+      raise ArgumentError, "cursor direction must be up or down" unless %i[up down].include?(direction)
+      edge = @selections.public_send(direction == :up ? :min_by : :max_by) { |selection| @display_map.to_display(selection.head).row }
+      point = @display_map.to_display(edge.head)
+      row = point.row + (direction == :up ? -1 : 1)
+      column = edge.goal || point.column
+      offset = nil
+      loop do
+        return unless row.between?(0, @display_map.row_count - 1)
+        unless @display_map.row(row).kind == :text
+          row += direction == :up ? -1 : 1
+          next
+        end
+        offset = @display_map.to_buffer(DisplayPoint.new(row, column))
+        break unless @selections.any? { |selection| selection.empty? && selection.head == offset }
+        row += direction == :up ? -1 : 1
+      end
+
+      selection = Selection.new(@next_selection, offset, offset, column)
+      @next_selection += 1
+      set_selections([*@selections, selection], merge: false)
     end
     def indent(outdent: false)
       change_lines(:indent) do |line|

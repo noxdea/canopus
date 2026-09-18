@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add rectangular Alt-drag selection and Ctrl-Alt-Up/Down cursor insertion across wrapped Unicode text.
+
 - Track shell commands and working directories through Tarazed OSC 133/7 integration, fold output, show exit status, and navigate command boundaries or failed commands.
 - Split the terminal panel horizontally or vertically, restore its layout and profiles, and inject editor integration variables.
 - Add `--wait` for blocking editor invocations such as `EDITOR="canopus --wait"`.
