@@ -51,6 +51,15 @@ module CanopusPackage
           <key>CFBundleVersion</key><string>#{CGI.escapeHTML(version)}</string>
           <key>NSHighResolutionCapable</key><true/>
           <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
+          <key>CFBundleDocumentTypes</key>
+          <array><dict>
+            <key>CFBundleTypeName</key><string>Text Document</string>
+            <key>CFBundleTypeRole</key><string>Editor</string>
+            <key>CFBundleTypeExtensions</key>
+            <array><string>txt</string><string>md</string><string>markdown</string><string>rb</string><string>json</string><string>xml</string></array>
+            <key>LSItemContentTypes</key>
+            <array><string>public.plain-text</string><string>net.daringfireball.markdown</string><string>public.json</string><string>public.xml</string></array>
+          </dict></array>
         </dict></plist>
       PLIST
     when "linux"
@@ -67,9 +76,10 @@ module CanopusPackage
         Exec="#{quoted}" %F
         Terminal=false
         Categories=Development;TextEditor;
-        MimeType=text/plain;
+        MimeType=text/plain;text/markdown;application/json;application/xml;text/x-ruby;
         StartupNotify=true
       DESKTOP
+      write_linux_installers(output)
     when "windows"
       executable = File.join(output, "canopus.cmd")
       command = bundled_ruby ? "%~dp0runtime\\#{bundled_ruby.tr('/', '\\')}" : ruby.gsub('%', '%%')
@@ -84,6 +94,7 @@ module CanopusPackage
         $shortcut.Description = 'Canopus text editor (requires CRuby 3.1+)'
         $shortcut.Save()
       POWERSHELL
+      write_windows_installers(output, version)
     end
     metadata = {name: "canopus", version: version, platform: platform, ruby: bundled_ruby ? "runtime/#{bundled_ruby}" : ruby, bundled_ruby: !bundled_ruby.nil?}
     File.write(File.join(output, "package.json"), JSON.pretty_generate(metadata) + "\n")
@@ -129,6 +140,119 @@ module CanopusPackage
       exec #{command} --yjit "$here/#{relative}" "$@"
     SH
     File.chmod(0o755, path)
+  end
+
+  def write_linux_installers(output)
+    File.write(File.join(output, "Install.sh"), <<~SH)
+      #!/bin/sh
+      set -eu
+      package=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+      root=${XDG_DATA_HOME:-"$HOME/.local/share"}/canopus
+      applications=${XDG_DATA_HOME:-"$HOME/.local/share"}/applications
+      desktop="$applications/canopus.desktop"
+      marker="$root/.canopus-installed"
+      if [ -e "$root" ]; then
+        printf '%s\n' "Canopus is already installed in $root; run Uninstall.sh first" >&2
+        exit 1
+      fi
+      if [ -e "$desktop" ] && ! grep -q '^# canopus-managed$' "$desktop"; then
+        printf '%s\n' "Refusing to replace existing desktop entry: $desktop" >&2
+        exit 1
+      fi
+      mkdir -p "$root" "$applications"
+      cp -R "$package/." "$root/"
+      printf '%s\n' canopus-installed > "$marker"
+      cat > "$desktop" <<DESKTOP
+      # canopus-managed
+      [Desktop Entry]
+      Type=Application
+      Name=Canopus
+      Comment=Pure Ruby text editor
+      Exec="$root/bin/canopus" %F
+      Terminal=false
+      Categories=Development;TextEditor;
+      MimeType=text/plain;text/markdown;application/json;application/xml;text/x-ruby;
+      StartupNotify=true
+      DESKTOP
+      command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$applications" || true
+      printf '%s\n' "Installed Canopus in $root"
+    SH
+    File.chmod(0o755, File.join(output, "Install.sh"))
+    File.write(File.join(output, "Uninstall.sh"), <<~SH)
+      #!/bin/sh
+      set -eu
+      root=${XDG_DATA_HOME:-"$HOME/.local/share"}/canopus
+      applications=${XDG_DATA_HOME:-"$HOME/.local/share"}/applications
+      marker="$root/.canopus-installed"
+      [ -f "$marker" ] && grep -qx canopus-installed "$marker" || {
+        printf '%s\n' "Canopus install marker is missing: $root" >&2
+        exit 1
+      }
+      rm -rf -- "$root"
+      desktop="$applications/canopus.desktop"
+      if [ -f "$desktop" ] && grep -q '^# canopus-managed$' "$desktop"; then
+        rm -f -- "$desktop"
+      fi
+      command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$applications" || true
+      printf '%s\n' "Uninstalled Canopus"
+    SH
+    File.chmod(0o755, File.join(output, "Uninstall.sh"))
+  end
+
+  def write_windows_installers(output, version)
+    installers = {
+      "Install.ps1" => <<~POWERSHELL,
+        param([string]$Destination = (Join-Path $env:LOCALAPPDATA 'Canopus'))
+        $ErrorActionPreference = 'Stop'
+        $package = Split-Path -Parent $MyInvocation.MyCommand.Path
+        if (Test-Path -LiteralPath $Destination) { throw "Destination already exists: $Destination" }
+        $progId = 'Canopus.Document'
+        $class = "Registry::HKEY_CURRENT_USER\\Software\\Classes\\$progId"
+        if (Test-Path -LiteralPath $class) { throw "ProgID already exists; uninstall first: $progId" }
+        New-Item -ItemType Directory -Force -Path $Destination | Out-Null
+        Copy-Item -Path (Join-Path $package '*') -Destination $Destination -Recurse -Force
+        New-Item -Force -Path "$class\\shell\\open\\command" | Out-Null
+        Set-ItemProperty -Path $class -Name '(Default)' -Value 'Canopus document'
+        Set-ItemProperty -Path "$class\\shell\\open\\command" -Name '(Default)' -Value ('"' + $Destination + '\\canopus.cmd" "%1"')
+        Set-ItemProperty -Path $class -Name 'FriendlyTypeName' -Value 'Canopus document'
+        Set-ItemProperty -Path $class -Name CanopusManaged -Value 1
+        foreach ($extension in @('.txt', '.md', '.markdown', '.rb', '.json', '.xml')) {
+          $openWith = "Registry::HKEY_CURRENT_USER\\Software\\Classes\\$extension\\OpenWithProgids"
+          New-Item -Force -Path $openWith | Out-Null
+          New-ItemProperty -Force -Path $openWith -Name $progId -Value '' | Out-Null
+        }
+        $uninstall = 'Registry::HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Canopus'
+        New-Item -Force -Path $uninstall | Out-Null
+        Set-ItemProperty -Path $uninstall -Name DisplayName -Value 'Canopus'
+        Set-ItemProperty -Path $uninstall -Name DisplayVersion -Value '#{version}'
+        Set-ItemProperty -Path $uninstall -Name InstallLocation -Value $Destination
+        Set-ItemProperty -Path $uninstall -Name UninstallString -Value ('powershell.exe -ExecutionPolicy Bypass -File "' + $Destination + '\\Uninstall.ps1"')
+        Write-Output "Installed Canopus in $Destination"
+      POWERSHELL
+      "Uninstall.ps1" => <<~POWERSHELL
+        param([string]$Destination = $PSScriptRoot)
+        $ErrorActionPreference = 'Stop'
+        $progId = 'Canopus.Document'
+        $uninstall = 'Registry::HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Canopus'
+        $record = Get-ItemProperty -Path $uninstall -ErrorAction SilentlyContinue
+        if (!$record -or $record.InstallLocation -ne $Destination) { throw "Canopus install record does not match: $Destination" }
+        $class = "Registry::HKEY_CURRENT_USER\\Software\\Classes\\$progId"
+        $owner = Get-ItemProperty -Path $class -Name CanopusManaged -ErrorAction SilentlyContinue
+        if ($owner.CanopusManaged -ne 1) { throw "Canopus ProgID is not managed by this installer" }
+        foreach ($extension in @('.txt', '.md', '.markdown', '.rb', '.json', '.xml')) {
+          $openWith = "Registry::HKEY_CURRENT_USER\\Software\\Classes\\$extension\\OpenWithProgids"
+          Remove-ItemProperty -Path $openWith -Name $progId -ErrorAction SilentlyContinue
+        }
+        Remove-Item -LiteralPath $class -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $uninstall -Recurse -Force -ErrorAction SilentlyContinue
+        if (Test-Path -LiteralPath $Destination) { Remove-Item -LiteralPath $Destination -Recurse -Force }
+        Write-Output 'Uninstalled Canopus'
+      POWERSHELL
+    }
+    installers.each do |name, contents|
+      path = File.join(output, name)
+      File.write(path, contents.gsub("\n", "\r\n"))
+    end
   end
 end
 

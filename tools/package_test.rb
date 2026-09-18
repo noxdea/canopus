@@ -14,6 +14,21 @@ Dir.mktmpdir("canopus-package-") do |directory|
     manifest = JSON.parse(File.read(File.join(output, "manifest.json")))
     raise "manifest algorithm" unless manifest["algorithm"] == "SHA-256"
     raise "manifest missing package metadata" unless manifest["files"].key?("package.json")
+    case platform
+    when "mac"
+      raise "missing mac document types" unless File.read(File.join(output, "Contents", "Info.plist")).include?("CFBundleDocumentTypes")
+    when "linux"
+      raise "missing Linux installer" unless File.executable?(File.join(output, "Install.sh")) && File.executable?(File.join(output, "Uninstall.sh"))
+      raise "missing Linux MIME associations" unless File.read(File.join(output, "share", "applications", "canopus.desktop")).include?("text/markdown")
+      raise "Linux installer missing ownership marker" unless File.read(File.join(output, "Install.sh")).include?("canopus-installed")
+      raise "Linux installer missing manifest entry" unless manifest["files"].key?("Install.sh")
+    when "windows"
+      raise "missing Windows installer" unless File.file?(File.join(output, "Install.ps1")) && File.file?(File.join(output, "Uninstall.ps1"))
+      installer = File.read(File.join(output, "Install.ps1"))
+      raise "missing Windows ProgID" unless installer.include?("Canopus.Document") && installer.include?("Copy-Item -Path")
+      raise "Windows installer missing ownership marker" unless installer.include?("CanopusManaged")
+      raise "Windows installer missing manifest entry" unless manifest["files"].key?("Install.ps1")
+    end
     if platform == "windows"
       raise "missing shortcut installer" unless File.file?(File.join(output, "Create-Shortcut.ps1"))
       raise "unsafe launcher argument forwarding" unless File.read(launcher).include?("%*")

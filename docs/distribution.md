@@ -26,6 +26,12 @@ Verification also checks every SHA-256 entry in the manifest. This is a
 credential-free integrity check; macOS notarization and Windows Authenticode
 still require platform credentials and are release-environment work.
 
+The generated macOS app declares common text, Markdown, Ruby, JSON, and XML
+document types. Linux packages include `Install.sh` and `Uninstall.sh` for a
+per-user install under `~/.local/share/canopus` and register the desktop MIME
+associations. Windows packages include `Install.ps1` and `Uninstall.ps1`,
+which register a per-user `Canopus.Document` ProgID and OpenWith entries.
+
 The output path must not exist and must be outside the source tree. Without
 `--ruby-root`, build for the Ruby executable available on the destination
 machine. With `--ruby-root`, the directory must be a relocatable CRuby staging
