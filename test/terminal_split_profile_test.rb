@@ -129,6 +129,34 @@ class TerminalSplitProfileTest < Minitest::Test
     window&.close
   end
 
+  def test_command_regions_keep_their_terminal_when_command_ids_repeat
+    @workspace = Canopus::Workspace.new(root: @root, settings: settings)
+    window = Zaniah::Platform.open_window(backend: :headless, width: 700, height: 500)
+    controller = Canopus::Controller.new(@workspace, window)
+    created = []
+    Tarazed::Session.stub(:new, ->(**options) { Session.new(**options).tap { |item| created << item } }) do
+      @workspace.new_terminal(cwd: @nested)
+      @workspace.split_terminal(:horizontal)
+    end
+    sequence = "\e]133;A\a$ \e]133;B\aecho\e]133;C\a\r\none\r\n\e]133;D;0\a"
+    created.each { |terminal| terminal.vt.feed(sequence) }
+    controller.tick
+
+    regions = controller.view.regions.select { |_, action| action.first == :terminal_command }
+    assert_equal 2, regions.length
+    assert_equal 1, regions.map { |_, action| action[1].id }.uniq.length
+    assert_equal created, regions.map { |_, action| action[2] }
+
+    bounds, = regions.find { |_, action| action[2].equal?(created.first) }
+    controller.input(Zaniah::Input::MouseDown.new(
+      position: Zaniah::Point.new(bounds.x + 1, bounds.y + 1), button: :left, modifiers: [], click_count: 1
+    ))
+    assert_same created.first, @workspace.terminal
+  ensure
+    window&.on_close { true }
+    window&.close
+  end
+
   def test_split_applies_new_pane_sizes_on_the_next_frame
     @workspace = Canopus::Workspace.new(root: @root, settings: settings)
     window = Zaniah::Platform.open_window(backend: :headless, width: 700, height: 500)

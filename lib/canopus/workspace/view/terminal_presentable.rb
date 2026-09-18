@@ -430,7 +430,7 @@ module Canopus
             label = marker + (command.exit_status.zero? ? "✓" : "exit #{command.exit_status}")
             width = label.length * 7 + 8
             text(label, @terminal_bounds.right - width + 4, y, color: command.exit_status.zero? ? :muted : :error, size: 10)
-            command_regions << [Zaniah::Bounds.new(@terminal_bounds.right - width, y, width, @terminal_line_height), command] if foldable
+            command_regions << [Zaniah::Bounds.new(@terminal_bounds.right - width, y, width, @terminal_line_height), command, terminal] if foldable
           end
         end
         blinking = @workspace.settings["terminal"]["blinking"]
@@ -468,8 +468,8 @@ module Canopus
       end
       action = prefix == :terminal ? [prefix, terminal] : [prefix]
       region(@terminal_bounds, role: :terminal, label: prefix == :terminal ? "Terminal" : "Task output", action: action)
-      command_regions.each do |bounds, command|
-        region(bounds, role: :button, label: "Toggle command output", action: [:terminal_command, command, terminal])
+      command_regions.each do |bounds, command, command_terminal|
+        region(bounds, role: :button, label: "Toggle command output", action: [:terminal_command, command, command_terminal])
       end
     end
   end
