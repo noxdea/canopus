@@ -129,6 +129,10 @@ free text plus optional `severity:error` and `source:lsp` terms (`warning`,
 `information`, `hint`, `task`, and `test` are also accepted). Project deletion
 moves files to `.canopus/trash` instead of deleting them immediately.
 
+`language.linked_editing` selects matching HTML or XML opening and closing tag
+names when no language server can provide linked ranges. Editing either selected
+name updates both through the editor's normal multi-selection and undo behavior.
+
 Bash, zsh, and fish terminals automatically load Tarazed shell integration
 for command boundaries, collapsible output, exit status, and OSC 7
 working-directory tracking. Click a command status badge to fold its output.

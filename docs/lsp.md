@@ -128,8 +128,12 @@ Run `language.linked_editing` from the command palette to request
 relative anchor and caret to every validated, non-overlapping linked range and
 creates multiple selections. The request is cancelled when the selection,
 document, visible tab, settings, or server changes. Continuous linked editing
-and the HTML/XML fallback are intentionally deferred to the later editing-core
-work.
+is intentionally left to the editor's normal multi-selection behavior. If no
+server is available, or the server does not support the request, returns null,
+fails, or times out, HTML and XML use a bounded fallback for unambiguous matching
+opening and closing tag names. HTML names are ASCII case-insensitive; XML names
+are exact and may contain Unicode. Self-closing and HTML void elements are not
+linked.
 
 Run `language.call_hierarchy` or `language.type_hierarchy` from the command
 palette to prepare a hierarchy at the caret. If the server returns more than

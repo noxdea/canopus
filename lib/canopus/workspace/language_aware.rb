@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "strscan"
+
 module Canopus
   module Workspace::LanguageAware
     DIAGNOSTIC_SEVERITIES = {"error" => 1, "warning" => 2, "information" => 3, "hint" => 4}.freeze
@@ -24,6 +26,11 @@ module Canopus
     LINKED_EDITING_RANGE_LIMIT = 256
     LINKED_EDITING_REQUEST_LIMIT = 1
     LINKED_EDITING_PATTERN_LIMIT = 4_096
+    LINKED_EDITING_MARKUP_BYTE_LIMIT = 1 << 20
+    LINKED_EDITING_MARKUP_TAG_LIMIT = 10_000
+    LINKED_EDITING_MARKUP_DEPTH_LIMIT = 256
+    LINKED_EDITING_MARKUP_NAME_LIMIT = 1_024
+    LINKED_EDITING_HTML_VOID_TAGS = %w[area base br col embed hr img input link meta param source track wbr].freeze
     DOCUMENT_HIGHLIGHT_STYLES = {
       1 => {color: :selection}.freeze,
       2 => {color: :accent, underline: true, thickness: 2}.freeze,
@@ -1024,12 +1031,13 @@ module Canopus
 
       snapshot = linked_editing_snapshot(current)
       language, client = snapshot.values_at(:language, :client)
-      unless client || language_server_options(language)
+      fallback = linked_editing_markup?(snapshot)
+      unless client || language_server_options(language) || fallback
         release_linked_editing_snapshot(snapshot)
         @message = "Linked editing is not available here"
         return false
       end
-      if client && !snapshot[:supported]
+      if client && !snapshot[:supported] && !fallback
         release_linked_editing_snapshot(snapshot)
         @message = "Language server does not support linked editing"
         return false
@@ -3448,33 +3456,51 @@ module Canopus
 
     def start_linked_editing_request(id, snapshot)
       job = Thread.new do
+        owner = nil
         begin
-          owner = language_client(snapshot[:buffer], feature: "linkedEditingRange")
-          unless @linked_editing_requests&.[](id).equal?(snapshot) && linked_editing_editor_valid?(snapshot)
-            next
-          end
-          snapshot[:client] = owner
-          snapshot[:supported] = linked_editing_supported?(owner)
-          unless snapshot[:supported]
-            post do
-              next unless take_linked_editing_request(id, snapshot)
-              release_linked_editing_snapshot(snapshot)
-              @message = "Language server does not support linked editing" if linked_editing_editor_valid?(snapshot)
-            end
-            next
-          end
+          linked = nil
+          fallback = false
+          future = nil
+          if snapshot[:client] || language_server_options(snapshot[:language])
+            begin
+              owner = language_client(snapshot[:buffer], feature: "linkedEditingRange")
+              snapshot[:client] = owner
+              snapshot[:supported] = linked_editing_supported?(owner)
+              next unless @linked_editing_requests&.[](id).equal?(snapshot) &&
+                linked_editing_editor_valid?(snapshot)
 
-          future = owner.linked_editing_range(snapshot[:uri], snapshot[:position])
-          snapshot[:future] = future
-          result = future.await(timeout: 10) if linked_editing_request_valid?(id, snapshot, owner)
-          unless linked_editing_request_valid?(id, snapshot, owner)
-            future.cancel
-            next
+              if snapshot[:supported]
+                future = owner.linked_editing_range(snapshot[:uri], snapshot[:position])
+                snapshot[:future] = future
+                result = future.await(timeout: 10) if linked_editing_request_valid?(id, snapshot, owner)
+                unless linked_editing_request_valid?(id, snapshot, owner)
+                  future.cancel
+                  next
+                end
+                linked = normalize_linked_editing_ranges(snapshot[:rope], snapshot[:offset], snapshot[:selection], result)
+                fallback = result.nil?
+              elsif linked_editing_markup?(snapshot)
+                fallback = true
+              else
+                post do
+                  next unless take_linked_editing_request(id, snapshot)
+                  release_linked_editing_snapshot(snapshot)
+                  @message = "Language server does not support linked editing" if linked_editing_editor_valid?(snapshot)
+                end
+                next
+              end
+            rescue StandardError
+              raise unless linked_editing_markup?(snapshot)
+              future&.cancel
+              fallback = true
+            end
+          else
+            fallback = true
           end
-          linked = normalize_linked_editing_ranges(snapshot[:rope], snapshot[:offset], snapshot[:selection], result)
+          linked = markup_linked_editing_ranges(snapshot) if fallback && linked_editing_markup?(snapshot)
           post do
             next unless take_linked_editing_request(id, snapshot)
-            valid = linked_editing_snapshot_valid?(snapshot)
+            valid = fallback ? linked_editing_editor_valid?(snapshot) : linked_editing_snapshot_valid?(snapshot)
             release_linked_editing_snapshot(snapshot)
             if valid && linked && !linked[:ranges].empty?
               apply_linked_editing_ranges(snapshot, linked)
@@ -3500,6 +3526,116 @@ module Canopus
       (@language_jobs ||= []) << job
       @language_jobs.reject! { |thread| !thread.alive? }
       true
+    end
+
+    def linked_editing_markup?(snapshot)
+      %w[html xml].include?(snapshot[:document].definition.lexer)
+    end
+
+    def markup_linked_editing_ranges(snapshot)
+      return if snapshot[:rope].bytesize > LINKED_EDITING_MARKUP_BYTE_LIMIT
+      source = snapshot[:rope].to_s
+      return unless source.valid_encoding?
+
+      html = snapshot[:document].definition.lexer == "html"
+      scanner = StringScanner.new(source)
+      stack, pairs, count = [], [], 0
+      while scanner.scan_until(/</)
+        token = scan_linked_editing_markup_tag(scanner, source, html)
+        return if token == false
+        next unless token
+        return if (count += 1) > LINKED_EDITING_MARKUP_TAG_LIMIT
+
+        closing, name, range, self_closing = token
+        key = html ? name.tr("A-Z", "a-z") : name
+        if closing
+          opening = stack.pop
+          return unless opening && opening.first == key
+          pairs << [opening.last, range]
+        elsif !self_closing && !(html && LINKED_EDITING_HTML_VOID_TAGS.include?(key))
+          return if stack.length >= LINKED_EDITING_MARKUP_DEPTH_LIMIT
+          stack << [key, range]
+        end
+      end
+      return unless stack.empty?
+
+      selection, offset = snapshot.values_at(:selection, :offset)
+      pair = pairs.find do |ranges|
+        ranges.any? { |range| selection.empty? ? range.cover?(offset) : range.begin <= selection.start && selection.end <= range.end }
+      end
+      return unless pair
+      source_range = pair.find do |range|
+        selection.empty? ? range.cover?(offset) : range.begin <= selection.start && selection.end <= range.end
+      end
+      {ranges: pair.sort_by(&:begin).freeze, source: source_range, pattern: nil}.freeze
+    end
+
+    def scan_linked_editing_markup_tag(scanner, source, html)
+      if scanner.peek(1) == "!" || scanner.peek(1) == "?"
+        return false unless scan_linked_editing_markup_special(scanner)
+        return nil
+      end
+      return false if scanner.peek(1) == "%"
+
+      closing = !!scanner.scan(/\//)
+      name_start = scanner.pos
+      name = scanner.scan(html ? /[A-Za-z][A-Za-z0-9:_.-]*/ : /[\p{L}_:][\p{L}\p{N}\p{M}_:.\-]*/u)
+      return false unless name && name.bytesize <= LINKED_EDITING_MARKUP_NAME_LIMIT
+      range = name_start...scanner.pos
+      tail = scan_linked_editing_markup_tail(scanner, source)
+      return false unless tail
+      return false if closing && !tail.first.strip.empty?
+      [closing, name, range, tail.last]
+    end
+
+    def scan_linked_editing_markup_special(scanner)
+      if scanner.scan(/!--/)
+        !!scanner.scan_until(/-->/)
+      elsif scanner.scan(/!\[CDATA\[/)
+        !!scanner.scan_until(/\]\]>/)
+      elsif scanner.scan(/\?/)
+        !!scanner.scan_until(/\?>/)
+      elsif scanner.scan(/!/)
+        scan_linked_editing_markup_declaration(scanner)
+      else
+        false
+      end
+    end
+
+    def scan_linked_editing_markup_declaration(scanner)
+      quote, brackets = nil, 0
+      while (character = scanner.getch)
+        if quote
+          quote = nil if character == quote
+        elsif character == "\"" || character == "'"
+          quote = character
+        elsif character == "["
+          brackets += 1
+        elsif character == "]"
+          return false if brackets.zero?
+          brackets -= 1
+        elsif character == ">" && brackets.zero?
+          return true
+        end
+      end
+      false
+    end
+
+    def scan_linked_editing_markup_tail(scanner, source)
+      start, quote = scanner.pos, nil
+      while (character = scanner.getch)
+        if quote
+          quote = nil if character == quote
+        elsif character == "\"" || character == "'"
+          quote = character
+        elsif character == "<"
+          return false
+        elsif character == ">"
+          tail = source.byteslice(start...(scanner.pos - 1)).to_s
+          return [tail, tail.rstrip.end_with?("/")]
+        end
+      end
+      false
     end
 
     def apply_linked_editing_ranges(snapshot, linked)

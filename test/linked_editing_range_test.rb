@@ -130,6 +130,17 @@ class LinkedEditingRangeTest < Minitest::Test
     assert_equal [10], timeouts
   end
 
+  def test_new_nonmarkup_client_without_support_keeps_the_existing_message
+    client = Client.new(supported: false)
+    Sadr::Client.stub(:new, client) do
+      @workspace.linked_editing_range
+      settle
+    end
+
+    assert_empty client.requests
+    assert_equal "Language server does not support linked editing", @workspace.message
+  end
+
   def test_external_ranges_and_word_pattern_are_strict_and_bounded
     rope = @editor.buffer.rope
     selection = Canopus::Selection.new(0, 1, 1, nil)
@@ -183,6 +194,153 @@ class LinkedEditingRangeTest < Minitest::Test
     end
   end
 
+  def test_html_fallback_matches_either_side_nested_names_and_quoted_greater_than
+    source = %(<DIV title=">"><div><DIV>body</div></DIV></div>)
+    open_markup(source)
+
+    run_linked_editing(byte_offset(source, "DIV", 0) + 1)
+    assert_equal [byte_offset(source, "DIV", 0) + 1, byte_offset(source, "div", 2) + 1],
+      @editor.selections.map(&:head)
+
+    run_linked_editing(byte_offset(source, "div", 1) + 1)
+    assert_equal [byte_offset(source, "DIV", 1) + 1, byte_offset(source, "div", 1) + 1],
+      @editor.selections.map(&:head)
+  end
+
+  def test_xml_fallback_skips_special_markup_and_matches_unicode_exactly
+    source = %(<?pi value=">"?><!DOCTYPE 日本 [<!ELEMENT 日本 ANY>]><!-- <日本> --><![CDATA[<日本>]]><日本 value=">"><子></子></日本>)
+    open_markup(source, extension: ".xml")
+
+    run_linked_editing(byte_offset(source, "日本", 4))
+    assert_equal [byte_offset(source, "日本", 4), byte_offset(source, "日本", 5)], @editor.selections.map(&:head)
+
+    source = "<Ä></ä>"
+    open_markup(source, extension: ".xml")
+    run_linked_editing(byte_offset(source, "Ä"))
+    assert_equal "Linked editing is not available here", @workspace.message
+  end
+
+  def test_markup_fallback_ignores_void_and_self_closing_tags_and_rejects_ambiguity
+    source = %(<root><br title=">"><leaf/></root>)
+    open_markup(source)
+    run_linked_editing(byte_offset(source, "root") + 1)
+    assert_equal [byte_offset(source, "root", 0) + 1, byte_offset(source, "root", 1) + 1],
+      @editor.selections.map(&:head)
+
+    run_linked_editing(byte_offset(source, "br") + 1)
+    assert_equal "Linked editing is not available here", @workspace.message
+
+    ["<x><x></x>", "<ul><li>one<li>two</ul>", "<div><%= value %></div>"].each do |invalid|
+      open_markup(invalid)
+      run_linked_editing(byte_offset(invalid, invalid[/[A-Za-z]+/]))
+      assert_equal "Linked editing is not available here", @workspace.message
+    end
+
+    explicit = "<html><body><p><span></span></p></body></html>"
+    open_markup(explicit)
+    run_linked_editing(byte_offset(explicit, "span") + 1)
+    assert_equal [byte_offset(explicit, "span", 0) + 1, byte_offset(explicit, "span", 1) + 1],
+      @editor.selections.map(&:head)
+  end
+
+  def test_markup_fallback_preserves_reversed_partial_selection_and_one_undo
+    source = "<widget></widget>"
+    open_markup(source, extension: ".xhtml")
+    first = byte_offset(source, "widget")
+    @editor.select(first + 4, first + 2)
+    @workspace.linked_editing_range
+    settle
+    assert_equal [[first + 4, first + 2], [first + 13, first + 11]],
+      @editor.selections.map { |selection| [selection.anchor, selection.head] }
+
+    @editor.select(first, first + 6)
+    @workspace.linked_editing_range
+    settle
+    @editor.insert_text("node", auto_indent: false)
+    assert_equal "<node></node>", @editor.buffer.text
+    assert @editor.undo
+    assert_equal source, @editor.buffer.text
+  end
+
+  def test_nonmarkup_without_a_server_has_no_fallback
+    path = File.join(@root, "plain.txt")
+    File.write(path, "<tag></tag>")
+    @editor = @workspace.open(path)
+    @editor.select(2)
+
+    refute @workspace.linked_editing_range
+    assert_equal [[2, 2]], @editor.selections.map { |selection| [selection.anchor, selection.head] }
+    assert_equal "Linked editing is not available here", @workspace.message
+  end
+
+  def test_html_fallback_keeps_lsp_priority_and_covers_unavailable_server_results
+    source = "<tag></tag> other"
+    open_configured_markup(source)
+    result = linked(range(1, 4), range(7, 10), range(12, 17))
+    with_client(Client.new(result)) do |client|
+      run_linked_editing(2)
+      assert_equal [2, 8, 13], @editor.selections.map(&:head)
+      assert_equal 1, client.requests.length
+    end
+
+    clients = [Client.new(supported: false), Client.new(nil),
+      Client.new(Sadr::Future.new(2).fulfill(error: Sadr::Error.new("failed")))]
+    timeout = Object.new
+    cancelled = false
+    timeout.define_singleton_method(:await) { |timeout:| raise Sadr::Timeout, "timed out after #{timeout}" }
+    timeout.define_singleton_method(:cancel) { cancelled = true }
+    clients << Client.new(timeout)
+    clients.each do |client|
+      replace_client(client)
+      run_linked_editing(2)
+      assert_equal [2, 8], @editor.selections.map(&:head)
+    end
+    assert_empty clients.first.requests
+    assert cancelled
+  end
+
+  def test_markup_fallback_discards_selection_edit_and_hidden_tab_snapshots
+    %i[selection edit tab].each do |change|
+      source = "<tag></tag>"
+      open_markup(source)
+      started, release = Queue.new, Queue.new
+      original = @workspace.method(:markup_linked_editing_ranges)
+      matcher = proc do |snapshot|
+        started << true
+        release.pop
+        original.call(snapshot)
+      end
+      @workspace.stub(:markup_linked_editing_ranges, matcher) do
+        @editor.select(2)
+        @workspace.linked_editing_range
+        started.pop
+        case change
+        when :selection then @editor.select(3)
+        when :edit then @editor.insert_text("x", auto_indent: false)
+        when :tab
+          other = File.join(@root, "hidden-#{change}.txt")
+          File.write(other, "other")
+          @workspace.open(other)
+        end
+        release << true
+        settle
+      end
+      assert_equal 1, @editor.selections.length
+      refute_equal "Linked ranges selected", @workspace.message
+    end
+  end
+
+  def test_markup_fallback_limits_fail_closed
+    ["<#{"x" * 1_025}></#{"x" * 1_025}>",
+      ("<x>" * 257) + ("</x>" * 257),
+      ("<x/>" * 10_001) + "<tag></tag>",
+      "<tag></tag>" + (" " * ((1 << 20) + 1))].each do |source|
+      open_markup(source)
+      run_linked_editing(source.b.index("tag".b) || 1)
+      assert_equal "Linked editing is not available here", @workspace.message
+    end
+  end
+
   private
 
   def point(character) = {"line" => 0, "character" => character}
@@ -191,17 +349,44 @@ class LinkedEditingRangeTest < Minitest::Test
     {"ranges" => ranges}.tap { |value| value["wordPattern"] = pattern if pattern }
   end
 
+  def open_markup(source, extension: ".html")
+    @markup_index = @markup_index.to_i + 1
+    path = File.join(@root, "markup-#{@markup_index}#{extension}")
+    File.write(path, source)
+    @editor = @workspace.open(path)
+  end
+
+  def open_configured_markup(source)
+    @workspace.close
+    settings = Canopus::Settings.new("language_servers" => {"html" => ["fake"]})
+    @workspace = Canopus::Workspace.new(root: @root, settings: settings)
+    open_markup(source)
+  end
+
+  def run_linked_editing(offset)
+    @editor.select(offset)
+    @workspace.linked_editing_range
+    settle
+  end
+
+  def byte_offset(source, value, occurrence = 0)
+    offset = -1
+    (occurrence + 1).times { offset = source.b.index(value.b, offset + 1) }
+    offset
+  end
+
   def with_client(client)
     Sadr::Client.stub(:new, client) { @workspace.language_client(@editor.buffer) }
     yield client
   end
 
   def replace_client(client)
+    language = @editor.language_document.definition.name
     Sadr::Client.stub(:new, client) do
       configured = @workspace.send(:normalize_server_options, ["fake"])
-      @workspace.instance_variable_get(:@client_options)["ruby"] =
+      @workspace.instance_variable_get(:@client_options)[language] =
         @workspace.send(:normalize_server_options, ["retired", client.object_id.to_s])
-      @workspace.send(:ensure_language_server, "ruby", configured)
+      @workspace.send(:ensure_language_server, language, configured)
     end
   end
 

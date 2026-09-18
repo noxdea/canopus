@@ -21,6 +21,7 @@ module Canopus
       ["toml", "toml", %w[.toml], "#", /[\[{]\s*$/, /^\s*[\]}]/, []],
       ["markdown", "markdown", %w[.md .markdown], "<!--", /\A\z/, /\A\z/, []],
       ["html", "html", %w[.html .erb], "<!--", /<[^\/>]+>\s*$/, /^\s*<\//, []],
+      ["xml", "xml", %w[.xml .xhtml .svg], "<!--", /<[^\/>]+>\s*$/, /^\s*<\//, []],
       ["css", "css", %w[.css .scss], "/*", /\{\s*$/, /^\s*}/, []],
       ["shellscript", "shell", %w[.sh .bash .zsh], "#", /\b(?:then|do|case)\s*$/, /^\s*(?:fi|done|esac)\b/, []]
     ].map { |values| Definition.new(*values) }.freeze
