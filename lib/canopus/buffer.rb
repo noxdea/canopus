@@ -64,7 +64,8 @@ module Canopus
       raw = raw.b unless raw.encoding == Encoding::BINARY
       hint = bom_encoding(raw)
       detection = Menkar.detect(raw, hint: hint)
-      raise Error, "binary file contains NUL bytes" if detection.binary || (raw.include?("\0") && hint.nil?)
+      nul_binary = raw.include?("\0") && detection.bom.empty? && raw.bytesize < 8
+      raise Error, "binary file contains NUL bytes" if detection.binary || (detection.encoding.nil? && raw.include?("\0")) || nul_binary
       [Menkar.decode(raw, detection), detection.encoding, detection.bom]
     rescue Menkar::Error => error
       raise Error, error.message
