@@ -13,6 +13,19 @@ ruby tools/package.rb --platform mac --output /tmp/Canopus-bundled.app --ruby-ro
 ruby tools/package_test.rb
 ```
 
+Packages can be signed after building with an RSA release key. The signer only
+stores a public key fingerprint and a signature over `manifest.json`; the
+private key stays outside the package and CI logs.
+
+```sh
+ruby tools/sign_package.rb --package /tmp/canopus-linux --private-key release.pem
+ruby tools/sign_package.rb --package /tmp/canopus-linux --verify --public-key release.pub
+```
+
+Verification also checks every SHA-256 entry in the manifest. This is a
+credential-free integrity check; macOS notarization and Windows Authenticode
+still require platform credentials and are release-environment work.
+
 The output path must not exist and must be outside the source tree. Without
 `--ruby-root`, build for the Ruby executable available on the destination
 machine. With `--ruby-root`, the directory must be a relocatable CRuby staging
