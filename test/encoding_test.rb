@@ -36,6 +36,15 @@ class EncodingTest < Minitest::Test
     end
   end
 
+  def test_short_bomless_japanese_legacy_text_prefers_windows_31j
+    raw = "first\n日本\nlast\n".encode(Encoding::Windows_31J).b
+    text, encoding, bom = Canopus::Buffer.decode_bytes(raw)
+
+    assert_equal "日本", text.lines[1].chomp
+    assert_equal Encoding::Windows_31J, encoding
+    assert_empty bom
+  end
+
   def test_buffer_new_retains_explicit_encoding_when_saved
     Dir.mktmpdir("canopus-encoding-") do |dir|
       path = File.join(dir, "new.txt")

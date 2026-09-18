@@ -51,6 +51,7 @@ module Canopus
     def self.detect_bytes(raw, encoding: nil)
       requested = encoding && Menkar.detect("".b, hint: encoding).encoding
       detected = Menkar.detect(raw, hint: requested || bom_encoding(raw))
+      detected = legacy_japanese_detection(raw, detected) unless requested || !detected.bom.empty?
       return detected unless requested
       return detected unless detected.bom.empty?
 
@@ -62,8 +63,7 @@ module Canopus
     # @return [Array(String, Encoding, String)] UTF-8 text, source encoding, BOM
     def self.decode_bytes(raw)
       raw = raw.b unless raw.encoding == Encoding::BINARY
-      hint = bom_encoding(raw)
-      detection = Menkar.detect(raw, hint: hint)
+      detection = detect_bytes(raw)
       nul_binary = raw.include?("\0") && detection.bom.empty? && raw.bytesize < 8
       raise Error, "binary file contains NUL bytes" if detection.binary || (detection.encoding.nil? && raw.include?("\0")) || nul_binary
       [Menkar.decode(raw, detection), detection.encoding, detection.bom]
@@ -79,6 +79,18 @@ module Canopus
       nil
     end
     private_class_method :bom_encoding
+
+    def self.legacy_japanese_detection(raw, detected)
+      return detected unless detected.encoding == Encoding::Windows_1252 && raw.match?(/[^\x00-\x7F]/n)
+
+      candidate = Menkar.detect(raw, hint: Encoding::Windows_31J)
+      return detected unless candidate.encoding == Encoding::Windows_31J
+      text = Menkar.decode(raw, candidate)
+      text.match?(/[\p{Han}\p{Hiragana}\p{Katakana}]/) ? candidate : detected
+    rescue Menkar::Error, EncodingError
+      detected
+    end
+    private_class_method :legacy_japanese_detection
 
     def initialize(text = "", path: nil, encoding: nil, bom: "".b, disk_digest: nil, read_only: false,
       draft: false, rope: nil, detection: nil)
