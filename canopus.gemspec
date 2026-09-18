@@ -25,6 +25,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "alkaid", "~> 0.1.0"
   spec.add_dependency "antares", "~> 0.2.1"
   spec.add_dependency "denebola", "~> 0.2.1"
+  spec.add_dependency "editorconfig", "~> 0.2.2"
   spec.add_dependency "kochab", "~> 0.1.0"
   spec.add_dependency "megrez", "~> 0.1.1"
   spec.add_dependency "porrima", "~> 0.2.0"

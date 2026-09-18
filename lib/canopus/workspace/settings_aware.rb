@@ -96,7 +96,7 @@ module Canopus
 
     private
     def apply_editor_settings(current)
-      values = @settings.for_language(current.language_document.definition.name)
+      values = settings_for_editor(current)
       current.tab_size = values["tab_size"]
       current.use_tabs = values["use_tabs"]
       current.closing_pairs = values["auto_pairs"].to_h.freeze

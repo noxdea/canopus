@@ -147,6 +147,13 @@ Run `settings.open` from the command palette to edit project settings. User
 settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
 `~/.config/canopus/settings.jsonc`.
 
+When enabled (the default), `.editorconfig` is read per file between user and
+project settings. `indent_style`, `indent_size`, `tab_width`,
+`trim_trailing_whitespace`, `insert_final_newline`, and `max_line_length` are
+supported. Set `editorconfig` to `false` to disable it. Project settings keep
+precedence over `.editorconfig`; malformed, oversized, or symlinked config
+files are ignored.
+
 ```jsonc
 {
   "theme": "auto",

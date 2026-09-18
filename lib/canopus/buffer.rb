@@ -258,6 +258,12 @@ module Canopus
       edit(changes, kind: :format)
     end
 
+    def ensure_final_newline
+      return false if rope.empty? || text.end_with?("\n", "\r", "\u2028", "\u2029")
+      edit([[rope.bytesize...rope.bytesize, @line_ending]], kind: :format)
+      true
+    end
+
     private
     def persistent_undo_transaction(transaction)
       {"kind" => transaction.kind.to_s,

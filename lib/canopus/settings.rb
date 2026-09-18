@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require "json"
+require "fileutils"
+require "tempfile"
 require "kochab"
 
 module Canopus
@@ -23,6 +25,8 @@ module Canopus
       "breadcrumbs" => {"enabled" => true}.freeze,
       "minimap" => {"enabled" => false, "width" => 100, "show_diagnostics" => true}.freeze,
       "auto_save" => "off", "auto_save_delay" => 1_000,
+      "editorconfig" => true, "trim_trailing_whitespace" => nil, "insert_final_newline" => nil,
+      "max_line_length" => nil,
       "persistent_undo" => {"enabled" => true, "max_entries" => 1_000, "expire_days" => 30}.freeze,
       "format_on_save" => false, "code_actions_on_save" => [].freeze, "format_on_save_timeout" => 2_000,
       "git" => {"inline_blame" => "off", "autofetch" => false, "autofetch_interval" => 180}.freeze,
@@ -77,6 +81,10 @@ module Canopus
         "show_diagnostics" => {"type" => "boolean"}}},
       "auto_save" => {"type" => "string", "enum" => %w[off after_delay on_focus_change]},
       "auto_save_delay" => {"type" => "integer", "minimum" => 100, "maximum" => 3_600_000},
+      "editorconfig" => {"type" => "boolean"},
+      "trim_trailing_whitespace" => {"type" => ["boolean", "null"]},
+      "insert_final_newline" => {"type" => ["boolean", "null"]},
+      "max_line_length" => {"type" => ["integer", "null"], "minimum" => 1, "maximum" => 1_000_000},
       "persistent_undo" => {"type" => "object", "additionalProperties" => false,
         "required" => %w[enabled max_entries expire_days], "properties" => {
           "enabled" => {"type" => "boolean"},
@@ -147,7 +155,9 @@ module Canopus
     def initialize(*layers)
       @values, @errors = DEFAULTS.dup, []
       @layers = layers.compact
+      @initializing = true
       layers.compact.each { |layer| merge!(layer.is_a?(String) ? parse_file(layer) : layer) }
+      @initializing = false
       validate!
     end
     def [](key) = @values[key.to_s]
@@ -159,6 +169,7 @@ module Canopus
       previous = @values
       @values = merge(@values, layer)
       validate!
+      @layers << snapshot_layer(layer) unless @initializing
       self
     rescue StandardError
       @values = previous if previous
@@ -191,6 +202,13 @@ module Canopus
     def merge(left, right)
       left.merge(right) { |_, old, new| old.is_a?(Hash) && new.is_a?(Hash) ? merge(old, new) : new }
     end
+    def snapshot_layer(value)
+      case value
+      when Hash then value.to_h { |key, child| [key, snapshot_layer(child)] }
+      when Array then value.map { |child| snapshot_layer(child) }
+      else value
+      end
+    end
     def validate!
       {"font_size" => 6..96, "tab_size" => 1..16, "scroll_friction" => 0..100}.each do |key, range|
         value = @values[key]
@@ -215,6 +233,7 @@ module Canopus
       validate_breadcrumbs!
       validate_minimap!
       validate_auto_save!
+      validate_editorconfig!
       validate_persistent_undo!
       validate_save_actions!
       validate_git!
@@ -424,6 +443,16 @@ module Canopus
       raise Error, "invalid auto_save" unless %w[off after_delay on_focus_change].include?(@values["auto_save"])
       delay = @values["auto_save_delay"]
       raise Error, "invalid auto_save_delay" unless delay.is_a?(Integer) && delay.between?(100, 3_600_000)
+    end
+
+    def validate_editorconfig!
+      raise Error, "editorconfig must be true or false" unless [true, false].include?(@values["editorconfig"])
+      %w[trim_trailing_whitespace insert_final_newline].each do |key|
+        value = @values[key]
+        raise Error, "#{key} must be true, false, or null" unless value.nil? || [true, false].include?(value)
+      end
+      length = @values["max_line_length"]
+      raise Error, "invalid max_line_length" unless length.nil? || length.is_a?(Integer) && length.between?(1, 1_000_000)
     end
 
     def validate_persistent_undo!

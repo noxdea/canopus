@@ -231,6 +231,7 @@ module Canopus
       existing = @buffers[target]
       raise Error, "Destination is already open in another buffer" if existing && !existing.equal?(buffer)
       previous = buffer.path
+      prepare_editorconfig_save(buffer, target)
       @running_save_actions ||= {}.compare_by_identity
       unless @running_save_actions.key?(buffer)
         @running_save_actions[buffer] = true
@@ -1357,6 +1358,7 @@ require_relative "workspace/git_history"
 require_relative "workspace/git_remote"
 require_relative "workspace/git_blame"
 require_relative "workspace/project_searchable"
+require_relative "workspace/editor_configurable"
 require_relative "workspace/settings_aware"
 require_relative "workspace/auto_savable"
 require_relative "workspace/persistent_undo"
@@ -1380,6 +1382,7 @@ Canopus::Workspace.include Canopus::Workspace::GitHistory
 Canopus::Workspace.include Canopus::Workspace::GitRemote
 Canopus::Workspace.include Canopus::Workspace::GitBlame
 Canopus::Workspace.include Canopus::Workspace::ProjectSearchable
+Canopus::Workspace.include Canopus::Workspace::EditorConfigurable
 Canopus::Workspace.include Canopus::Workspace::SettingsAware
 Canopus::Workspace.include Canopus::Workspace::AutoSavable
 Canopus::Workspace.include Canopus::Workspace::PersistentUndo

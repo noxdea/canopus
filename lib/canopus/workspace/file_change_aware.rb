@@ -20,6 +20,10 @@ module Canopus
       events = @watcher.poll
       invalidate_git unless events.empty?
       refresh_files unless events.empty?
+      if events.any? { |event| File.basename(event.path) == ".editorconfig" }
+        invalidate_editorconfig
+        apply_settings
+      end
       events.each do |event|
         path = File.expand_path(event.path, @root)
         buffer = @buffers[path]

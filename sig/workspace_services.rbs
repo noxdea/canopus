@@ -19,6 +19,16 @@ module Canopus
     def reset_auto_save: () -> nil
   end
 
+  module Workspace::EditorConfigurable
+    EDITORCONFIG_MAX_BYTES: Integer
+    EDITORCONFIG_CACHE_LIMIT: Integer
+
+    def settings_for_path: (String? path, ?language: String?) -> Settings
+    def settings_for_editor: (Editor editor) -> Settings
+    def invalidate_editorconfig: () -> nil
+    def prepare_editorconfig_save: (Buffer buffer, String path) -> void
+  end
+
   module Workspace::PersistentUndo
     MAX_FILE_BYTES: Integer
     MAX_PROJECT_BYTES: Integer

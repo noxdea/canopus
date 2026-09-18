@@ -481,7 +481,7 @@ module Canopus
 
     def run_save_actions(buffer)
       language = definition_for(buffer.path)
-      values = @settings.for_language(language.name)
+      values = settings_for_path(buffer.path, language: language.name)
       kinds = values["code_actions_on_save"]
       return false unless values["format_on_save"] || !kinds.empty?
       return false unless language_server_options(language.name)
@@ -2277,7 +2277,8 @@ module Canopus
       client, buffer, version = key
       cache = @code_lens_cache&.[](key)
       return false unless cache && cache[:generation] == generation &&
-        buffer.version == version && language_client_active?(client) && @settings.for_language(definition_for(buffer.path).name)["code_lens"]["enabled"]
+        buffer.version == version && language_client_active?(client) && settings_for_path(buffer.path,
+          language: definition_for(buffer.path).name)["code_lens"]["enabled"]
 
       request = begin
         client.execute_command(command.fetch("command"), arguments: command.fetch("arguments", []))
@@ -2329,7 +2330,7 @@ module Canopus
       client = active_language_client(language, "inlayHint")
       return false unless client || start
       return false if client && !client.capabilities["inlayHintProvider"]
-      settings = @settings.for_language(language)["inlay_hints"]
+      settings = settings_for_path(buffer.path, language: language)["inlay_hints"]
       return false unless settings["enabled"]
       unless client
         options = language_server_options(language)
@@ -2461,7 +2462,7 @@ module Canopus
       return false unless client || start
       provider = client&.capabilities&.[]("codeLensProvider")
       return false if client && provider != true && !provider.is_a?(Hash)
-      return false unless @settings.for_language(language)["code_lens"]["enabled"]
+      return false unless settings_for_path(buffer.path, language: language)["code_lens"]["enabled"]
       cached = (@code_lens_cache || {}).find do |key, _cache|
         client && key[0].equal?(client) && key[1].equal?(buffer) && key[2] == buffer.version
       end
@@ -2560,7 +2561,7 @@ module Canopus
       return [] unless current.is_a?(Editor) && current.buffer.equal?(buffer)
       return [] if buffer.rope.respond_to?(:lazy?) && buffer.rope.lazy?
 
-      values = @settings.for_language(current.language_document.definition.name)
+      values = settings_for_editor(current)
       colorize = values["bracket_colorization"]
       guides = values["indent_guides"]
       return [] unless colorize || guides["enabled"]
@@ -2908,8 +2909,9 @@ module Canopus
     end
 
     def language_setting(current, group, key)
-      defaults = @settings[group]
-      override = @settings["languages"].fetch(current.language_document.definition.name, {}).fetch(group, {})
+      values = settings_for_editor(current)
+      defaults = values[group]
+      override = values["languages"].fetch(current.language_document.definition.name, {}).fetch(group, {})
       override.fetch(key, defaults.fetch(key))
     end
 

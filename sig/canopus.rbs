@@ -118,6 +118,7 @@ module Canopus
     def restore_persistent_undo!: (Hash[String, untyped] record) -> true
     def save: (?String? path, ?force: bool) -> self
     def trim_trailing_whitespace: () -> patch?
+    def ensure_final_newline: () -> bool
   end
 
   class LazyRope
