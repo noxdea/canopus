@@ -38,8 +38,12 @@ module Canopus
         key ? @token_mapping[key] : self[:foreground]
       end
     end
-    def self.load(path)
+    def self.load(path, warnings: nil)
+      return Import.load(path, warnings: warnings) if File.extname(path).downcase == ".tmtheme"
+
       data = Kochab.parse(File.read(path), strict: false).value
+      return Import.vscode(data, warnings: warnings) if data.is_a?(Hash) && (data.key?("colors") || data.key?("tokenColors"))
+
       theme = data.fetch("themes", [data]).first
       style = theme.fetch("style", {})
       map = {"editor.background" => :background, "editor.foreground" => :foreground,
@@ -55,3 +59,5 @@ module Canopus
     end
   end
 end
+
+require_relative "theme/import"

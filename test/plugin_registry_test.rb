@@ -89,4 +89,20 @@ class PluginRegistryTest < Minitest::Test
       assert_includes error.message, "sandbox is required"
     end
   end
+
+  def test_plugin_disable_state_is_atomic_and_scoped_to_gem_names
+    with_plugin('register_action("noop") { |_api| "ok" }') do |workspace, _path|
+      Dir.mktmpdir("canopus-plugin-state-") do |directory|
+        state = File.join(directory, "plugins.json")
+        registry = Canopus::Plugins::Registry.new(workspace, state_path: state)
+        registry.disable("canopus-plugin-demo")
+        assert registry.disabled?("canopus-plugin-demo")
+        assert_raises(ArgumentError) { registry.disable("demo") }
+        restored = Canopus::Plugins::Registry.new(workspace, state_path: state)
+        assert restored.disabled?("canopus-plugin-demo")
+        restored.enable("canopus-plugin-demo")
+        refute restored.disabled?("canopus-plugin-demo")
+      end
+    end
+  end
 end

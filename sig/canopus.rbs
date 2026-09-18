@@ -325,7 +325,7 @@ module Canopus
     attr_reader colors: Hash[Symbol, String]
     attr_reader syntax: Hash[String, String]
     def initialize: (?name: String, ?colors: Hash[Symbol, String], ?syntax: Hash[String, String]) -> void
-    def self.load: (String path) -> instance
+    def self.load: (String path, ?warnings: Array[String]?) -> instance
     def []: (Symbol key) -> String
     def token_color: (untyped token) -> String
   end
@@ -496,7 +496,14 @@ module Canopus
     end
     class Registry
       PERMISSIONS: Array[String]
-      def initialize: (Workspace workspace) -> void
+      def initialize: (Workspace workspace, ?state_path: String?) -> void
+      def search: (String query, ?limit: Integer) -> Array[Hash[Symbol, untyped]]
+      def install: (String name, ?version: untyped) -> untyped
+      def update: (String name) -> untyped
+      def disable: (String name) -> true
+      def enable: (String name) -> true
+      def disabled?: (String name) -> bool
+      def load_gem: (String name, ?isolated: bool, ?permissions: Array[String], ?trusted: bool, ?timeout: Numeric) -> untyped
       def load: (String path, ?isolated: bool, ?permissions: Array[String], ?trusted: bool, ?timeout: Numeric) -> untyped
       def close: () -> void
     end
