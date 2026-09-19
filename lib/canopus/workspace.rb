@@ -1125,6 +1125,7 @@ module Canopus
       @palette&.dig(:response)&.fulfill({"applied" => false, "failureReason" => "Workspace closed"})
       self.palette = nil
       @plugins&.close
+      @plugin_host&.shutdown
       failure = nil
       cleanup = lambda do |&operation|
         operation.call
