@@ -41,8 +41,7 @@ module Canopus
       def require_gienah
         path = ENV["GIENAH_PATH"]
         if path
-          root = File.expand_path("../..", __dir__)
-          require File.expand_path("lib/gienah", File.expand_path(path, root))
+          require File.expand_path("lib/gienah", File.expand_path(path))
         else
           require "gienah"
         end

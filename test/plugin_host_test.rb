@@ -7,6 +7,8 @@ require "tmpdir"
 class PluginHostTest < Minitest::Test
   def test_host_discovers_and_activates_a_manifest_plugin
     Dir.mktmpdir("canopus-gienah-") do |root|
+      previous_state_home = ENV["XDG_STATE_HOME"]
+      ENV["XDG_STATE_HOME"] = File.join(root, "state")
       File.write(File.join(root, "plugin.json"), JSON.generate(
         "id" => "host-test", "name" => "Host test", "version" => "0.1.0", "api_version" => 2,
         "entry" => "plugin.rb", "capabilities" => ["buffer.read"], "activation" => ["onCommand:host.test"]
@@ -28,6 +30,7 @@ class PluginHostTest < Minitest::Test
       host.shutdown
     ensure
       workspace&.close
+      ENV["XDG_STATE_HOME"] = previous_state_home
     end
   end
 end
