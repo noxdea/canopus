@@ -31,32 +31,14 @@ installable.
 
 ## Features
 
-- Native GPU windows on macOS, Linux, and Windows, plus TUI and headless modes
-- Persistent buffers, tabs, splits, sessions, and explicit save-conflict handling
-- LSP completion, diagnostics, hover, document and workspace symbols, formatting, prevalidated rename, and code actions
-- Bounded debug console output, stopped-frame REPL evaluation, and safe identifier hover evaluation
-- Filterable Problems tree for LSP, task, and test diagnostics, with error and warning status counts
-- Automatic read, write, and text highlights for the symbol at each visible editor's caret
-- Clickable LSP document links with on-demand resolution and safe HTTP or local-file navigation
-- LSP folding ranges with an asynchronous Antares fallback
-- LSP-aware selection expansion with an asynchronous Antares fallback
-- LSP linked-range selection for starting a multi-cursor edit from the command palette
-- Rectangular selection with Alt-drag and vertical cursor insertion
-- Multi-cursor expansion to selected line starts, line ends, or every regular-expression match
-- Lazy call and type hierarchy trees with bidirectional navigation
-- Menkar-based encoding detection, newline display and conversion, and encoding-aware saves
-- Ranked, extensible completion and inline-completion provider registry
-- Viewport-scoped LSP inlay hints with clickable label locations
-- Nested bracket colors and active indentation guides backed by Antares structure analysis
-- Optional GPU minimap with shared line textures, viewport navigation, and overview markers
-- Resizable integrated terminal with tabs, horizontal/vertical splits, profiles, scrollback, OSC 133 command history, colors, and clickable links
-- Bounded JSONC project tasks with color-preserving, interactive Output tabs
-- Git diff and staging, searchable commit graphs, cancellable fetch/pull/push, inline blame, and branch switching
-- Editable project-wide search results and safe project file operations
-- Optional Vim-compatible modes, motions, operators, registers, macros, and Ex commands
-- Layered JSONC settings, keymaps, themes, snippets, and trusted Ruby plugins
-- Overlay-aware wrapping and coordinates for inline hints and block decorations
-- Rendered panel and decoration nodes expose stable `test_id` conventions for UI tests
+- Native GPU windows on macOS, Linux, and Windows, with TUI and headless modes
+- Language-aware editing with LSP completion, diagnostics, refactoring, navigation, and multiple language-server support
+- Multi-cursor and rectangular editing, Vim bindings, linked editing, and encoding-aware file handling
+- An integrated terminal with tabs, splits, profiles, shell integration, and `EDITOR="canopus --wait"` support
+- A complete Git workflow with diff, staging, commits, history, merge-conflict resolution, and remote operations
+- Built-in debugging, interactive tasks, test discovery, and a filterable Problems panel
+- Persistent workspaces with tabs, splits, sessions, automatic save, undo history, and crash recovery
+- Extensible JSONC settings, keymaps, themes, and sandboxed trusted plugins
 
 ## Installation
 
