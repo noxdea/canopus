@@ -8,6 +8,7 @@ module Canopus
     autoload :API, "canopus/plugins/api"
     autoload :LocalRuntime, "canopus/plugins/local_runtime"
     autoload :IsolatedRuntime, "canopus/plugins/isolated_runtime"
+    autoload :Host, "canopus/plugins/host"
     autoload :Registry, "canopus/plugins/registry"
   end
 end

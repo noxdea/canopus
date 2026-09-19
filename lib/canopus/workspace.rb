@@ -152,6 +152,7 @@ module Canopus
       @palette
     end
     def plugins = @plugins ||= Plugins::Registry.new(self)
+    def plugin_host = @plugin_host ||= Plugins::Host.new(self)
     def files
       return @files if @files
       @project_entries = @project ? @project.files(include_directories: true).to_a : []
