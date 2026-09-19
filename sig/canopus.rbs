@@ -483,10 +483,24 @@ module Canopus
     def drain: () -> void
     def close: () -> void
     def plugins: () -> Plugins::Registry
+    def plugin_host: () -> Plugins::Host
   end
 
   module Plugins
     class PermissionDenied < Error
+    end
+    class Host
+      attr_reader runtime: untyped
+      def initialize: (Workspace workspace, ?sandbox: bool, ?limits: Hash[Symbol, Numeric]) -> void
+      def discover: (Array[String] directories) -> Array[untyped]
+      def add: (untyped manifest) -> untyped
+      def activate: (String id, reason: String) -> untyped?
+      def deactivate: (String id) -> untyped
+      def instances: () -> Array[untyped]
+      def shutdown: () -> untyped
+    end
+    module Vocabulary
+      def self.build: () -> untyped
     end
     class API
       def text: () -> String
