@@ -2,9 +2,8 @@
 
 ## 0.6.0 — 2026-09-19
 
-- Add the Gienah-backed API v2 plugin host and declarative plugin panels.
+- Add the Gienah-backed API v2 plugin host with declarative UI vocabulary, storage, external providers, trust-aware operations, and declarative plugin panels.
 - Fix Windows terminal reads that could stop before the child process returned output.
-- Complete the API v2 plugin host with declarative UI vocabulary, storage, external providers, and trust-aware operations.
 
 ## 0.5.0 — 2026-09-19
 
