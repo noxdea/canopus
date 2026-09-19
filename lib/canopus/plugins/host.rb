@@ -12,9 +12,12 @@ module Canopus
         require_gienah
         @workspace = workspace
         @runtime = Gienah::Host.new(api_version: API_VERSION, sandbox: sandbox, limits: limits)
+        @surfaces = {}
         register_buffer_api
         register_workspace_api
+        register_ui_api
         @runtime.on_contribution { |id, contributes| register_contributions(id, contributes) }
+        @runtime.on_error { |error, _instance| @workspace.message = error.message }
       end
 
       def discover(directories) = @runtime.discover(directories)
@@ -87,20 +90,60 @@ module Canopus
         end
       end
 
+      def register_ui_api
+        expose("ui/render", capability: "ui.panel") do |instance, params|
+          surface = surface_for(instance.id, params.fetch("panel"))
+          surface.replace(params.fetch("tree"))
+          @workspace.window&.request_frame
+          nil
+        end
+        expose("ui/patch", capability: "ui.panel") do |instance, params|
+          surface_for(instance.id, params.fetch("panel")).apply(params.fetch("patches"))
+          @workspace.window&.request_frame
+          nil
+        end
+      end
+
       def register_contributions(id, contributes)
         Array(contributes["commands"]).each do |entry|
           next unless entry.is_a?(Hash) && entry["id"] && entry["title"]
 
-          @workspace.register_action(entry["id"], description: entry["title"]) { activate(id, reason: "onCommand:#{entry['id']}") }
+          @workspace.register_action(entry["id"], description: entry["title"]) do
+            instance = activate(id, reason: "onCommand:#{entry['id']}")
+            instance&.call(entry["id"], {}).then { |_value, error| @workspace.message = error.message if error }
+          end
         end
         Array(contributes["panels"]).each do |entry|
           next unless entry.is_a?(Hash) && entry["id"]
 
           side = entry.fetch("dock", "right").to_sym
-          @workspace.register_panel(entry["id"], side: side) do
-            Zaniah::Text.new(@workspace.message.to_s)
-          end
+          panel_id = entry["id"]
+          @workspace.register_panel(panel_id, side: side, cache: false) { panel_element(id, panel_id) }
         end
+      end
+
+      def surface_for(plugin_id, panel_id)
+        key = [plugin_id.to_s, panel_id.to_s]
+        @surfaces[key] ||= Zaniah::Describe::Surface.new(
+          vocabulary: Vocabulary.build,
+          on_event: ->(event_id, payload) {
+            instance = @runtime.instances.find { |candidate| candidate.id == plugin_id }
+            instance&.notify("ui/event", {"panel" => panel_id, "id" => event_id, "payload" => payload})
+          }
+        )
+      end
+
+      def panel_element(plugin_id, panel_id)
+        instance = @runtime.instances.find { |candidate| candidate.id == plugin_id }
+        unless instance
+          instance = activate(plugin_id, reason: "onPanel:#{panel_id}")
+          instance&.notify("ui/activate", {"panel" => panel_id})
+        end
+        surface = surface_for(plugin_id, panel_id)
+        surface.element || Zaniah::Text.new("Loading #{panel_id}…")
+      rescue StandardError => error
+        @workspace.message = error.message
+        Zaniah::Text.new("Plugin unavailable")
       end
 
       def current_buffer
