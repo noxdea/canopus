@@ -130,157 +130,44 @@ Run `settings.open` from the command palette to edit project settings. User
 settings live at `$XDG_CONFIG_HOME/canopus/settings.jsonc` or
 `~/.config/canopus/settings.jsonc`.
 
-When enabled (the default), `.editorconfig` is read per file between user and
-project settings. `indent_style`, `indent_size`, `tab_width`,
-`trim_trailing_whitespace`, `insert_final_newline`, and `max_line_length` are
-supported. Set `editorconfig` to `false` to disable it. Project settings keep
-precedence over `.editorconfig`; malformed, oversized, or symlinked config
-files are ignored.
+Settings are layered as defaults, user settings, project settings, explicit
+`--settings` values, and language overrides. Invalid saved values leave the
+previous valid settings active. `.editorconfig` is enabled by default between
+user and project settings and supports the common indentation, whitespace,
+final-newline, and line-length keys.
 
 ```jsonc
 {
   "theme": "auto",
   "font_size": 14,
   "vim_mode": false,
-  "use_tabs": false,
-  "auto_pairs": [["(", ")"], ["[", "]"], ["{", "}"], ["\"", "\""], ["'", "'"]],
-  "diagnostics": { "inline": true, "inline_max_length": 80, "severity": "warning" },
-  "inlay_hints": { "enabled": true, "parameter_names": true, "types": true, "max_length": 30 },
-  "code_lens": { "enabled": true },
-  "bracket_colorization": true,
-  "indent_guides": { "enabled": true, "active": true },
-  "render_whitespace": "boundary",
-  "render_ideographic_space": true,
-  "sticky_scroll": { "enabled": true, "max_lines": 5 },
-  "breadcrumbs": { "enabled": true },
-  "minimap": { "enabled": false, "width": 100, "show_diagnostics": true },
   "auto_save": "off",
-  "auto_save_delay": 1000,
-  "persistent_undo": { "enabled": true, "max_entries": 1000, "expire_days": 30 },
   "format_on_save": false,
-  "code_actions_on_save": [],
-  "format_on_save_timeout": 2000,
-  "git": { "inline_blame": "off", "autofetch": false, "autofetch_interval": 180 },
-  "recovery": { "enabled": true, "interval": 5000 },
-  "tabs": { "activate_on_close": "history", "reopen_history_limit": 20 },
-  "terminal": {
-    "working_directory": "project", "scrollback_lines": 10000, "shell_integration": true,
-    "profiles": { "bash": { "path": "/bin/bash", "args": ["--login"], "env": { "TERM_PROGRAM": "canopus" } } },
-    "default_profile": "bash"
-  },
-  "dock": {
-    "bottom": { "size": 280, "visible": false },
-    "panels": { "terminal": { "size": 280, "visible": false } }
-  },
-  "keymap": [
-    { "context": "Editor && !vim_mode", "bindings": { "ctrl-k ctrl-s": "file.save" } }
-  ],
+  "terminal": { "shell_integration": true },
   "languages": { "ruby": { "tab_size": 2, "auto_pairs": [] } },
   "language_servers": {
     "ruby": [
       { "command": ["ruby-lsp"], "features": ["completion", "definition", "hover", "formatting"] },
       { "command": ["rubocop", "--lsp"], "features": ["diagnostics", "codeAction"] }
     ]
-  },
-  "debug_adapters": {
-    "ruby": { "command": ["rdbg", "--open", "--stop-at-load"], "transport": "tcp" }
   }
 }
 ```
 
-A legacy argument array such as `"ruby": ["ruby-lsp"]` still configures one
-server. With multiple servers, completion, diagnostics, and code actions are
-merged; workspace symbols are collected from every matching active server;
-other features use the first matching server in configuration order. Workspace
-symbol search falls back to bounded project-content search when no usable
-provider is active. Override `language.workspace_symbols` in `keymap` to change
-its Cmd-T / Ctrl-T binding.
+The example shows the settings most people change first. Use `auto_pairs`,
+`render_whitespace`, `inlay_hints`, `code_lens`, `minimap`, `breadcrumbs`,
+`persistent_undo`, `recovery`, `terminal.profiles`, `keymap`, and per-language
+overrides for more control. Set `auto_pairs` to `[]` to disable automatic
+pairing for a language.
 
-`render_whitespace` accepts `none`, `boundary`, `selection`, or `all`.
-`boundary` hides only single spaces between non-whitespace characters. Tabs use
-`→`, spaces use `·`, and ideographic spaces use `□`; the last remains visible
-independently when `render_ideographic_space` is enabled.
+Language servers can be configured with one command array or multiple server
+entries. Completion, diagnostics, and code actions are merged across matching
+servers; workspace symbols use all of them, while other capabilities use the
+first matching server. See [Language servers](docs/lsp.md).
 
-`auto_pairs` replaces the opener/closer list for the current settings layer;
-set it to `[]` globally or for one language to disable automatic pairing and
-selection surrounding. Each opener and closer must be one Unicode grapheme.
-
-Sticky scroll keeps the declarations containing the first visible source byte
-above the editor body. It prefers cached LSP document symbols and falls back to
-cached Antares structure regions; `sticky_scroll.enabled` and
-`sticky_scroll.max_lines` can also be overridden per language.
-
-Breadcrumbs show the project-relative file, containing type, and callable above
-sticky scroll. Selecting an item opens its same-directory files or same-parent
-symbols in the palette. `breadcrumbs.enabled` can be overridden per language.
-
-The GUI-only minimap is disabled by default. When enabled, it reserves its
-configured width only in panes wide enough to keep the editor usable, reuses
-bounded low-resolution line textures across splits, and shows Git, search, and
-optionally diagnostic overview marks. Click or drag it to center that source
-position without moving the selection. All minimap options can be overridden
-per language.
-
-Closing a dirty tab asks whether to save, discard, or cancel. Reopening restores
-the file, selections, position, and pane while Canopus is running; discarded
-unsaved changes are never restored. Dock and panel visibility and sizes are also
-restored. Terminal session restoration, when enabled,
-starts fresh shells with the saved tab count and working directories and does
-not restore processes or scrollback.
-
-Dirty buffers are also written every five seconds to private, atomically
-replaced files under `.canopus/recovery/`. After an abnormal exit, the newest
-valid snapshot is offered at startup; normal exit removes this run's snapshot.
-Set `recovery.enabled` to `false` or change `recovery.interval` (milliseconds)
-in settings. Recovery files contain local unsaved text, so disable the feature
-for workspaces where even a mode-0600 local copy is unacceptable. Individual
-buffers over 10 MiB and snapshots over 64 MiB are not retained.
-
-Set `auto_save` to `after_delay` to save dirty named files after the debounce
-interval in `auto_save_delay` milliseconds, or to `on_focus_change` to save a
-file when switching away from it. Untitled, read-only, and conflicting files
-are skipped or reported without forcing a write.
-
-Persistent undo keeps up to `persistent_undo.max_entries` undo entries for
-clean regular files under `.canopus/undo/`. Records are project- and file
-identity-bound, expire after `expire_days`, and are ignored when corrupt or
-when the file changes. Dirty buffers remain in recovery storage instead.
-
-Settings are layered from defaults through user, project, explicit `--settings`,
-and language overrides. Invalid saved settings leave the previous valid values
-active. Keymap groups extend defaults; later matching bindings win, and `null`
-removes a default binding.
-
-Language servers are separate programs and are auto-detected or configured by
-argument array. See [Language servers](docs/lsp.md) for configuration and
-restart behavior.
-
-Debug launch definitions and the persistent, edit-aware breakpoint gutter
-are described in [Debug configurations](docs/debugging.md). `debug.start`
-selects and starts a configuration, and `debug.stop` ends the active session.
-When execution stops, the Debug panel provides safe stack navigation, lazy
-variables, per-stop watch evaluation (`debug.watch.add` /
-`debug.watch.remove`), and the breakpoint list. Variable expansion is restored
-by name path rather than adapter reference IDs.
-`debug.console.evaluate` accepts REPL input for the selected frame and
-`panel.debug_console` toggles ordered adapter output. Hovering a simple
-local, instance, class, or global variable while stopped evaluates it in the
-selected frame.
-Breakpoint files use an atomic rename
-for normal same-user workspace consistency; concurrent malicious workspace
-mutation is outside that guarantee.
-
-Project task definitions, variables, Output tabs, and reveal behavior are
-described in [Tasks](docs/tasks.md). `task.run` opens the task picker,
-`task.stop` stops the selected running Output tab, and `panel.output` toggles
-the panel. Single-line, multi-line, and watch problem matchers publish task
-output into the shared Problems panel and editor diagnostics.
-
-The [Test explorer](docs/testing.md) discovers Minitest and RSpec declarations
-with a bounded Alkaid walk and Prism AST inspection. `panel.test` opens the
-tree and `test.refresh` rescans it. Gutter buttons run static tests in bounded
-Task Output tabs and show running, passed, failed, or skipped state; selecting
-a failed test opens its reported failure line.
+Debugging, tasks, and test discovery have dedicated guides:
+[Debug configurations](docs/debugging.md), [Tasks](docs/tasks.md), and
+[Test explorer](docs/testing.md).
 
 Plugins require explicit trust and permissions:
 
