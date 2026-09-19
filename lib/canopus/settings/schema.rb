@@ -25,7 +25,8 @@ module Canopus
         "persistent_undo" => {"enabled" => true, "max_entries" => 1_000, "expire_days" => 30},
         "format_on_save" => false, "code_actions_on_save" => [], "format_on_save_timeout" => 2_000,
         "git" => {"inline_blame" => "off", "autofetch" => false, "autofetch_interval" => 180},
-        "plugins" => {"sandbox" => "auto"},
+        "plugins" => {"enabled" => true, "sandbox" => "auto", "directories" => [], "disabled" => [],
+          "limits" => {"memory_mb" => 256, "request_timeout_ms" => 2_000}, "settings" => {}},
         "recovery" => {"enabled" => true, "interval" => 5_000},
         "dock" => {"left" => {"size" => 220, "visible" => true}, "right" => {"size" => 260, "visible" => false},
           "bottom" => {"size" => 280, "visible" => false},
@@ -104,7 +105,13 @@ module Canopus
         "git" => {"type" => "object", "additionalProperties" => false, "required" => %w[inline_blame autofetch autofetch_interval], "properties" => {
           "inline_blame" => {"type" => "string", "enum" => %w[off cursor all]}, "autofetch" => {"type" => "boolean"}, "autofetch_interval" => {"type" => "integer", "minimum" => 10, "maximum" => 86_400}}},
         "plugins" => {"type" => "object", "additionalProperties" => false, "required" => ["sandbox"], "properties" => {
-          "sandbox" => {"type" => "string", "enum" => %w[off auto required]}}},
+          "enabled" => {"type" => "boolean"}, "sandbox" => {"type" => "string", "enum" => %w[off auto required]},
+          "directories" => {"type" => "array", "maxItems" => 64, "items" => {"type" => "string", "minLength" => 1}},
+          "disabled" => {"type" => "array", "maxItems" => 256, "uniqueItems" => true, "items" => {"type" => "string", "minLength" => 1, "maxLength" => 128, "pattern" => "^[A-Za-z0-9_.-]+$"}},
+          "limits" => {"type" => "object", "additionalProperties" => false, "properties" => {
+            "memory_mb" => {"type" => "integer", "minimum" => 1, "maximum" => 4096},
+            "request_timeout_ms" => {"type" => "integer", "minimum" => 1, "maximum" => 60_000}}},
+          "settings" => {"type" => "object"}}},
         "recovery" => {"type" => "object", "additionalProperties" => false, "required" => %w[enabled interval], "properties" => {"enabled" => {"type" => "boolean"}, "interval" => {"type" => "integer", "minimum" => 100, "maximum" => 3_600_000}}},
         "dock" => {"type" => "object", "properties" => {"left" => {"$ref" => "#/$defs/dock"}, "right" => {"$ref" => "#/$defs/dock"}, "bottom" => {"$ref" => "#/$defs/dock"}, "panels" => {"type" => "object", "maxProperties" => 1000, "additionalProperties" => {"$ref" => "#/$defs/panel"}}}},
         "languages" => {"type" => "object", "additionalProperties" => {"allOf" => [{"$ref" => "#"}, {"properties" => {"languages" => false, "debug_adapters" => false, "recovery" => false, "auto_save" => false, "auto_save_delay" => false, "persistent_undo" => false}}]}},

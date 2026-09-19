@@ -293,7 +293,18 @@ module Canopus
     def validate_plugins!
       plugins = @values["plugins"]
       raise Error, "plugins must be an object" unless plugins.is_a?(Hash)
+      raise Error, "plugins.enabled must be true or false" unless [true, false].include?(plugins["enabled"])
       raise Error, "invalid plugins.sandbox" unless %w[off auto required].include?(plugins["sandbox"])
+      directories = plugins["directories"]
+      raise Error, "plugins.directories must be an array" unless directories.is_a?(Array) && directories.length <= 64 && directories.all? { |path| path.is_a?(String) && !path.empty? }
+      disabled = plugins["disabled"]
+      raise Error, "plugins.disabled must be an array" unless disabled.is_a?(Array) && disabled.length <= 256 && disabled.all? { |name| name.is_a?(String) && name.match?(/\A[A-Za-z0-9_.-]{1,128}\z/) }
+      limits = plugins["limits"]
+      raise Error, "plugins.limits must be an object" unless limits.is_a?(Hash)
+      memory, timeout = limits.values_at("memory_mb", "request_timeout_ms")
+      raise Error, "invalid plugins.limits.memory_mb" unless memory.is_a?(Integer) && memory.between?(1, 4_096)
+      raise Error, "invalid plugins.limits.request_timeout_ms" unless timeout.is_a?(Integer) && timeout.between?(1, 60_000)
+      raise Error, "plugins.settings must be an object" unless plugins["settings"].is_a?(Hash)
     end
 
     def validate_diagnostics!

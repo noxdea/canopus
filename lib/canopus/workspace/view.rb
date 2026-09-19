@@ -917,6 +917,8 @@ module Canopus
       point = editor.buffer.rope.point_at(editor.primary.head)
       mode = @workspace.settings["vim_mode"] ? @workspace.vim.mode.to_s : "edit"
       left = "#{mode}    #{@workspace.message}"
+      plugin_status = @workspace.plugin_status_items.values.sort_by { |item| -item.fetch(:priority, 0) }.map { |item| item[:text] }.join("  ")
+      left = "#{left}  #{plugin_status}" unless plugin_status.empty?
       branch = @workspace.git&.branch
       left = "#{branch}    #{left}" if branch
       left = ":#{@workspace.vim.command_line}" if @workspace.settings["vim_mode"] && @workspace.vim.command_line

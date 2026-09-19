@@ -1,5 +1,14 @@
 # frozen_string_literal: true
 
+require "digest"
+require "fileutils"
+require "json"
+require "net/http"
+require "open3"
+require "tempfile"
+require "timeout"
+require "uri"
+
 module Canopus
   module Plugins
     # Canopus vocabulary on top of the generic out-of-process host.
@@ -16,6 +25,9 @@ module Canopus
         @subscriptions = {}
         @decorations = {}
         @completion_sources = {}
+        @status_items = {}
+        @storage_lock = Mutex.new
+        @activation_threads = {}
         register_buffer_api
         register_workspace_api
         register_ui_api
@@ -34,7 +46,15 @@ module Canopus
 
       def deactivate(id) = @runtime.deactivate(id)
       def instances = @runtime.instances
-      def shutdown = @runtime.shutdown
+      def shutdown
+        @activation_threads.values.each { |thread| thread.kill unless thread.equal?(Thread.current) }
+        @activation_threads.clear
+        @runtime.shutdown
+      end
+
+      def status_items
+        @status_items.dup
+      end
 
       private
 
@@ -120,6 +140,63 @@ module Canopus
           end.first(1_000)
         end
         expose("workspace/notify") { |_instance, params| @workspace.notify(params.fetch("text")); nil }
+        expose("storage/get") do |instance, params|
+          storage_read(instance.id).fetch(String(params.fetch("key")), nil)
+        end
+        expose("storage/set") do |instance, params|
+          key = storage_key(params.fetch("key"))
+          value = params.fetch("value")
+          encoded = JSON.generate(value)
+          raise ArgumentError, "storage value exceeds 1 MiB" if encoded.bytesize > (1 << 20)
+          storage_update(instance.id) { |values| values[key] = value }
+          nil
+        end
+        expose("process/exec") do |instance, params|
+          raise PermissionDenied, "plugin requires process.exec" unless instance.granted?("process.exec")
+          command = params.fetch("command")
+          raise ArgumentError, "command must be a nonempty Array" unless command.is_a?(Array) && !command.empty? && command.all? { |part| part.is_a?(String) && !part.empty? && !part.include?("\0") }
+          timeout_ms = Integer(params.fetch("timeout_ms", 5_000))
+          raise ArgumentError, "timeout_ms must be between 1 and 30000" unless timeout_ms.between?(1, 30_000)
+          output, error, status = Timeout.timeout(timeout_ms / 1_000.0) { Open3.capture3(*command, chdir: @workspace.root) }
+          {"stdout" => output.byteslice(0, 1 << 20).to_s, "stderr" => error.byteslice(0, 1 << 20).to_s,
+            "status" => status.exitstatus, "signaled" => status.signaled?}
+        end
+        expose("net/fetch") do |instance, params|
+          uri = URI(String(params.fetch("url")))
+          raise ArgumentError, "HTTP or HTTPS URL required" unless %w[http https].include?(uri.scheme) && uri.host
+          raise PermissionDenied, "plugin requires net:#{uri.host}" unless instance.granted?("net:#{uri.host}")
+          body = +""
+          status = nil
+          Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", open_timeout: 5, read_timeout: 5) do |http|
+            http.request_get(uri.request_uri) do |response|
+              status = response.code.to_i
+              response.read_body do |chunk|
+                raise Error, "plugin HTTP response exceeds 1 MiB" if body.bytesize + chunk.bytesize > (1 << 20)
+                body << chunk
+              end
+            end
+          end
+          {"status" => status, "body" => body}
+        end
+        expose("ui/status", capability: "ui.statusbar") do |instance, params|
+          id = String(params.fetch("id"))
+          raise ArgumentError, "invalid status item id" unless id.match?(/\A[a-zA-Z0-9_-]{1,64}\z/)
+          key = [instance.id, id]
+          if params["remove"]
+            @status_items.delete(key)
+            @workspace.plugin_status_items.delete(key) if @workspace.respond_to?(:plugin_status_items)
+          else
+            text = String(params.fetch("text"))
+            raise ArgumentError, "status item text is too long" if text.bytesize > 1_024
+            @status_items[key] = {text: text, priority: Integer(params.fetch("priority", 0)), command: params["command"]}
+            @workspace.plugin_status_items[key] = @status_items[key] if @workspace.respond_to?(:plugin_status_items)
+          end
+          @workspace.window&.request_frame
+          nil
+        end
+        expose("ui/quick_pick", capability: "ui.command") { |_instance, params| queue_plugin_dialog(:quick_pick, params) }
+        expose("ui/input", capability: "ui.command") { |_instance, params| queue_plugin_dialog(:input, params) }
+        expose("ui/confirm", capability: "ui.command") { |_instance, params| queue_plugin_dialog(:confirm, params) }
         expose("lsp/configure", capability: "process.exec") do |instance, params|
           language = params.fetch("language")
           command = params.fetch("command")
@@ -149,7 +226,7 @@ module Canopus
           source = decoration_source(instance.id, params.fetch("source"))
           items = Array(params.fetch("items"))
           @decorations[source] = items
-          @workspace.decorations.register(source) { |_buffer, _rows, _context| decoration_items(items, source) }
+          @workspace.decorations.register(source) { |buffer, _rows, _context| decoration_items(items, source, buffer) }
           @workspace.decorations.invalidate(source)
           source.to_s
         end
@@ -186,7 +263,8 @@ module Canopus
 
           side = entry.fetch("dock", "right").to_sym
           panel_id = entry["id"]
-          @workspace.register_panel(panel_id, side: side, cache: false) { panel_element(id, panel_id) }
+          title = String(entry.fetch("title", panel_id))
+          @workspace.register_panel(panel_id, title: title, side: side, cache: false) { panel_element(id, panel_id) }
         end
       end
 
@@ -204,8 +282,8 @@ module Canopus
       def panel_element(plugin_id, panel_id)
         instance = @runtime.instances.find { |candidate| candidate.id == plugin_id }
         unless instance
-          instance = activate(plugin_id, reason: "onPanel:#{panel_id}")
-          instance&.notify("ui/activate", {"panel" => panel_id})
+          activate_panel_async(plugin_id, panel_id)
+          return Zaniah::Text.new("Loading #{panel_id}…")
         end
         surface = surface_for(plugin_id, panel_id)
         surface.element || Zaniah::Text.new("Loading #{panel_id}…")
@@ -220,10 +298,15 @@ module Canopus
         "plugin_#{plugin_id}_#{value}".to_sym
       end
 
-      def decoration_items(items, source)
+      def decoration_items(items, source, buffer)
         items.map do |item|
           raise ArgumentError, "decoration item must be an object" unless item.is_a?(Hash)
-          range = item["range"] && (Integer(item["range"]["start"])...Integer(item["range"]["end"]))
+          range = if item["range"]
+            first = Integer(item["range"].fetch("start"))
+            last = Integer(item["range"].fetch("end"))
+            raise ArgumentError, "decoration range is outside the buffer" unless first >= 0 && last >= first && last <= buffer.rope.bytesize
+            first...last
+          end
           Decoration::Item.new(item.fetch("kind").to_sym, range, item["row"], item["content"], item["style"],
             item.fetch("priority", 0), source, nil)
         end
@@ -249,6 +332,69 @@ module Canopus
         raise ArgumentError, "params must be an object" unless params.is_a?(Hash)
 
         params.transform_keys(&:to_s)
+      end
+
+      def activate_panel_async(plugin_id, panel_id)
+        key = [plugin_id.to_s, panel_id.to_s]
+        return if @activation_threads[key]&.alive?
+
+        @activation_threads[key] = Thread.new do
+          begin
+            instance = activate(plugin_id, reason: "onPanel:#{panel_id}")
+            instance&.notify("ui/activate", {"panel" => panel_id})
+          rescue StandardError => error
+            @workspace.message = error.message
+          ensure
+            @activation_threads.delete(key)
+            @workspace.window&.request_frame
+          end
+        end
+        @activation_threads[key].report_on_exception = false
+      end
+
+      def queue_plugin_dialog(kind, params)
+        raise ArgumentError, "dialog parameters must be an object" unless params.is_a?(Hash)
+        @workspace.plugin_dialogs ||= [] if @workspace.respond_to?(:plugin_dialogs=)
+        @workspace.plugin_dialogs << {kind: kind, params: params.dup.freeze}.freeze if @workspace.respond_to?(:plugin_dialogs)
+        @workspace.window&.request_frame
+        nil
+      end
+
+      def storage_path(plugin_id)
+        File.join(@workspace.root, ".canopus", "plugin-storage", "#{Digest::SHA256.hexdigest(plugin_id.to_s)}.json")
+      end
+
+      def storage_key(value)
+        key = String(value)
+        raise ArgumentError, "storage key must be 1..128 bytes" unless key.bytesize.between?(1, 128) && !key.include?("\0")
+        key
+      end
+
+      def storage_read(plugin_id)
+        path = storage_path(plugin_id)
+        value = @storage_lock.synchronize { File.file?(path) ? JSON.parse(File.read(path)) : {} }
+        raise Error, "plugin storage is not an object" unless value.is_a?(Hash)
+        value
+      rescue JSON::ParserError => error
+        raise Error, "invalid plugin storage: #{error.message}"
+      end
+
+      def storage_update(plugin_id)
+        path = storage_path(plugin_id)
+        @storage_lock.synchronize do
+          values = File.file?(path) ? JSON.parse(File.read(path)) : {}
+          raise Error, "plugin storage is not an object" unless values.is_a?(Hash)
+          yield(values)
+          FileUtils.mkdir_p(File.dirname(path))
+          Tempfile.create([".storage-", ".json"], File.dirname(path), perm: 0o600) do |file|
+            file.write(JSON.generate(values))
+            file.flush
+            file.fsync
+            file.close
+            File.chmod(0o600, file.path)
+            File.rename(file.path, path)
+          end
+        end
       end
     end
   end

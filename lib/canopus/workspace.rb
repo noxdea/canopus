@@ -36,7 +36,8 @@ module Canopus
     attr_reader :panes, :active_pane, :buffers, :actions, :commands, :settings, :theme, :project, :clients, :root, :docks, :panels, :decorations, :providers, :minimap, :diagnostics, :breakpoints, :trust
     attr_reader :terminals, :active_terminal_index, :terminal_layout
     attr_accessor :window, :terminal_composition, :selected_project_path, :performance
-    attr_reader :message, :palette
+    attr_reader :message, :palette, :plugin_dialogs, :plugin_status_items
+    attr_writer :plugin_dialogs
 
     def initialize(root: Dir.pwd, settings: nil)
       @root = File.realpath(root)
@@ -50,6 +51,8 @@ module Canopus
       @actions = @commands = Command::Registry.new
       @clients, @vim_states = {}, {}
       @message = ""
+      @plugin_dialogs = []
+      @plugin_status_items = {}
       @project = Project.new(@root) if defined?(Project)
       dock = @settings["dock"]
       @docks = %i[left right bottom].to_h do |side|
@@ -153,6 +156,13 @@ module Canopus
     end
     def plugins = @plugins ||= Plugins::Registry.new(self)
     def plugin_host = @plugin_host ||= Plugins::Host.new(self)
+    def discover_plugin_manifests(directories = nil)
+      configured = @settings["plugins"] || {}
+      return [] if configured["enabled"] == false
+      directories ||= [File.join(ENV["XDG_CONFIG_HOME"] || File.expand_path("~/.config"), "canopus", "plugins"),
+        File.join(@root, ".canopus", "plugins"), *Array(configured["directories"])]
+      plugin_host.discover(directories)
+    end
     def files
       return @files if @files
       @project_entries = @project ? @project.files(include_directories: true).to_a : []
@@ -675,8 +685,8 @@ module Canopus
       dock = @docks.fetch(side)
       dock[:visible] = !dock[:visible]
     end
-    def register_panel(name, side: :left, cache: true, &render)
-      definition = @panels.register(Panel::Definition.new(name, name.to_s, nil, side, render, nil))
+    def register_panel(name, title: name.to_s, side: :left, cache: true, &render)
+      definition = @panels.register(Panel::Definition.new(name, title.to_s, nil, side, render, nil))
       (@uncached_panels ||= {})[definition.id] = true unless cache
       register_action("panel.#{name}") { @panels.show(definition.id) }
       definition
