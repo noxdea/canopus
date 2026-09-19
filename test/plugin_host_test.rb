@@ -136,6 +136,39 @@ class PluginHostTest < Minitest::Test
     end
   end
 
+  def test_host_process_exec_runs_inside_the_plugin_sandbox
+    require "saiph"
+    skip("OS sandbox unavailable") unless Saiph.available?
+
+    Dir.mktmpdir("canopus-gienah-process-") do |root|
+      previous_state_home = ENV["XDG_STATE_HOME"]
+      ENV["XDG_STATE_HOME"] = File.join(root, "state")
+      File.write(File.join(root, "plugin.json"), JSON.generate(
+        "id" => "process-test", "name" => "Process test", "version" => "0.1.0", "api_version" => 2,
+        "entry" => "plugin.rb", "capabilities" => ["process.exec"], "activation" => ["onStartup"]
+      ))
+      File.write(File.join(root, "plugin.rb"), <<~RUBY)
+        require "gienah"
+        require "rbconfig"
+        Gienah::Plugin.export("run") do
+          Gienah::Plugin.call("process/exec", "command" => [RbConfig.ruby, "-e", "print 'ok'"])
+        end
+        Gienah::Plugin.run
+      RUBY
+      workspace = Canopus::Workspace.new(root: root)
+      workspace.toggle_workspace_trust
+      host = workspace.plugin_host
+      host.discover([root])
+      instance = host.activate("process-test", reason: "onStartup")
+      result = instance.call("run").await(timeout: 5)
+      assert_equal "ok", result.fetch("stdout")
+      assert_equal 0, result.fetch("status")
+    ensure
+      workspace&.close
+      ENV["XDG_STATE_HOME"] = previous_state_home
+    end
+  end
+
   private
 
   def wait_for(timeout:)

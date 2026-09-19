@@ -20,6 +20,7 @@ module Canopus
       def initialize(workspace, sandbox: true, limits: {})
         require_gienah
         @workspace = workspace
+        @sandbox = sandbox
         @runtime = Gienah::Host.new(api_version: API_VERSION, sandbox: sandbox, limits: limits)
         @surfaces = {}
         @subscriptions = {}
@@ -179,7 +180,7 @@ module Canopus
           raise ArgumentError, "command must be a nonempty Array" unless command.is_a?(Array) && !command.empty? && command.all? { |part| part.is_a?(String) && !part.empty? && !part.include?("\0") }
           timeout_ms = Integer(params.fetch("timeout_ms", 5_000))
           raise ArgumentError, "timeout_ms must be between 1 and 30000" unless timeout_ms.between?(1, 30_000)
-          output, error, status = Timeout.timeout(timeout_ms / 1_000.0) { Open3.capture3(*command, chdir: @workspace.root) }
+          output, error, status = execute_process(command, instance, timeout_ms / 1_000.0)
           {"stdout" => output.byteslice(0, 1 << 20).to_s, "stderr" => error.byteslice(0, 1 << 20).to_s,
             "status" => status.exitstatus, "signaled" => status.signaled?}
         end
@@ -512,6 +513,63 @@ module Canopus
             File.rename(file.path, path)
           end
         end
+      end
+
+      def execute_process(command, instance, timeout)
+        return Timeout.timeout(timeout) { Open3.capture3(*command, chdir: @workspace.root) } unless @sandbox
+
+        load_saiph
+        raise PermissionDenied, "plugin process sandbox is unavailable" unless Saiph.available?
+
+        output_reader, output_writer = IO.pipe
+        error_reader, error_writer = IO.pipe
+        pid = Saiph.spawn(command, policy: process_policy(instance), chdir: @workspace.root,
+          in: File::NULL, out: output_writer, err: error_writer)
+        output_writer.close
+        error_writer.close
+        output_thread = Thread.new { read_process_output(output_reader) }
+        error_thread = Thread.new { read_process_output(error_reader) }
+        status = Timeout.timeout(timeout) { Process.waitpid2(pid).last }
+        [output_thread.value, error_thread.value, status]
+      rescue Timeout::Error
+        begin
+          Process.kill("TERM", pid) if pid
+        rescue Errno::ESRCH
+          nil
+        end
+        begin
+          Process.wait(pid) if pid
+        rescue Errno::ECHILD
+          nil
+        end
+        raise
+      ensure
+        [output_writer, error_writer, output_reader, error_reader].each { |io| io&.close unless io&.closed? }
+      end
+
+      def process_policy(instance)
+        load_saiph
+        reads = instance.granted?("workspace.read") ? [@workspace.root] : []
+        network = instance.manifest.capabilities.any? { |capability| capability.start_with?("net:") }
+        Saiph::Policy.new(reads, [], network, true, [])
+      end
+
+      def read_process_output(io)
+        output = +""
+        loop do
+          chunk = io.readpartial(16 * 1024)
+          output << chunk if output.bytesize < (1 << 20)
+        end
+      rescue EOFError, IOError
+        output
+      end
+
+      def load_saiph
+        return if defined?(Saiph::Policy)
+
+        path = ENV["SAIPH_PATH"]
+        root = File.expand_path("../..", __dir__)
+        path ? require(File.expand_path("lib/saiph", File.expand_path(path, root))) : require("saiph")
       end
     end
   end
