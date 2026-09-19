@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add a deterministic editor demo image and regeneration task.
+
 ## 0.6.0 — 2026-09-19
 
 - Add the Gienah-backed API v2 plugin host with declarative UI vocabulary, storage, external providers, trust-aware operations, and declarative plugin panels.
