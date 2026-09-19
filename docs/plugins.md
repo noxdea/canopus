@@ -53,3 +53,10 @@ The host also exposes `storage/get`, `storage/set`, `process/exec`,
 Storage is scoped to the workspace and plugin ID. Network requests must match
 the manifest's `net:` host pattern, and dangerous operations remain gated by
 the manifest capability and workspace trust.
+
+`buffer/text` limits an unbounded request to 1 MiB; larger documents must be
+read with a byte range. Calling `buffer/subscribe` with the active buffer URI
+starts diff notifications for that plugin only. The host sends
+`buffer/didChange`, `buffer/didOpen`, `buffer/didSave`, `buffer/didClose`, and
+throttled `selection/didChange` notifications for the subscribed buffer, plus
+`workspace/didChangeFiles` and `settings/didChange` to subscribed plugins.

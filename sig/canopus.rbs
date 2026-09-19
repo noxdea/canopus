@@ -366,6 +366,8 @@ module Canopus
     attr_reader minimap: Minimap
     attr_accessor message: String
     def notify: (String text, ?now: Numeric) -> Integer
+    def on_plugin_event: () { (String, untyped) -> void } -> Zaniah::Subscription
+    def notify_plugin_event: (String method, ?untyped payload) -> nil
     def notifications: () -> Array[{id: Integer, text: String, expires: Numeric}]
     def dismiss_notification: (Integer id) -> void
     def expire_notifications: (?Numeric now) -> bool

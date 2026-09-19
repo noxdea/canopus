@@ -99,6 +99,7 @@ module Canopus
       apply_settings
       errors = @settings.paths.filter_map { |path| Settings.file_diagnostics(path)&.last }.flatten
       @message = errors.empty? ? "Settings reloaded" : "Settings unchanged: #{errors.first.message}"
+      notify_plugin_event("settings/didChange", {"paths" => @settings.paths})
     rescue StandardError => error
       @settings = old if old
       publish_settings_diagnostics(@settings.paths) if @settings

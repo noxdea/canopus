@@ -66,4 +66,84 @@ class PluginHostTest < Minitest::Test
       ENV["XDG_STATE_HOME"] = previous_state_home
     end
   end
+
+  def test_host_limits_full_text_and_routes_events_to_subscribers
+    Dir.mktmpdir("canopus-gienah-events-") do |root|
+      previous_state_home = ENV["XDG_STATE_HOME"]
+      ENV["XDG_STATE_HOME"] = File.join(root, "state")
+      %w[event-a event-b].each do |id|
+        directory = File.join(root, id)
+        Dir.mkdir(directory)
+        File.write(File.join(directory, "plugin.json"), JSON.generate(
+          "id" => id, "name" => id, "version" => "0.1.0", "api_version" => 2,
+          "entry" => "plugin.rb", "capabilities" => ["buffer.read"], "activation" => ["onStartup"]
+        ))
+        File.write(File.join(directory, "plugin.rb"), <<~RUBY)
+          require "gienah"
+          $events = Hash.new(0)
+          Gienah::Plugin.on("buffer/didChange") { |_params| $events["change"] += 1 }
+          Gienah::Plugin.on("selection/didChange") { |_params| $events["selection"] += 1 }
+          Gienah::Plugin.export("subscribe") { Gienah::Plugin.call("buffer/subscribe") }
+          Gienah::Plugin.export("counts") { $events }
+          Gienah::Plugin.run
+        RUBY
+      end
+      workspace = Canopus::Workspace.new(root: root)
+      workspace.new_buffer.insert_text("hello")
+      workspace.toggle_workspace_trust
+      host = workspace.plugin_host
+      host.discover([root])
+      subscribed = host.activate("event-a", reason: "onStartup")
+      unsubscribed = host.activate("event-b", reason: "onStartup")
+      subscribed.call("subscribe").await(timeout: 2)
+
+      workspace.editor.insert_text("!")
+      assert wait_for(timeout: 2) { subscribed.call("counts").await(timeout: 2).fetch("change", 0) == 1 }
+      assert_equal 0, unsubscribed.call("counts").await(timeout: 2).fetch("change", 0)
+
+      workspace.editor.select(0)
+      assert wait_for(timeout: 2) { subscribed.call("counts").await(timeout: 2).fetch("selection", 0) >= 1 }
+    ensure
+      workspace&.close
+      ENV["XDG_STATE_HOME"] = previous_state_home
+    end
+  end
+
+  def test_host_rejects_unbounded_full_text_requests
+    Dir.mktmpdir("canopus-gienah-limit-") do |root|
+      previous_state_home = ENV["XDG_STATE_HOME"]
+      ENV["XDG_STATE_HOME"] = File.join(root, "state")
+      File.write(File.join(root, "plugin.json"), JSON.generate(
+        "id" => "limit-test", "name" => "Limit test", "version" => "0.1.0", "api_version" => 2,
+        "entry" => "plugin.rb", "capabilities" => ["buffer.read"], "activation" => ["onStartup"]
+      ))
+      File.write(File.join(root, "plugin.rb"), <<~RUBY)
+        require "gienah"
+        Gienah::Plugin.export("text") { Gienah::Plugin.call("buffer/text") }
+        Gienah::Plugin.run
+      RUBY
+      workspace = Canopus::Workspace.new(root: root)
+      workspace.new_buffer.buffer.edit([[0...0, "x" * (Canopus::Plugins::BUFFER_CONTEXT_LIMIT + 1)]])
+      workspace.toggle_workspace_trust
+      host = workspace.plugin_host
+      host.discover([root])
+      instance = host.activate("limit-test", reason: "onStartup")
+      error = assert_raises(Gienah::Error) { instance.call("text").await(timeout: 2) }
+      assert_includes error.message, "buffer text exceeds 1 MiB"
+    ensure
+      workspace&.close
+      ENV["XDG_STATE_HOME"] = previous_state_home
+    end
+  end
+
+  private
+
+  def wait_for(timeout:)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+    until yield
+      return false if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+      sleep 0.01
+    end
+    true
+  end
 end

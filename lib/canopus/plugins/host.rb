@@ -28,11 +28,19 @@ module Canopus
         @status_items = {}
         @storage_lock = Mutex.new
         @activation_threads = {}
+        @subscribed_instances = {}
+        @selection_subscriptions = {}
+        @selection_threads = {}
+        @event_lock = Mutex.new
         register_buffer_api
         register_workspace_api
         register_ui_api
         @runtime.on_contribution { |id, contributes| register_contributions(id, contributes) }
-        @runtime.on_error { |error, _instance| @workspace.message = error.message }
+        @workspace_event_subscription = @workspace.on_plugin_event { |method, payload| handle_workspace_event(method, payload) }
+        @runtime.on_error do |error, instance|
+          cleanup_instance(instance.id) if instance&.state == :failed
+          @workspace.message = error.message
+        end
       end
 
       def discover(directories) = @runtime.discover(directories)
@@ -44,11 +52,22 @@ module Canopus
         @runtime.activate(id, reason: reason)
       end
 
-      def deactivate(id) = @runtime.deactivate(id)
+      def deactivate(id)
+        cleanup_instance(id)
+        @runtime.deactivate(id)
+      end
       def instances = @runtime.instances
       def shutdown
         @activation_threads.values.each { |thread| thread.kill unless thread.equal?(Thread.current) }
         @activation_threads.clear
+        @workspace_event_subscription&.detach
+        @selection_threads.each_value { |thread| thread.kill unless thread.equal?(Thread.current) }
+        @selection_threads.clear
+        @selection_subscriptions.each_value { |_editor, subscription| subscription.detach }
+        @selection_subscriptions.clear
+        @subscriptions.each_value(&:detach)
+        @subscriptions.clear
+        @subscribed_instances.clear
         @runtime.shutdown
       end
 
@@ -75,7 +94,11 @@ module Canopus
         expose("buffer/text", capability: "buffer.read") do |_instance, params|
           buffer = current_buffer
           range = params["range"]
-          next buffer.text unless range
+          unless range
+            text = buffer.text
+            raise Error, "buffer text exceeds 1 MiB; request a range" if text.bytesize > Plugins::BUFFER_CONTEXT_LIMIT
+            next text
+          end
           first = Integer(range.fetch("start"))
           last = Integer(range.fetch("end"))
           raise ArgumentError, "invalid buffer text range" unless first >= 0 && last >= first && last <= buffer.rope.bytesize
@@ -106,20 +129,19 @@ module Canopus
           buffer.edit(edits, kind: :plugin)
           {"version" => buffer.version}
         end
-        expose("buffer/subscribe", capability: "buffer.read") do |instance, _params|
+        expose("buffer/subscribe", capability: "buffer.read") do |instance, params|
           buffer = current_buffer
+          requested_uri = params["uri"]
+          actual_uri = buffer.path && Sadr::Protocol.uri(buffer.path)
+          raise ArgumentError, "buffer URI does not match the active buffer" if requested_uri && requested_uri != actual_uri
           key = [instance.id, buffer.object_id]
+          @subscribed_instances[instance.id] = instance
           @subscriptions[key] ||= buffer.on_edit do
-            transaction = buffer.history.last
-            changes = transaction.patch.edits.map do |edit|
-              range = Sadr::Protocol.range(buffer.rope, edit.old_range)
-              {"range" => {"start" => {"line" => range.start.line, "character" => range.start.character},
-                "end" => {"line" => range.end.line, "character" => range.end.character}}, "text" => edit.new_text}
-            end
-            instance.notify("buffer/didChange", {"uri" => buffer.path && Sadr::Protocol.uri(buffer.path), "version" => buffer.version, "changes" => changes})
+            notify_buffer_event(instance, buffer, "buffer/didChange", buffer_change_params(buffer))
           rescue StandardError
             nil
           end
+          attach_selection_listener(@workspace.editor) if @workspace.editor&.buffer.equal?(buffer)
           {"version" => buffer.version}
         end
       end
@@ -323,6 +345,100 @@ module Canopus
         raise ArgumentError, "completion item must be an object" unless item.is_a?(Hash)
         Provider::Completion.new(item.fetch("label"), item["insert_text"], item["kind"], item["detail"], item["documentation"],
           item["sort_text"], item["filter_text"], [], source)
+      end
+
+      def handle_workspace_event(method, payload)
+        case method
+        when "buffer/didOpen", "buffer/didSave"
+          attach_selection_listener(@workspace.editor) if @workspace.editor&.buffer.equal?(payload)
+          notify_buffer_event(nil, payload, method, buffer_event_params(payload))
+        when "buffer/didClose"
+          notify_buffer_event(nil, payload, method, buffer_event_params(payload))
+          detach_buffer(payload)
+        when "workspace/didChangeFiles", "settings/didChange"
+          @subscribed_instances.values.dup.each do |instance|
+            instance.notify(method, payload)
+          rescue StandardError
+            nil
+          end
+        end
+      rescue StandardError => error
+        @workspace.message = error.message
+      end
+
+      def buffer_event_params(buffer)
+        {"uri" => buffer.path && Sadr::Protocol.uri(buffer.path), "version" => buffer.version}
+      end
+
+      def buffer_change_params(buffer)
+        transaction = buffer.history.last
+        changes = transaction.patch.edits.map do |edit|
+          range = Sadr::Protocol.range(buffer.rope, edit.old_range)
+          {"range" => {"start" => {"line" => range.start.line, "character" => range.start.character},
+            "end" => {"line" => range.end.line, "character" => range.end.character}}, "text" => edit.new_text}
+        end
+        buffer_event_params(buffer).merge("changes" => changes)
+      end
+
+      def notify_buffer_event(instance, buffer, method, params)
+        targets = if instance
+          [instance]
+        else
+          @subscriptions.keys.filter_map { |id, object_id| @subscribed_instances[id] if object_id == buffer.object_id }
+        end
+        targets.uniq.each do |target|
+          target.notify(method, params)
+        rescue StandardError
+          nil
+        end
+      end
+
+      def attach_selection_listener(editor)
+        return unless editor
+        key = editor.object_id
+        return if @selection_subscriptions.key?(key)
+
+        subscription = editor.on_selection { queue_selection_event(editor) }
+        @selection_subscriptions[key] = [editor, subscription]
+      rescue StandardError
+        nil
+      end
+
+      def queue_selection_event(editor)
+        key = editor.object_id
+        @event_lock.synchronize do
+          return if @selection_threads[key]&.alive?
+
+          thread = Thread.new do
+            sleep 0.1
+            selections = editor.selections.map { |selection| {"anchor" => selection.anchor, "head" => selection.head} }
+            notify_buffer_event(nil, editor.buffer, "selection/didChange", buffer_event_params(editor.buffer).merge("selections" => selections))
+          ensure
+            @event_lock.synchronize { @selection_threads.delete(key) if @selection_threads[key].equal?(Thread.current) }
+          end
+          thread.report_on_exception = false
+          @selection_threads[key] = thread
+        end
+      end
+
+      def detach_buffer(buffer)
+        @subscriptions.keys.select { |_id, object_id| object_id == buffer.object_id }.each do |key|
+          @subscriptions.delete(key)&.detach
+        end
+        @selection_subscriptions.keys.each do |key|
+          editor, subscription = @selection_subscriptions[key]
+          next unless editor.buffer.equal?(buffer)
+
+          subscription.detach
+          @selection_subscriptions.delete(key)
+        end
+      end
+
+      def cleanup_instance(id)
+        @subscriptions.keys.select { |instance_id, _object_id| instance_id == id.to_s }.each do |key|
+          @subscriptions.delete(key)&.detach
+        end
+        @subscribed_instances.delete(id.to_s)
       end
 
       def current_buffer

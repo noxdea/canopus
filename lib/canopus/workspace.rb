@@ -53,6 +53,7 @@ module Canopus
       @message = ""
       @plugin_dialogs = []
       @plugin_status_items = {}
+      @plugin_event_listeners = []
       @project = Project.new(@root) if defined?(Project)
       dock = @settings["dock"]
       @docks = %i[left right bottom].to_h do |side|
@@ -173,6 +174,20 @@ module Canopus
       notify(@message) unless @message.empty?
       @message
     end
+    def on_plugin_event(&listener)
+      raise ArgumentError, "plugin event listener required" unless listener
+
+      @plugin_event_listeners << listener
+      Zaniah::Subscription.new { @plugin_event_listeners.delete(listener) }
+    end
+    def notify_plugin_event(method, payload = nil)
+      @plugin_event_listeners.dup.each do |listener|
+        listener.call(method, payload)
+      rescue StandardError => error
+        @message = error.message
+      end
+      nil
+    end
     def notify(text, now: Process.clock_gettime(Process::CLOCK_MONOTONIC))
       @notifications ||= []
       @notification_id = (@notification_id || 0) + 1
@@ -221,6 +236,7 @@ module Canopus
       apply_editor_settings(opened)
       @project_tree&.reveal(absolute.delete_prefix(@root + File::SEPARATOR))
       invalidate_hidden_selection_ranges
+      notify_plugin_event("buffer/didOpen", opened.buffer)
       @window&.request_frame
       opened
     end
@@ -297,6 +313,7 @@ module Canopus
           self.message = "File saved; language server notification failed: #{error.message}"
         end
       end
+      notify_plugin_event("buffer/didSave", buffer)
       result
     end
 
@@ -334,6 +351,7 @@ module Canopus
       opened = @active_pane.open(buffer)
       apply_editor_settings(opened)
       invalidate_hidden_selection_ranges
+      notify_plugin_event("buffer/didOpen", opened.buffer)
       opened
     end
     def focus(pane)
@@ -374,6 +392,7 @@ module Canopus
       raise Error, "buffer has unsaved changes" if current.buffer.dirty? && !discard
       pane = @panes.find { |item| item.editors.include?(current) }
       raise Error, "editor is not in workspace" unless pane
+      closes_buffer = buffer_refs(current.buffer).length == 1
       closed = if current.buffer.path && !current.buffer.dirty?
         ClosedTab.new(current.buffer.path, current.selections.map { |selection| [selection.anchor, selection.head] },
           current.scroll_x, current.scroll_y, pane.object_id, pane.editors.index(current))
@@ -393,6 +412,7 @@ module Canopus
       pane.close(current, discard: discard, activate: @settings["tabs"]["activate_on_close"].to_sym)
       release_buffer(current.buffer, discard: discard)
       sources.each { |source| release_buffer(source, discard: discard) }
+      notify_plugin_event("buffer/didClose", current.buffer) if closes_buffer
       remember_closed_tab(closed) if closed
       close_empty_pane(pane) if pane.editors.empty?
     end
