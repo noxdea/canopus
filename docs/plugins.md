@@ -41,6 +41,15 @@ end
 Gienah::Plugin.run
 ```
 
-Panels use the allow-listed declarative vocabulary (`column`, `row`, `text`,
-`button`, and `list`). UI rendering is cached in the editor, so a slow plugin
-cannot block a frame. Completion providers have a 200 ms response budget.
+Panels use the allow-listed declarative vocabulary (`column`, `row`, `spacer`,
+`scroll`, `divider`, `text`, `icon`, `badge`, `progress`, `code`, `button`,
+`checkbox`, `text_field`, `select`, `list`, `tree`, and `section`). Raw colors,
+images, fonts, and coordinates are not accepted. UI rendering is cached in the
+editor, so a slow plugin cannot block a frame. Completion providers have a
+200 ms response budget.
+
+The host also exposes `storage/get`, `storage/set`, `process/exec`,
+`net/fetch`, `ui/status`, `ui/quick_pick`, `ui/input`, and `ui/confirm`.
+Storage is scoped to the workspace and plugin ID. Network requests must match
+the manifest's `net:` host pattern, and dangerous operations remain gated by
+the manifest capability and workspace trust.

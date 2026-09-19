@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Fix Windows terminal reads that could stop before the child process returned output.
+- Complete the API v2 plugin host with declarative UI vocabulary, storage, external providers, and trust-aware operations.
 
 ## 0.5.0 — 2026-09-19
 

@@ -283,10 +283,11 @@ module Canopus
         instance = @runtime.instances.find { |candidate| candidate.id == plugin_id }
         unless instance
           activate_panel_async(plugin_id, panel_id)
-          return Zaniah::Text.new("Loading #{panel_id}…")
+          return Zaniah::Div.new.flex_col.gap(1).children([Zaniah::UI::Badge.new(plugin_id.to_s), Zaniah::Text.new("Loading #{panel_id}…")])
         end
         surface = surface_for(plugin_id, panel_id)
-        surface.element || Zaniah::Text.new("Loading #{panel_id}…")
+        element = surface.element || Zaniah::Text.new("Loading #{panel_id}…")
+        Zaniah::Div.new.flex_col.gap(1).children([Zaniah::UI::Badge.new(instance.manifest.name), element])
       rescue StandardError => error
         @workspace.message = error.message
         Zaniah::Text.new("Plugin unavailable")
