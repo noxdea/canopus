@@ -32,13 +32,13 @@ installable.
 ## Features
 
 - Native GPU windows on macOS, Linux, and Windows, with TUI and headless modes
-- Language-aware editing with LSP completion, diagnostics, refactoring, navigation, and multiple language-server support
+- Language-aware editing with LSP completion, diagnostics, code actions, navigation, and multiple language-server support
 - Multi-cursor and rectangular editing, Vim bindings, linked editing, and encoding-aware file handling
 - An integrated terminal with tabs, splits, profiles, shell integration, and `EDITOR="canopus --wait"` support
-- A complete Git workflow with diff, staging, commits, history, merge-conflict resolution, and remote operations
+- An integrated Git workflow with diff, staging, commits, history, merge-conflict resolution, and remote operations
 - Built-in debugging, interactive tasks, test discovery, and a filterable Problems panel
-- Persistent workspaces with tabs, splits, sessions, automatic save, undo history, and crash recovery
-- Extensible JSONC settings, keymaps, themes, and sandboxed trusted plugins
+- Workspace persistence for tabs, splits, and sessions, plus automatic save, undo history, and crash recovery
+- Extensible JSONC settings, keymaps, themes, and trusted plugins with permission controls and an optional OS sandbox
 
 ## Installation
 
