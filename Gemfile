@@ -5,6 +5,7 @@ gemspec
 
 gem "alkaid", path: ENV.fetch("ALKAID_PATH") if ENV["ALKAID_PATH"]
 gem "gienah", path: ENV.fetch("GIENAH_PATH") if ENV["GIENAH_PATH"]
+gem "zaniah", path: ENV.fetch("ZANIAH_PATH") if ENV["ZANIAH_PATH"]
 gem "antares", path: ENV.fetch("ANTARES_PATH") if ENV["ANTARES_PATH"]
 gem "megrez", path: ENV.fetch("MEGREZ_PATH") if ENV["MEGREZ_PATH"]
 gem "menkar", path: ENV.fetch("MENKAR_PATH") if ENV["MENKAR_PATH"]
