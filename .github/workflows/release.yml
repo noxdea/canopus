@@ -20,14 +20,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: noxdea/zaniah
-          ref: 6e78a3e58a2de404d605a4e5c534a25b3b084925
-          path: .ci/zaniah
-          persist-credentials: false
-      - name: Use unreleased Zaniah source
-        run: echo "ZANIAH_PATH=$GITHUB_WORKSPACE/.ci/zaniah" >> "$GITHUB_ENV"
       - name: Set up Ruby
         uses: ruby/setup-ruby@984c0c890880bbf811283d6f09c4607c62d210a4 # v1.323.0
         with:
