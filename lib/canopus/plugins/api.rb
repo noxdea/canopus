@@ -15,7 +15,11 @@ module Canopus
       end
       def text
         permit!("read_buffer")
-        @workspace.editor.buffer.text.dup.freeze
+        buffer = @workspace.editor&.buffer
+        raise Canopus::Error, "buffer is not available" unless buffer
+        raise Canopus::Error, "plugin buffer text exceeds 1 MiB" if buffer.rope.bytesize > Plugins::BUFFER_CONTEXT_LIMIT
+
+        buffer.text.dup.freeze
       end
       def replace(range, text)
         permit!("edit_buffer")

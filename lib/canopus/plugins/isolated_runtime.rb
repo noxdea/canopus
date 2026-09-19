@@ -26,7 +26,7 @@ module Canopus
       end
       def text
         permit!("read_buffer")
-        @context.fetch("text")
+        @context.fetch("text") { raise @context.fetch("text_error", "buffer text is not available") }
       end
       def files
         permit!("read_project")
@@ -96,47 +96,73 @@ module Canopus
   RUBY
 
       def initialize(workspace, source, path, permissions, timeout: 2)
-        @workspace, @permissions, @timeout = workspace, permissions.map { |permission| permission.to_s == "process" ? "exec" : permission.to_s }.uniq, timeout
+        @workspace, @plugin_id = workspace, path
+        @permissions, @timeout = permissions.map { |permission| permission.to_s == "process" ? "exec" : permission.to_s }.uniq, timeout
+        @panel_lock = Mutex.new
+        @panel_cache, @panel_refreshed, @panel_refreshing, @panel_threads = {}, {}, {}, {}
+        @closed = false
         start_process
         @input.sync = true
         @output.binmode
         @pending, @lock = +"".b, Mutex.new
         @input.puts(JSON.generate(source: source, path: path, permissions: @permissions))
         manifest = response
+        servers = manifest.fetch("servers")
+        if !servers.empty? && !@permissions.include?("exec")
+          raise Canopus::Plugins::PermissionDenied, "plugin requires process to configure language servers"
+        end
         manifest.fetch("actions").each do |name, description|
           workspace.register_action(name, description: description) { invoke(:action, name) }
         end
         manifest.fetch("panels").each do |name, side|
-          workspace.register_panel(name, side: side.to_sym) { Zaniah::Text.new(invoke(:panel, name).to_s) }
+          workspace.register_panel(name, side: side.to_sym, cache: false) { panel_element(name) }
         end
+        @panel_names = manifest.fetch("panels").keys
         manifest.fetch("languages").each { |name, options| workspace.register_language(name, **options.transform_keys(&:to_sym)) }
-        workspace.settings.merge!("language_servers" => manifest.fetch("servers"))
+        servers.each { |language, command| workspace.configure_plugin_language_server(@plugin_id, language, command) }
       rescue StandardError
         close
         raise
       end
       def invoke(kind, name)
         @lock.synchronize do
-          buffer = @workspace.editor.buffer
-          version = buffer.version
+          raise Canopus::Error, "plugin runtime is closed" if @closed
+          buffer = @workspace.editor&.buffer
+          version = buffer&.version
           context = {root: @workspace.root}
-          context[:text] = buffer.text if @permissions.include?("read_buffer")
+          if @permissions.include?("read_buffer")
+            if buffer && buffer.rope.bytesize <= Plugins::BUFFER_CONTEXT_LIMIT
+              context[:text] = buffer.text
+            else
+              context[:text_error] = "plugin buffer text exceeds 1 MiB"
+            end
+          end
           context[:files] = @workspace.files if @permissions.include?("read_project")
           @input.puts(JSON.generate(kind: kind, name: name, context: context))
           result = response
           edits = result.fetch("edits")
           unless edits.empty?
             raise Canopus::Plugins::PermissionDenied, "plugin requires edit_buffer" unless @permissions.include?("edit_buffer")
-            raise Canopus::Error, "buffer changed while plugin was running" unless buffer.version == version
+            raise Canopus::Error, "buffer changed while plugin was running" unless buffer && buffer.version == version
             buffer.edit(edits.map { |first, last, text| [first...last, text] }, kind: :plugin)
           end
           @workspace.message = result.fetch("messages").last.to_s unless result.fetch("messages").empty?
+          refresh_panels if kind == :action
           result["result"]
         end
       rescue IOError, Errno::EPIPE, EOFError => error
         raise Canopus::Error, "plugin process ended: #{error.message}"
       end
       def close
+        threads = @panel_lock.synchronize do
+          @closed = true
+          @panel_threads.keys
+        end
+        threads.each do |thread|
+          next if thread.equal?(Thread.current)
+          thread.kill
+          thread.join(0.2)
+        end
         @input&.close unless @input&.closed?
         if @process && !@process.join(0.2)
           Process.kill("KILL", @pid) rescue Errno::ESRCH
@@ -145,6 +171,53 @@ module Canopus
         @output&.close unless @output&.closed?
       end
   private
+      def panel_element(name)
+        request_panel_refresh(name)
+        Zaniah::Text.new(@panel_lock.synchronize { @panel_cache.fetch(name, "") })
+      end
+
+      def request_panel_refresh(name)
+        now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        @panel_lock.synchronize do
+          return if @closed || @panel_refreshing[name]
+          return if @panel_refreshed[name] && now - @panel_refreshed[name] < 0.25
+
+          @panel_refreshing[name] = true
+        end
+        thread = Thread.new do
+          @panel_lock.synchronize do
+            if @closed
+              @panel_refreshing.delete(name)
+              next
+            end
+            @panel_threads[Thread.current] = true
+          end
+          begin
+            result = invoke(:panel, name)
+            @panel_lock.synchronize do
+              @panel_cache[name] = result.to_s
+              @panel_refreshed[name] = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+            end
+            @workspace.window&.request_frame
+          rescue StandardError => error
+            @workspace.message = error.message unless @closed
+          ensure
+            @panel_lock.synchronize do
+              @panel_refreshing.delete(name)
+              @panel_threads.delete(Thread.current)
+            end
+          end
+        end
+        thread
+      end
+
+      def refresh_panels
+        @panel_names&.each do |name|
+          visible = %i[left right bottom].any? { |side| @workspace.panels.active(side).any? { |definition| definition.id == name } }
+          request_panel_refresh(name) if visible
+        end
+      end
+
       def start_process
         command = [RbConfig.ruby, "-e", WORKER]
         mode = @workspace.settings["plugins"].fetch("sandbox", "auto")

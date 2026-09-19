@@ -38,6 +38,44 @@ class PluginRegistryTest < Minitest::Test
       end
     end
   end
+
+  def test_configure_lsp_requires_process_permission_and_updates_settings
+    [true, false].each do |isolated|
+      with_plugin('configure_lsp("ruby", ["ruby-lsp"])') do |workspace, path|
+        assert_raises(Canopus::Plugins::PermissionDenied) do
+          workspace.plugins.load(path, trusted: true, isolated: isolated)
+        end
+      end
+      with_plugin('configure_lsp("ruby", ["ruby-lsp"])') do |workspace, path|
+        workspace.plugins.load(path, trusted: true, permissions: [:process], isolated: isolated)
+        assert_equal ["ruby-lsp"], workspace.settings["language_servers"]["ruby"]
+        assert_includes workspace.message, "ruby"
+      end
+    end
+  end
+
+  def test_plugin_buffer_context_is_bounded
+    [true, false].each do |isolated|
+      with_plugin('register_action("read") { |api| api.notify(api.text) }') do |workspace, path|
+        workspace.editor.buffer.edit([[0...0, "x" * (Canopus::Plugins::BUFFER_CONTEXT_LIMIT + 1)]])
+        workspace.plugins.load(path, trusted: true, permissions: [:read_buffer], isolated: isolated)
+        workspace.call("read")
+        assert_includes workspace.message, "exceeds 1 MiB"
+      end
+    end
+  end
+
+  def test_isolated_panel_render_returns_cached_content_without_waiting
+    with_plugin('register_panel("slow") { sleep 1; "ready" }') do |workspace, path|
+      workspace.plugins.load(path, trusted: true, isolated: true, timeout: 10)
+      panel = workspace.panels.fetch("slow")
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      element = panel.build.call
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+      assert_instance_of Zaniah::Text, element
+      assert_operator elapsed, :<, 0.25
+    end
+  end
   def test_crash_and_infinite_loop_do_not_take_down_editor
     with_plugin('register_action("crash") { exit! 7 }') do |workspace, path|
       workspace.plugins.load(path, trusted: true)

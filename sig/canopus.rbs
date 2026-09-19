@@ -409,8 +409,10 @@ module Canopus
     def resize_terminal: (Integer columns, Integer rows, ?final: bool, ?now: Numeric, ?terminal: Tarazed::PTY?) -> void
     def flush_terminal_resize: () -> void
     def toggle_dock: (Symbol side) -> bool
-    def register_panel: (String name, ?side: Panel::dock) { () -> (Zaniah::Element | String) } -> Panel::Definition
+    def register_panel: (String name, ?side: Panel::dock, ?cache: bool) { () -> (Zaniah::Element | String) } -> Panel::Definition
     def register_action: (String name, ?description: String, ?category: String, ?condition: String, ?keybinding: Command::keybinding) { (*untyped) -> untyped } -> Command::Definition
+    def uncached_panel?: (String id) -> bool
+    def configure_plugin_language_server: (String plugin, String language, untyped command) -> untyped
     def definition_for: (String? path) -> Language::Definition
     def register_language: (String name, extensions: Array[String], ?lexer: String, ?comment: String, ?indent_open: String, ?indent_close: String, ?servers: Array[Array[String]]) -> untyped
     def command_context: (?terminal: bool, ?task_output: bool) -> Command::context

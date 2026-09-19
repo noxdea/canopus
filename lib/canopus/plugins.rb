@@ -2,6 +2,7 @@
 
 module Canopus
   module Plugins
+    BUFFER_CONTEXT_LIMIT = 1 << 20
     PERMISSIONS = %w[read_buffer edit_buffer read_project write_project exec process network].freeze
     autoload :PermissionDenied, "canopus/plugins/permission_denied"
     autoload :API, "canopus/plugins/api"

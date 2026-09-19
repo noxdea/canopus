@@ -674,10 +674,19 @@ module Canopus
       dock = @docks.fetch(side)
       dock[:visible] = !dock[:visible]
     end
-    def register_panel(name, side: :left, &render)
+    def register_panel(name, side: :left, cache: true, &render)
       definition = @panels.register(Panel::Definition.new(name, name.to_s, nil, side, render, nil))
+      (@uncached_panels ||= {})[definition.id] = true unless cache
       register_action("panel.#{name}") { @panels.show(definition.id) }
       definition
+    end
+    def uncached_panel?(id) = !!@uncached_panels&.key?(id.to_s)
+    def configure_plugin_language_server(plugin, language, command)
+      language = String(language)
+      raise ArgumentError, "language server language must not be empty" if language.empty?
+      @settings.merge!("language_servers" => {language => command})
+      @message = "Plugin #{File.basename(plugin.to_s)} configured language server #{language}: #{JSON.generate(command)}"
+      command
     end
     def register_action(name, description: name, category: name.to_s.split(".", 2).first, condition: "", keybinding: Command::DEFAULT_KEYBINDINGS[name.to_s], &block)
       @commands.register(Command::Definition.new(name.to_s, description, category, condition, block, keybinding))

@@ -4,7 +4,7 @@ module Canopus
   module Plugins
     class LocalRuntime
       def initialize(workspace, source, path, permissions)
-        @workspace, @api = workspace, Canopus::Plugins::API.new(workspace, permissions)
+        @workspace, @plugin_id, @api = workspace, path, Canopus::Plugins::API.new(workspace, permissions)
         instance_eval(source, path, 1)
       end
       def register_action(name, description: name, &block)
@@ -17,7 +17,8 @@ module Canopus
       end
       def register_language(name, **options) = @workspace.register_language(name, **options)
       def configure_lsp(language, command)
-        @workspace.settings.merge!("language_servers" => {language => command})
+        @api.permit!("process")
+        @workspace.configure_plugin_language_server(@plugin_id, language, command)
       end
       def close; end
     end

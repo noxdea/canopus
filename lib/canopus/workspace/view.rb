@@ -203,9 +203,13 @@ module Canopus
           paint_element(badge, Zaniah::Bounds.new(area.right - 40, area.y + 5, 36, 22))
         end
         key = [definition.id, @workspace.editor&.buffer&.object_id, @workspace.editor&.buffer&.version, @theme.object_id]
-        @panel_cache ||= {}
-        @panel_cache.clear if @panel_cache.length > 50
-        element = @panel_cache[key] ||= definition.build.call
+        if @workspace.uncached_panel?(definition.id)
+          element = definition.build.call
+        else
+          @panel_cache ||= {}
+          @panel_cache.clear if @panel_cache.length > 50
+          element = @panel_cache[key] ||= definition.build.call
+        end
         element = Zaniah::Text.new(ui_text(element), color: @theme[:foreground]) unless element.is_a?(Zaniah::Element)
         panel = Zaniah::Div.new.w(area.width).h([area.height - 34, 0].max)
           .test_id("syrma:panel:#{instrumentation_component(definition.id)}").child(element)
