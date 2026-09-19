@@ -29,6 +29,8 @@ buffers with native rendering through [Zaniah](https://github.com/noxdea/zaniah)
 while keeping language servers, shells, and other external tools independently
 installable.
 
+![Canopus headless editor](docs/media/overview.png)
+
 ## Features
 
 - Native GPU windows on macOS, Linux, and Windows, with TUI and headless modes
@@ -205,6 +207,7 @@ git clone https://github.com/noxdea/canopus.git
 cd canopus
 bundle install
 bundle exec rake test
+bundle exec rake demo
 bundle exec rbs -I sig -r kochab -r porrima -r thuban -r alhena -r antares -r denebola -r zaniah -r sadr -r saiph -r rexml -r megrez -r tarazed -r alkaid -r stringio -r strscan validate
 bundle exec ruby tools/check_dependencies.rb test/type/smoke.rb
 ```

@@ -2,6 +2,7 @@
 
 source "https://rubygems.org"
 gemspec
+gem "wezen", github: "noxdea/wezen", branch: "main", require: false
 
 gem "alkaid", path: ENV.fetch("ALKAID_PATH") if ENV["ALKAID_PATH"]
 gem "gienah", path: ENV.fetch("GIENAH_PATH") if ENV["GIENAH_PATH"]
