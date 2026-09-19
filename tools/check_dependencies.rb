@@ -32,10 +32,10 @@ Dir.mktmpdir("#{entry}-install-") do |directory|
   gem_command = File.join(RbConfig::CONFIG.fetch("bindir"), "gem")
   environment = ENV.each_key.grep(/\ABUNDLE/).to_h { |key| [key, nil] }.merge(
     "GEM_HOME" => installation, "GEM_PATH" => ([installation] + Gem.path).join(File::PATH_SEPARATOR),
-    "RUBYLIB" => nil, "RUBYOPT" => nil, "ALKAID_PATH" => nil, "ANTARES_PATH" => nil,
+    "RUBYLIB" => nil, "RUBYOPT" => nil, "GIENAH_PATH" => nil, "ALKAID_PATH" => nil, "ANTARES_PATH" => nil,
     "MEGREZ_PATH" => nil, "MENKAR_PATH" => nil, "SADR_PATH" => nil, "SAIPH_PATH" => nil, "TARAZED_PATH" => nil
   )
-  {"ALKAID_PATH" => "alkaid", "ANTARES_PATH" => "antares", "MEGREZ_PATH" => "megrez", "MENKAR_PATH" => "menkar", "SADR_PATH" => "sadr", "SAIPH_PATH" => "saiph",
+  {"GIENAH_PATH" => "gienah", "ALKAID_PATH" => "alkaid", "ANTARES_PATH" => "antares", "MEGREZ_PATH" => "megrez", "MENKAR_PATH" => "menkar", "SADR_PATH" => "sadr", "SAIPH_PATH" => "saiph",
    "TARAZED_PATH" => "tarazed"}.each do |variable, name|
     next unless ENV[variable]
 
