@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix Windows terminal reads that could stop before the child process returned output.
+
 ## 0.5.0 — 2026-09-19
 
 ### Editing and navigation
