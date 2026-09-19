@@ -181,6 +181,9 @@ The default separate process also requests Saiph's OS sandbox. Set
 supported backend, or to `"off"` to retain the legacy process-only isolation.
 The legacy `process` permission is accepted as an alias for `exec`.
 
+Manifest-based isolated plugins use the Gienah host and declarative Zaniah UI;
+see [Plugins](docs/plugins.md).
+
 ## Documentation
 
 - [Language servers](docs/lsp.md)
@@ -189,6 +192,7 @@ The legacy `process` permission is accepted as an alias for `exec`.
 - [Vim mode](docs/vim.md)
 - [Snippets](docs/snippets.md)
 - [Completion providers](docs/providers.md)
+- [Plugins](docs/plugins.md)
 - [Workspace edits](docs/workspace_edits.md)
 - [Packaging](docs/distribution.md)
 - [Profiling and local crash reports](docs/performance.md)
