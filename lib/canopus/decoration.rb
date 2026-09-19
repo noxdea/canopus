@@ -123,7 +123,7 @@ module Canopus
         unless item.row.nil? || (item.row.is_a?(Integer) && item.row >= 0)
           raise ArgumentError, "decoration row must be nonnegative"
         end
-        unless item.range.nil? || (item.range.is_a?(Range) && item.range.begin.is_a?(Integer) && item.range.end.is_a?(Integer))
+        unless item.range.nil? || (item.range.is_a?(Range) && item.range.begin.is_a?(Integer) && item.range.end.is_a?(Integer) && item.range.begin >= 0 && item.range.end >= item.range.begin)
           raise ArgumentError, "decoration range must contain integer offsets"
         end
         raise ArgumentError, "decoration click handler must be callable" unless item.on_click.nil? || item.on_click.respond_to?(:call)

@@ -9,7 +9,7 @@ module Canopus
       MAX_PROVIDERS = 64
       MAX_ITEMS = 10_000
       MAX_STRING = 65_536
-      PROVIDER_TIMEOUT = 10
+      PROVIDER_TIMEOUT = 0.2
 
       def initialize
         @completion, @inline, @sequence = {}, {}, 0
