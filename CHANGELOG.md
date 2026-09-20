@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add a deterministic terminal walkthrough cast.
 - Add a deterministic editor demo image and regeneration task.
 
 ## 0.6.0 — 2026-09-19

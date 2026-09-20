@@ -31,6 +31,8 @@ installable.
 
 ![Canopus headless editor](docs/media/overview.png)
 
+The terminal walkthrough is available as an [asciinema cast](docs/media/terminal.cast).
+
 ## Features
 
 - Native GPU windows on macOS, Linux, and Windows, with TUI and headless modes

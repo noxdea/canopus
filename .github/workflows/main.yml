@@ -26,6 +26,9 @@ jobs:
           for file in docs/media/*.png docs/media/*.apng; do
             test "$(stat -c%s "$file")" -le 524288
           done
+          for file in docs/media/*.cast; do
+            test "$(stat -c%s "$file")" -le 102400
+          done
 
   test:
     env:

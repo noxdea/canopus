@@ -1,0 +1,7 @@
+{"version":2,"width":100,"height":30,"timestamp":0,"env":{"TERM":"xterm-256color","SHELL":"demo"},"title":"Canopus terminal"}
+[0.0,"r","100x30"]
+[0.2,"o","\u001b[2J\u001b[HCanopus terminal\r\n"]
+[0.8,"o","\u001b[32m$\u001b[0m bundle exec rake test\r\n"]
+[1.2,"o","\u001b[90mRunning deterministic checks...\u001b[0m\r\n"]
+[2.0,"o","\u001b[32mPASS\u001b[0m  128 tests, 0 failures\r\n"]
+[2.4,"o","\r\n\u001b[36mready\u001b[0m _"]
