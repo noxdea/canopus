@@ -11,6 +11,7 @@ class GitBlameTest < Minitest::Test
     git("config", "user.name", "Alice")
     git("config", "user.email", "alice@example.invalid")
     git("config", "core.autocrlf", "false")
+    git("config", "maintenance.auto", "false")
     write("example.txt", "alpha\nbeta\ngamma\n")
     git("add", ".")
     git("commit", "-qm", "Initial")
