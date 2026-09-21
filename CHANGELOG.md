@@ -1,9 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.6.1 — 2026-09-21
 
-- Add a deterministic terminal walkthrough cast.
-- Add a deterministic editor demo image and regeneration task.
+- Add a deterministic terminal walkthrough cast and editor demo image with regeneration tasks.
+- Stabilize demo output across dependency-install and macOS-generated files.
+- Prevent Git maintenance races from failing blame test cleanup.
 
 ## 0.6.0 — 2026-09-19
 
