@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "digest"
 require "tempfile"
 require "denebola"
 require_relative "denebola_compat"
@@ -26,14 +25,17 @@ module Canopus
         return new("", path: path, read_only: true, rope: rope, encoding: detection.encoding,
           bom: detection.bom, detection: detection)
       end
-      raw = File.binread(path)
+      snapshot = Xamidimura::SourceRevision.read(path)
+      raw = snapshot.bytes
       detection = detect_bytes(raw, encoding: encoding)
       raise Error, "cannot edit binary file" if detection.binary
       text = Menkar.decode(raw, detection)
       new(text, path: path, encoding: detection.encoding, bom: detection.bom, detection: detection,
-        disk_digest: Digest::SHA256.hexdigest(raw))
+        disk_digest: snapshot.digest)
     rescue Menkar::Error => error
       raise Error, error.message
+    rescue Xamidimura::Error => error
+      raise Error, "cannot read #{path}: #{error.message}"
     rescue EncodingError => error
       raise Error, "cannot decode #{path}: #{error.message}"
     end
@@ -279,7 +281,7 @@ module Canopus
         destination = File.realpath(destination) if File.symlink?(destination)
         original = File.file?(destination) ? File.binread(destination) : nil
         same_file = @path && (File.expand_path(path) == @path || (File.exist?(@path) && File.exist?(destination) && File.identical?(@path, destination)))
-        if !force && same_file && @disk_digest && (!original || Digest::SHA256.hexdigest(original) != @disk_digest)
+        if !force && same_file && @disk_digest && (!original || Xamidimura::SourceRevision.digest(original) != @disk_digest)
           raise SaveConflict, "file changed on disk: #{path}"
         end
         raise SaveConflict, "destination exists: #{path}" if !force && original && (!same_file || !@disk_digest)
@@ -301,7 +303,7 @@ module Canopus
           @detection = detection
           @encoding, @bom = detection.encoding, detection.bom
         end
-        @saved_rope, @disk_digest = snapshot, Digest::SHA256.hexdigest(encoded)
+        @saved_rope, @disk_digest = snapshot, Xamidimura::SourceRevision.digest(encoded)
         self
       end
     rescue EncodingError => error
