@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.2 — 2026-09-23
+
+- Use Xamidimura for stable source snapshots and SHA-256 save-conflict checks.
+
 ## 0.6.1 — 2026-09-21
 
 - Add a deterministic terminal walkthrough cast and editor demo image with regeneration tasks.
