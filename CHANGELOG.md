@@ -3,6 +3,7 @@
 ## 0.6.2 — 2026-09-23
 
 - Use Xamidimura for stable source snapshots and SHA-256 save-conflict checks.
+- Require CRuby 3.2 or newer for Xamidimura compatibility.
 
 ## 0.6.1 — 2026-09-21
 

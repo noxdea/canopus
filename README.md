@@ -10,7 +10,7 @@
   <a href="https://rubygems.org/gems/canopus"><img src="https://img.shields.io/gem/v/canopus.svg" alt="Gem version"></a>
   <a href="https://rubygems.org/gems/canopus"><img src="https://img.shields.io/gem/dt/canopus.svg" alt="Gem downloads"></a>
   <a href="https://github.com/noxdea/canopus/actions/workflows/main.yml"><img src="https://github.com/noxdea/canopus/actions/workflows/main.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/CRuby-%3E%3D%203.1-cc342d.svg" alt="CRuby 3.1 or newer">
+  <img src="https://img.shields.io/badge/CRuby-%3E%3D%203.2-cc342d.svg" alt="CRuby 3.2 or newer">
   <a href="LICENSE.txt"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license"></a>
 </p>
 
@@ -53,7 +53,7 @@ gem install canopus
 canopus --version
 ```
 
-Canopus requires CRuby 3.1 or newer. The launcher enables YJIT when supported
+Canopus requires CRuby 3.2 or newer. The launcher enables YJIT when supported
 and otherwise uses the interpreter. Native windows also require the `fiddle`
 standard-library component; some Ruby distributions package it separately.
 

@@ -91,7 +91,7 @@ module CanopusPackage
         $shortcut = $shell.CreateShortcut((Join-Path $Destination 'Canopus.lnk'))
         $shortcut.TargetPath = Join-Path $PSScriptRoot 'canopus.cmd'
         $shortcut.WorkingDirectory = [Environment]::GetFolderPath('UserProfile')
-        $shortcut.Description = 'Canopus text editor (requires CRuby 3.1+)'
+        $shortcut.Description = 'Canopus text editor (requires CRuby 3.2+)'
         $shortcut.Save()
       POWERSHELL
       write_windows_installers(output, version)

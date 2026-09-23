@@ -3,8 +3,8 @@
 
 require "rbconfig"
 require "rubygems"
-unless RUBY_ENGINE == "ruby" && (RUBY_VERSION.split(".").first(2).map(&:to_i) <=> [3, 1]) >= 0
-  abort "Canopus requires CRuby 3.1 or newer."
+unless RUBY_ENGINE == "ruby" && (RUBY_VERSION.split(".").first(2).map(&:to_i) <=> [3, 2]) >= 0
+  abort "Canopus requires CRuby 3.2 or newer."
 end
 unless RUBY_PLATFORM.match?(/mswin|mingw/) || RbConfig::CONFIG["YJIT_SUPPORT"] != "yes" ||
     (defined?(RubyVM::YJIT) && RubyVM::YJIT.enabled?) || ENV["CANOPUS_YJIT_REEXEC"] == "1"

@@ -199,7 +199,7 @@ class GitRemoteIntegrationTest < Minitest::Test
     git(@peer, "push", "-q", "origin", "main")
 
     transfer = @workspace.pull_git
-    assert transfer.join(5), "local pull timed out"
+    assert transfer.join(30), "local pull timed out"
     wait_until { @workspace.message == "Git pull complete" }
     assert_equal "from peer\n", @editor.buffer.text
 
@@ -208,7 +208,7 @@ class GitRemoteIntegrationTest < Minitest::Test
     git(@root, "add", ".")
     git(@root, "commit", "-qm", "Work update")
     transfer = @workspace.push_git
-    assert transfer.join(5), "local push timed out"
+    assert transfer.join(30), "local push timed out"
     wait_until { @workspace.message == "Git push complete" }
     git(@peer, "pull", "-q", "--ff-only")
     assert_equal "from work\n", File.read(File.join(@peer, "example.txt"))

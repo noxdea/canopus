@@ -13,7 +13,7 @@ and performance expectations.
 
 ## Decision
 
-Require CRuby 3.1 or newer. Attempt to enable YJIT on macOS and Linux, falling
+Require CRuby 3.2 or newer. Attempt to enable YJIT on macOS and Linux, falling
 back to the interpreter when the selected Ruby build lacks it. On native Windows,
 preserve an already enabled JIT but do not pass an unsupported YJIT flag.
 

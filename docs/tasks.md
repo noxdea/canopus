@@ -59,6 +59,6 @@ and all output parsing remains frame-budgeted. Matcher lines and unfinished
 input are limited to 64 KiB, each matcher retains at most 1,000 diagnostics,
 and regular expressions use a timeout. A matcher that times out is disabled for
 the rest of that task run while its already-published diagnostics are retained.
-On Ruby 3.1, one timeout on a complete line is deferred to the next frame before
-disabling, which avoids dropping a matcher after a transient scheduler delay;
-an unterminated final line is disabled on its first timeout.
+On unsupported Ruby 3.1, one timeout on a complete line is deferred to the next
+frame before disabling, which avoids dropping a matcher after a transient
+scheduler delay; an unterminated final line is disabled on its first timeout.

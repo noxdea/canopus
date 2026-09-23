@@ -10,7 +10,7 @@ Gem::Specification.new do |spec|
   spec.summary = "A pure Ruby text editor with persistent buffers and language tools"
   spec.homepage = "https://github.com/noxdea/canopus"
   spec.license = "MIT"
-  spec.required_ruby_version = ">= 3.1"
+  spec.required_ruby_version = ">= 3.2"
   spec.metadata = {
     "source_code_uri" => spec.homepage,
     "changelog_uri" => "#{spec.homepage}/blob/main/CHANGELOG.md",
