@@ -22,11 +22,6 @@ end
 workspace.editor.insert_text("# Canopus TUI\n\nRun the deterministic demo.\n", auto_indent: false)
 controller.tick
 capture.call(0.2)
-controller.key("ctrl-f")
-controller.tick
-capture.call(1.0)
-controller.key("esc")
-controller.tick
 capture.call(2.0)
 workspace.editor.insert_text("Ready.\n", auto_indent: false)
 controller.tick
