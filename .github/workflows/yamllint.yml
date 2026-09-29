@@ -22,5 +22,6 @@ jobs:
           yamllint_strict: true
           yamllint_format: parsable
           yamllint_comment: true
+          yamllint_config_filepath: .github/yamllint
         env:
           GITHUB_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
