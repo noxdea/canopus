@@ -1,4 +1,8 @@
-# Snippets
+---
+layout: guide
+title: Snippets
+description: Insert text templates and edit their placeholders, mirrors, and choices.
+---
 
 Canopus accepts [LSP/VS Code snippet syntax](https://code.visualstudio.com/docs/editing/userdefinedsnippets#_snippet-syntax),
 including numbered tab stops, nested defaults, mirrors, choices, variables, and

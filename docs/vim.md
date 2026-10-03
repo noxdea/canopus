@@ -1,4 +1,8 @@
-# Vim mode
+---
+layout: guide
+title: Vim mode
+description: Use modal editing, Vim motions, operators, and the supported Ex commands.
+---
 
 Set `"vim_mode": true` or use the command palette to enable modal editing. Canopus
 implements its own Vim-compatible command parser; it does not launch Vim.

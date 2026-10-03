@@ -1,4 +1,8 @@
-# Test explorer
+---
+layout: guide
+title: Test explorer
+description: Discover Ruby tests and run or debug them from the Tests panel.
+---
 
 Open the **Tests** panel with `panel.test`. Canopus discovers tests in the
 background the first time the panel opens. Run `test.refresh` after changing

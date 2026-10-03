@@ -1,0 +1,68 @@
+title: Canopus
+description: Edit code, navigate a project, and use language servers, terminals, and Git.
+url: https://noxdea.github.io
+baseurl: /canopus
+repository: noxdea/canopus
+markdown: kramdown
+plugins:
+  - jekyll-relative-links
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+defaults:
+  - scope:
+      path: docs
+    values:
+      layout: guide
+guide:
+  - title: Getting started
+    url: /docs/
+  - title: Editing and navigation
+    url: /docs/usage.html
+  - title: Settings and themes
+    url: /docs/configuration.html
+  - title: Git workflow
+    url: /docs/git.html
+  - title: Language servers
+    url: /docs/lsp.html
+  - title: Vim mode
+    url: /docs/vim.html
+  - title: Snippets
+    url: /docs/snippets.html
+  - title: Completion providers
+    url: /docs/providers.html
+  - title: Debugging
+    url: /docs/debugging.html
+  - title: Tasks
+    url: /docs/tasks.html
+  - title: Test explorer
+    url: /docs/testing.html
+  - title: Plugins
+    url: /docs/plugins.html
+  - title: Workspace edits
+    url: /docs/workspace_edits.html
+  - title: Platform setup
+    url: /docs/distribution.html
+  - title: Performance and recovery
+    url: /docs/performance.html
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - Rakefile
+  - canopus.gemspec
+  - canopus-0.1.0.gem
+  - README.md
+  - CHANGELOG.md
+  - LICENSE.txt
+  - bench
+  - bin
+  - demo
+  - docs/adr
+  - exe
+  - lib
+  - pkg
+  - sig
+  - spec
+  - test
+  - tools
+  - tmp
