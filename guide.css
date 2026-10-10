@@ -1,0 +1,56 @@
+:root{--bg:#080b12;--panel:#111723;--line:#2d3545;--text:#eef1f6;--muted:#aab2c1;--accent:#92bcff}
+*{box-sizing:border-box}
+html{color-scheme:dark;scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.7 "Avenir Next",system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--accent);text-underline-offset:.2em}
+a:hover{color:var(--text)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:4px}
+h1,h2,h3{line-height:1.2;text-wrap:balance}
+p{text-wrap:pretty}
+img{display:block;max-width:100%;height:auto}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+pre{max-width:100%;overflow:auto;padding:20px;border:1px solid var(--line);border-radius:5px;background:var(--panel);line-height:1.6}
+pre code{font-size:14px}
+.skip-link{position:absolute;top:-100px;left:20px;z-index:10;padding:10px 16px;background:var(--accent);color:var(--bg)}
+.skip-link:focus{top:12px}
+.site-header,.guide-shell,.site-footer{width:min(1360px,calc(100% - 64px));margin-inline:auto}
+.site-header{display:flex;align-items:center;justify-content:space-between;gap:24px;min-height:80px;border-bottom:1px solid var(--line)}
+.brand{font-size:24px;font-weight:600;color:var(--text);text-decoration:none}
+.brand small{font-size:14px;font-weight:400;color:var(--muted);margin-left:10px}
+.site-header nav{display:flex;flex-wrap:wrap;gap:24px;font-size:14px}
+.site-header nav a{text-decoration:none}
+.guide-shell{display:grid;grid-template-columns:215px minmax(0,1fr);gap:56px}
+.sidebar{position:sticky;top:24px;align-self:start;max-height:calc(100dvh - 48px);overflow:auto;padding-block:36px}
+.sidebar h2{font-size:14px;margin:0 0 16px}
+.sidebar a,.mobile-nav nav a{display:block;padding:7px 10px;margin-block:3px;color:var(--muted);text-decoration:none;font-size:14px}
+.sidebar a:hover,.mobile-nav nav a:hover{color:var(--accent)}
+.sidebar a[aria-current],.mobile-nav nav a[aria-current]{color:var(--accent);border-left:2px solid var(--accent);background:var(--panel)}
+.content{min-width:0;max-width:84ch;padding-block:36px 72px}
+.breadcrumb{font-size:13px;color:var(--muted);margin-top:0}
+.page-heading{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:34px}
+.page-heading h1{font-size:clamp(34px,4vw,48px);font-weight:500;margin:16px 0}
+.lead{font-size:18px;color:var(--muted);margin:0}
+.markdown{max-width:78ch}
+.markdown h2{font-size:27px;margin-block:42px 18px;scroll-margin-top:24px}
+.markdown h2:first-child{margin-top:0}
+.markdown h3{font-size:20px;margin-block:30px 14px;scroll-margin-top:24px}
+.markdown p,.markdown li{color:var(--muted)}
+.markdown strong{color:var(--text)}
+.markdown ul,.markdown ol{padding-left:24px}
+.markdown li{margin-block:7px}
+.markdown p code,.markdown li code,.markdown td code{font-size:.88em;color:var(--accent);background:var(--panel);padding:2px 4px;border-radius:3px;overflow-wrap:anywhere}
+.markdown table{display:block;max-width:100%;overflow:auto;border-collapse:collapse;border:1px solid var(--line);margin-block:24px}
+.markdown th,.markdown td{padding:10px 14px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;font-size:14px}
+.markdown th{background:var(--panel)}
+.markdown blockquote{margin:24px 0;padding:2px 20px;border-left:3px solid var(--accent);background:var(--panel)}
+.markdown img{border:1px solid var(--line);border-radius:6px;margin-block:24px}
+.pagination{display:flex;justify-content:space-between;gap:24px;margin-top:48px;padding-top:24px;border-top:1px solid var(--line)}
+.pagination a{max-width:48%;text-decoration:none}
+.pagination small{display:block;color:var(--muted)}
+.pagination .next{margin-left:auto;text-align:right}
+.site-footer{display:flex;justify-content:space-between;gap:24px;border-top:1px solid var(--line);padding-block:24px;font-size:13px;color:var(--muted)}
+.site-footer p{margin:0}
+.mobile-nav{display:none}
+@media(max-width:850px){.guide-shell{display:block}.sidebar{display:none}.content{max-width:none}.mobile-nav{display:block;margin-bottom:24px;border:1px solid var(--line);border-radius:5px}.mobile-nav summary{padding:12px 16px;cursor:pointer;color:var(--accent)}.mobile-nav nav{padding:4px 12px 12px;max-height:60dvh;overflow:auto}}
+@media(max-width:550px){.site-header,.guide-shell,.site-footer{width:calc(100% - 36px)}.site-header{flex-wrap:wrap;gap:16px;padding-block:18px}.site-header nav{gap:20px}.brand small{margin-left:6px}.content{padding-top:24px}.markdown h2{font-size:24px}.markdown pre{padding:16px}.site-footer{flex-direction:column;gap:8px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}

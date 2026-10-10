@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="{{ page.description | default: site.description | escape }}">
+  <title>{{ page.title | escape }} · {{ site.title | escape }} User Guide</title>
+  <link rel="canonical" href="{{ page.url | absolute_url }}">
+  <link rel="stylesheet" href="{{ '/guide.css' | relative_url }}">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="{{ '/' | relative_url }}">{{ site.title | escape }} <small>User guide</small></a>
+    <nav aria-label="Primary navigation">
+      <a href="{{ '/' | relative_url }}">Home</a>
+      <a href="{{ '/docs/' | relative_url }}">User guide</a>
+      <a href="https://github.com/{{ site.repository }}">GitHub</a>
+    </nav>
+  </header>
+  <div class="guide-shell">
+    <aside class="sidebar">
+      <nav aria-label="Guide chapters">
+        <h2>Using {{ site.title | escape }}</h2>
+        {% for item in site.guide %}
+        <a href="{{ item.url | relative_url }}"{% if page.url == item.url %} aria-current="page"{% endif %}>{{ item.title | escape }}</a>
+        {% endfor %}
+      </nav>
+    </aside>
+    <main id="main" class="content">
+      <details class="mobile-nav">
+        <summary>Browse the user guide</summary>
+        <nav aria-label="Mobile guide chapters">
+          {% for item in site.guide %}
+          <a href="{{ item.url | relative_url }}"{% if page.url == item.url %} aria-current="page"{% endif %}>{{ item.title | escape }}</a>
+          {% endfor %}
+        </nav>
+      </details>
+      <div class="page-heading">
+        <p class="breadcrumb"><a href="{{ '/docs/' | relative_url }}">User guide</a> / {{ page.title | escape }}</p>
+        <h1>{{ page.title | escape }}</h1>
+        <p class="lead">{{ page.description | escape }}</p>
+      </div>
+      <article class="markdown">{{ content }}</article>
+      <nav class="pagination" aria-label="Adjacent chapters">
+        {% for item in site.guide %}
+          {% if item.url == page.url %}
+            {% unless forloop.first %}
+              {% assign previous_index = forloop.index0 | minus: 1 %}
+              {% assign previous = site.guide[previous_index] %}
+              <a href="{{ previous.url | relative_url }}"><small>Previous</small>{{ previous.title | escape }}</a>
+            {% endunless %}
+            {% unless forloop.last %}
+              {% assign next = site.guide[forloop.index] %}
+              <a class="next" href="{{ next.url | relative_url }}"><small>Next</small>{{ next.title | escape }}</a>
+            {% endunless %}
+          {% endif %}
+        {% endfor %}
+      </nav>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <p>{{ site.title | escape }} is open source under the <a href="https://github.com/{{ site.repository }}/blob/main/LICENSE.txt">MIT License</a>.</p>
+    <a href="https://github.com/{{ site.repository }}/blob/main/{{ page.path }}">Edit this page on GitHub</a>
+  </footer>
+</body>
+</html>

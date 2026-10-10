@@ -1,4 +1,8 @@
-# Plugins
+---
+layout: guide
+title: Plugins
+description: Install trusted plugins and configure their permissions and isolation.
+---
 
 Canopus supports two plugin APIs. Existing Ruby plugins use `Workspace#plugins`
 and remain available for compatibility. New plugins use the isolated Gienah

@@ -1,4 +1,8 @@
-# Debug configurations
+---
+layout: guide
+title: Debugging
+description: Configure launches, manage breakpoints, and inspect a debug session.
+---
 
 Canopus reads project launch configurations from `.canopus/launch.jsonc`. The
 file is JSON with comments and trailing commas, parsed by Kochab:

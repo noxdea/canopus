@@ -1,4 +1,8 @@
-# Packaging
+---
+layout: guide
+title: Platform setup
+description: Build and install source-based desktop packages for macOS, Linux, and Windows.
+---
 
 `tools/package.rb` creates a source-based macOS app, Linux launcher and desktop
 file, or Windows launcher and shortcut installer. By default the package
@@ -54,5 +58,5 @@ its final location before installing its generated desktop file. On Windows, run
 Every package includes `manifest.json` with SHA-256 entries for its files. These
 packages are unsigned and do not bundle security updates for Ruby. Signing,
 notarization, and automatic updates require separate platform-specific release
-work. See [ADR 005](adr/005-windows-runtime.md) for the
+work. See [ADR 005](https://github.com/noxdea/canopus/blob/main/docs/adr/005-windows-runtime.md) for the
 Windows/YJIT runtime decision.

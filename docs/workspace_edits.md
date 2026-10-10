@@ -1,4 +1,8 @@
-# Language-server file operations
+---
+layout: guide
+title: Workspace edits
+description: Review language-server requests to create, rename, delete, and edit files.
+---
 
 Language servers can request ordered file creation, rename, deletion, and text
 edits. Canopus shows every resource-changing request before writing anything.

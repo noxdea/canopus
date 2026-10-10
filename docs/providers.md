@@ -1,4 +1,8 @@
-# Completion providers
+---
+layout: guide
+title: Completion providers
+description: Add and combine completion sources in plugins and embedded workspaces.
+---
 
 `workspace.providers` combines completion sources without coupling the editor to
 a particular language server. Canopus registers LSP completion itself; plugins

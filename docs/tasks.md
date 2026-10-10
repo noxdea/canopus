@@ -1,4 +1,8 @@
-# Tasks
+---
+layout: guide
+title: Tasks
+description: Define project commands, run tasks, and collect diagnostic output.
+---
 
 Project tasks live in `.canopus/tasks.jsonc`. Open **Run Task** from the command
 palette or press Cmd-Shift-B on macOS / Ctrl-Shift-B on Linux and Windows.

@@ -1,4 +1,28 @@
-# Diagnostics
+---
+layout: guide
+title: Performance and recovery
+description: Capture local performance measurements and investigate editor failures.
+---
+
+## Recover unsaved work
+
+Recovery is enabled by default. Canopus periodically saves eligible unsaved
+drafts under the project's `.canopus/recovery` directory. After an interrupted
+session, reopen the same project and choose **Restore** in the recovery prompt,
+then review and save the recovered files. **Discard** removes that recovery
+snapshot.
+
+Drafts larger than 10 MiB and snapshots above the 64 MiB storage budget are
+skipped. Recovery messages report skipped data; keep saving regularly when
+working with large files. You can change the interval in milliseconds with
+`recovery.interval` or disable recovery with `recovery.enabled: false` in
+[Settings and themes](configuration.md).
+
+Use `--session .canopus/session.json` to keep tabs, pane layout, and cursor
+positions across normal launches; see [Editing and navigation](usage.md#work-in-two-panes).
+Recovery and sessions are local files, separate from crash reports.
+
+## Record performance and failures
 
 Profiling and crash reports are opt-in:
 

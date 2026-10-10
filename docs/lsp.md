@@ -1,4 +1,8 @@
-# Language servers
+---
+layout: guide
+title: Language servers
+description: Connect installed language servers for completion, diagnostics, and code actions.
+---
 
 Canopus uses separately installed language servers over LSP 3.17. Configure a
 server with an argument array or an options object:
