@@ -18,8 +18,8 @@ class TaskProblemMatcherTest < Minitest::Test
     matcher = build(pattern: {"regexp" => "^(.+):(\\d+):(\\d+): (warning|error): (.+)$",
       "file" => 1, "line" => 2, "column" => 3, "severity" => 4, "message" => 5})
 
-    refute matcher.feed("\e[31mlib/example.rb:1:")
-    assert matcher.feed("2: warning: 日本語\e[0m\n")
+    refute matcher.feed("\e[31mlib/example.rb:1:", max_seconds: 1)
+    assert matcher.feed("2: warning: 日本語\e[0m\n", max_seconds: 1)
 
     uri, diagnostics = matcher.diagnostics.first
     assert_equal Sadr::Protocol.uri(File.realpath(File.join(@root, "lib", "example.rb"))), uri
@@ -34,35 +34,35 @@ class TaskProblemMatcherTest < Minitest::Test
       {"regexp" => "^ERROR: (.+)$", "message" => 1}
     ])
 
-    refute matcher.feed("lib/example.rb:1\nnot an error\n")
-    assert matcher.feed("lib/example.rb:1\nERROR: broken\n")
+    refute matcher.feed("lib/example.rb:1\nnot an error\n", max_seconds: 1)
+    assert matcher.feed("lib/example.rb:1\nERROR: broken\n", max_seconds: 1)
     assert_equal ["broken"], matcher.diagnostics.values.flatten.map { |item| item["message"] }
   end
 
   def test_watch_clears_each_cycle_and_active_on_start_has_standard_meaning
     matcher = build(pattern: basic_pattern,
       background: {"begins_pattern" => "^BEGIN$", "ends_pattern" => "^END$", "active_on_start" => false})
-    refute matcher.feed("lib/example.rb:1: ignored\n")
+    refute matcher.feed("lib/example.rb:1: ignored\n", max_seconds: 1)
     assert matcher.diagnostics.empty?
-    refute matcher.feed("BEGIN\n")
-    assert matcher.feed("lib/example.rb:1: first\n")
+    refute matcher.feed("BEGIN\n", max_seconds: 1)
+    assert matcher.feed("lib/example.rb:1: first\n", max_seconds: 1)
     assert_equal ["first"], messages(matcher)
-    refute matcher.feed("END\nlib/example.rb:1: ignored again\n")
+    refute matcher.feed("END\nlib/example.rb:1: ignored again\n", max_seconds: 1)
     assert_equal ["first"], messages(matcher)
-    assert matcher.feed("BEGIN\n")
+    assert matcher.feed("BEGIN\n", max_seconds: 1)
     assert_empty matcher.diagnostics
 
     active = build(pattern: basic_pattern,
       background: {"begins_pattern" => "^BEGIN$", "ends_pattern" => "^END$", "active_on_start" => true})
-    assert active.feed("lib/example.rb:1: ready\n")
+    assert active.feed("lib/example.rb:1: ready\n", max_seconds: 1)
     assert_equal ["ready"], messages(active)
   end
 
   def test_ignores_missing_and_outside_files_and_bounds_unterminated_input
     matcher = build(pattern: basic_pattern)
-    refute matcher.feed("missing.rb:1: missing\n")
-    refute matcher.feed("../outside.rb:1: outside\n")
-    refute matcher.feed("x" * (Canopus::Task::ProblemMatcher::MAX_PENDING_BYTES + 100))
+    refute matcher.feed("missing.rb:1: missing\n", max_seconds: 1)
+    refute matcher.feed("../outside.rb:1: outside\n", max_seconds: 1)
+    refute matcher.feed("x" * (Canopus::Task::ProblemMatcher::MAX_PENDING_BYTES + 100), max_seconds: 1)
     assert_operator matcher.instance_variable_get(:@pending).bytesize,
       :<=, Canopus::Task::ProblemMatcher::MAX_PENDING_BYTES
   end
@@ -74,7 +74,7 @@ class TaskProblemMatcherTest < Minitest::Test
     File.symlink(File.join(outside, "outside.rb"), File.join(@root, "linked.rb"))
 
     matcher = build(pattern: basic_pattern)
-    refute matcher.feed("linked.rb:1: escaped\n")
+    refute matcher.feed("linked.rb:1: escaped\n", max_seconds: 1)
     assert_empty matcher.diagnostics
   ensure
     FileUtils.remove_entry(outside) if outside && File.exist?(outside)
