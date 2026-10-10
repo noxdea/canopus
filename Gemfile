@@ -4,15 +4,15 @@ source "https://rubygems.org"
 gemspec
 gem "wezen", "~> 0.1.0", require: false
 
-gem "alkaid", path: ENV.fetch("ALKAID_PATH") if ENV["ALKAID_PATH"]
-gem "gienah", path: ENV.fetch("GIENAH_PATH") if ENV["GIENAH_PATH"]
-gem "zaniah", path: ENV.fetch("ZANIAH_PATH") if ENV["ZANIAH_PATH"]
-gem "antares", path: ENV.fetch("ANTARES_PATH") if ENV["ANTARES_PATH"]
-gem "megrez", path: ENV.fetch("MEGREZ_PATH") if ENV["MEGREZ_PATH"]
-gem "menkar", path: ENV.fetch("MENKAR_PATH") if ENV["MENKAR_PATH"]
-gem "sadr", path: ENV.fetch("SADR_PATH") if ENV["SADR_PATH"]
-gem "saiph", path: ENV.fetch("SAIPH_PATH") if ENV["SAIPH_PATH"]
-gem "tarazed", path: ENV.fetch("TARAZED_PATH") if ENV["TARAZED_PATH"]
+path(ENV.fetch("ALKAID_PATH")) { gem "alkaid" } if ENV["ALKAID_PATH"]
+path(ENV.fetch("GIENAH_PATH")) { gem "gienah" } if ENV["GIENAH_PATH"]
+path(ENV.fetch("ZANIAH_PATH")) { gem "zaniah" } if ENV["ZANIAH_PATH"]
+path(ENV.fetch("ANTARES_PATH")) { gem "antares" } if ENV["ANTARES_PATH"]
+path(ENV.fetch("MEGREZ_PATH")) { gem "megrez" } if ENV["MEGREZ_PATH"]
+path(ENV.fetch("MENKAR_PATH")) { gem "menkar" } if ENV["MENKAR_PATH"]
+path(ENV.fetch("SADR_PATH")) { gem "sadr" } if ENV["SADR_PATH"]
+path(ENV.fetch("SAIPH_PATH")) { gem "saiph" } if ENV["SAIPH_PATH"]
+path(ENV.fetch("TARAZED_PATH")) { gem "tarazed" } if ENV["TARAZED_PATH"]
 
 group :development, :test do
   gem "rake", "~> 13.0"
