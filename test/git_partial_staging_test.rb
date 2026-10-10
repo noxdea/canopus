@@ -10,6 +10,7 @@ class GitPartialStagingTest < Minitest::Test
     git("init", "-q")
     git("config", "user.name", "Canopus Test")
     git("config", "user.email", "canopus@example.invalid")
+    git("config", "maintenance.auto", "false")
     write("mixed.txt", (1..12).map { |line| "base #{line}\n" }.join)
     write("delete.txt", "one\ntwo\n")
     write("projection.txt", "a\nb\nc\nd\n")

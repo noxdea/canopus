@@ -10,6 +10,7 @@ class GitStagingTest < Minitest::Test
     git("init", "-q")
     git("config", "user.name", "Canopus Test")
     git("config", "user.email", "canopus@example.invalid")
+    git("config", "maintenance.auto", "false")
     %w[tracked.txt mixed.txt removed.txt].each { |path| File.binwrite(File.join(@root, path), "base\n") }
     git("add", ".")
     git("commit", "-qm", "initial")
@@ -167,6 +168,7 @@ class GitStagingTest < Minitest::Test
     git_in(submodule, "init", "-q")
     git_in(submodule, "config", "user.name", "Canopus Test")
     git_in(submodule, "config", "user.email", "canopus@example.invalid")
+    git_in(submodule, "config", "maintenance.auto", "false")
     File.binwrite(File.join(submodule, "dependency.txt"), "one\n")
     git_in(submodule, "add", "dependency.txt")
     git_in(submodule, "commit", "-qm", "initial")

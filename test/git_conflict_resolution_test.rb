@@ -11,6 +11,7 @@ class GitConflictResolutionTest < Minitest::Test
     git("init", "-q", "-b", "main")
     git("config", "user.name", "Canopus Test")
     git("config", "user.email", "canopus@example.invalid")
+    git("config", "maintenance.auto", "false")
     write("seed.txt", "seed\n")
     git("add", ".")
     git("commit", "-qm", "Initial")

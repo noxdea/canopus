@@ -174,6 +174,7 @@ class GitRemoteIntegrationTest < Minitest::Test
     @base = Dir.mktmpdir("canopus-git-remote-integration-")
     @root, @origin, @peer = %w[work origin.git peer].map { |name| File.join(@base, name) }
     git(nil, "init", "-q", "--bare", @origin)
+    git(@origin, "config", "maintenance.auto", "false")
     git(nil, "init", "-q", "-b", "main", @root)
     configure(@root)
     File.binwrite(File.join(@root, "example.txt"), "base\n")
@@ -219,6 +220,7 @@ class GitRemoteIntegrationTest < Minitest::Test
   def configure(directory)
     git(directory, "config", "user.name", "Remote Test")
     git(directory, "config", "user.email", "remote@example.invalid")
+    git(directory, "config", "maintenance.auto", "false")
     git(directory, "config", "core.autocrlf", "false")
   end
 

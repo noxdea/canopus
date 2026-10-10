@@ -11,6 +11,7 @@ class GitDiffViewTest < Minitest::Test
     git("init", "-q", "-b", "main")
     git("config", "user.name", "Canopus Test")
     git("config", "user.email", "canopus@example.invalid")
+    git("config", "maintenance.auto", "false")
     write("example.txt", "hello old world\n")
     write("binary.dat", "\0old".b)
     write("utf16.txt", "\xFF\xFE".b + "old text\n".encode(Encoding::UTF_16LE).b)

@@ -10,6 +10,7 @@ class GitHistoryTest < Minitest::Test
     git("init", "-q", "-b", "main")
     git("config", "user.name", "History Test")
     git("config", "user.email", "history@example.invalid")
+    git("config", "maintenance.auto", "false")
     write("base.txt", "base\n")
     git("add", ".")
     git("commit", "-qm", "Initial")

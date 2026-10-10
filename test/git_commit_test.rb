@@ -10,6 +10,7 @@ class GitCommitTest < Minitest::Test
     git("init", "-q", "-b", "main")
     git("config", "user.name", "Original Author")
     git("config", "user.email", "original@example.invalid")
+    git("config", "maintenance.auto", "false")
     write("tracked.txt", "initial\n")
     git("add", ".")
     git("commit", "-qm", "Initial")
