@@ -42,5 +42,5 @@ Gem::Specification.new do |spec|
   spec.add_dependency "timeout", ">= 0.3", "< 1"
   spec.add_dependency "unicode-display_width", "~> 3.2"
   spec.add_dependency "xamidimura", "~> 0.1.0"
-  spec.add_dependency "zaniah", "~> 0.6.0"
+  spec.add_dependency "zaniah", ">= 0.6", "< 0.13"
 end
