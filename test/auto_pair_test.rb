@@ -83,7 +83,8 @@ class AutoPairTest < Minitest::Test
       window = Zaniah::Platform.open_window(width: 640, height: 260)
       controller = Canopus::Controller.new(workspace, window)
       editor = workspace.editor
-      controller.instance_variable_set(:@clipboard, "(")
+      window.singleton_class.attr_accessor :clipboard
+      window.clipboard = "("
       controller.key("cmd-v")
       assert_equal "(", editor.buffer.text
 
