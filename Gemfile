@@ -18,7 +18,7 @@ group :development, :test do
   gem "rake", "~> 13.0"
   gem "minitest", "~> 6.0"
   gem "minitest-mock", "~> 5.27"
-  gem "rbs", "~> 3.9"
+  gem "rbs", "~> 4.1"
   gem "base64", "~> 0.2"
   gem "rspec-core", "~> 3.12"
   gem "diff-lcs", "~> 1.6"
