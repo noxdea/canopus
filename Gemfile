@@ -17,6 +17,7 @@ path(ENV.fetch("TARAZED_PATH")) { gem "tarazed" } if ENV["TARAZED_PATH"]
 group :development, :test do
   gem "rake", "~> 13.0"
   gem "minitest", "~> 6.0"
+  gem "minitest-mock", "~> 5.27"
   gem "rbs", "~> 3.9"
   gem "base64", "~> 0.2"
   gem "rspec-core", "~> 3.12"
