@@ -21,6 +21,6 @@ group :development, :test do
   gem "rbs", "~> 4.1"
   gem "base64", "~> 0.2"
   gem "rspec-core", "~> 3.12"
-  gem "diff-lcs", "~> 1.6"
+  gem "diff-lcs", "~> 2.0"
   gem "fiddle", "~> 1.1"
 end
