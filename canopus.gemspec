@@ -30,7 +30,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "kochab", "~> 0.2.0"
   spec.add_dependency "megrez", "~> 0.1.1"
   spec.add_dependency "menkar", "~> 0.1.0"
-  spec.add_dependency "porrima", "~> 0.2.0"
+  spec.add_dependency "porrima", ">= 0.2", "< 0.4"
   spec.add_dependency "prism", "~> 1.0"
   spec.add_dependency "rexml", ">= 3.2", "< 4"
   spec.add_dependency "rouge", "~> 5.0"
