@@ -51,6 +51,7 @@ jobs:
       - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
         with:
           ruby-version: ${{ matrix.ruby }}
+          rubygems: ${{ runner.os == 'Windows' && '4.1.0' || 'default' }}
           bundler: default
       - run: bundle install
       - run: bundle exec rake test
